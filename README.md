@@ -1,5 +1,9 @@
 # TailorLang
 
+<p align="center">
+<img src="tailorlang-0.1.PNG" width="50%" height="50%">
+<p align="center">
+
 TailorLang is the first DSL for parametric clothing with accurate cloth fitting. The project is motivated by the fact there is still no way to accurately determine how a piece of fabric fits the 3D body.
 The central result for solving the fitting problem is to find "characteristic" pieces of fabric that fit specified body areas. As part of the TailorLang, the algorithm for finding the characteristic pieces
 of fabric will be implemented.
