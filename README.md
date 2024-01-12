@@ -10,6 +10,14 @@ of fabric will be implemented.
 
 This is an ongoing project.
 
+## Installation
+
+Use Docker to build an image (`docker build -t <img-name> .`) and run the container (`docker run -it -v <project-path>:/<project-name> <img-name>`).
+
+## Running
+
+Within the container, run `python main.py`. To change the parameters, for now, manually update const.py (`SHIRT_LENGTH`, `SLEEVE_LENGTH`, `PANT_LENGTH`).
+
 ## Roadmap
 
 - [X] Select the corresponding SMPL area based on specified (fixed) seam indices
