@@ -14,7 +14,18 @@ RUN apt update && apt install -y \
     llvm-6.0-tools \
     git \
     wget \
-    vim
+    vim \
+    gcc \
+    g++ \
+    git \
+    cmake \
+    libgmp-dev \
+    libmpfr-dev \
+    libgmpxx4ldbl \
+    libboost-dev \
+    libboost-thread-dev \
+    zip unzip patchelf && \
+    apt-get clean
 
 RUN pip install --ignore-installed \
 	tripy \
@@ -25,8 +36,9 @@ RUN pip install --ignore-installed \
 	smplx \
 	scipy \
 	einops \
-	chumpy
+	chumpy \
+	open3d
 
-RUN mkdir -p /Patternity
+RUN mkdir -p /TailorLang
 
-WORKDIR /Patternity
+WORKDIR /TailorLang
