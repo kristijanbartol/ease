@@ -37,7 +37,9 @@ RUN pip install --ignore-installed \
 	scipy \
 	einops \
 	chumpy \
-	open3d
+	open3d \
+    trimesh \
+    rtree
 
 RUN mkdir -p /TailorLang
 

@@ -56,6 +56,40 @@ class Garment:
         selected_vertices.update(thresh_boundaries)
 
         return list(selected_vertices)
+    
+    def flood_fill_vertices_subdivided(self, vertex_positions, boundary_vertices, start_vertex):
+        # Convert boundary vertices to a set for efficient lookup
+        boundary_set = set(boundary_vertices)
+
+        # Initialize the stack with the start vertex, which is assumed to be inside the boundary and above the y_threshold
+        stack = [start_vertex]
+
+        # Initialize the set to keep track of visited vertices
+        visited = set()
+
+        # Initialize the set to store the selected vertices
+        selected_vertices = set()
+
+        while stack:
+            # Pop the last vertex from the stack
+            vertex_idx = stack.pop()
+
+            # If the vertex has not been visited yet and is not on the boundary or below y_threshold, process it
+            if vertex_idx not in visited and vertex_idx not in boundary_set:
+                # Mark the vertex as visited and add to selected
+                visited.add(vertex_idx)
+                selected_vertices.add(vertex_idx)
+
+                # Iterate over the neighbors of the current vertex
+                for neighbor_idx in self.adjacency_list[vertex_idx]:
+                    # If the neighbor hasn't been visited, add it to the stack
+                    if neighbor_idx not in visited:
+                        stack.append(neighbor_idx)
+        
+        # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
+        selected_vertices.update(boundary_vertices)
+
+        return list(selected_vertices)
 
     def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
         # Get the X coordinates of the starting and ending seam vertices

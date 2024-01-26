@@ -1,4 +1,7 @@
 import numpy as np
+import open3d as o3d
+import scipy
+import trimesh
 
 
 def compute_vertex_normals(verts, faces):
@@ -28,3 +31,64 @@ def apply_offset_to_verts(verts, faces, offset):
     offset_verts = verts + vertex_normals * offset
 
     return offset_verts
+
+
+def subdivide_mesh(verts, faces):
+    o3d_verts = o3d.utility.Vector3dVector(verts)
+    o3d_faces = o3d.utility.Vector3iVector(faces)
+
+    mesh = o3d.geometry.TriangleMesh()
+    mesh.vertices = o3d_verts
+    mesh.triangles = o3d_faces
+    mesh.compute_vertex_normals()
+    mesh = mesh.subdivide_loop(number_of_iterations=2)
+
+    return np.asarray(mesh.vertices), np.asarray(mesh.triangles)
+
+
+def bezier_curve(t, control_points):
+    """ Compute a point on a Bezier curve with given control points and parameter t """
+    n = len(control_points) - 1
+    return sum(
+        scipy.special.comb(n, i) * (1 - t)**(n - i) * t**i * control_points[i]
+        for i in range(n + 1)
+    )
+
+
+def project_points_to_nearest_vertices(points, mesh):
+    """
+    Project each point in 'points' to the nearest vertex on 'mesh'.
+    :param points: A list or a numpy array of points (Nx3).
+    :param mesh: A trimesh.Trimesh object representing the mesh.
+    :return: A numpy array of points projected onto the nearest vertices of the mesh.
+    """
+    # KDTree for efficient nearest neighbor search
+    #kdtree = trimesh.kdtree.KDTree(mesh.vertices)
+    kdtree = scipy.spatial.KDTree(mesh.vertices)
+
+    # Find the nearest vertex for each point
+    _, vertex_indices = kdtree.query(points)
+
+    # Project points onto the nearest vertices
+    projected_points = mesh.vertices[vertex_indices].copy()
+    return projected_points
+
+
+def project_points_to_nearest_faces(mesh, points):
+    # Project points onto the nearest faces
+    _, _, triangle_ids = trimesh.proximity.closest_point(mesh, points)
+
+    # Select all the vertices within the selected triangles as boundaries
+    boundary_vertex_idxs = []
+    for triangle_id in triangle_ids:
+        boundary_vertex_idxs.extend(mesh.faces[triangle_id])
+    return boundary_vertex_idxs
+
+
+def find_init_vertex_idx(mesh, start_point):
+    # Offset the provided starting point in the Z direction to project it to the mesh surface.
+    start_point[2] += start_point[2] + 0.1
+    # Project from the offset point and find a corresponding triangle ID.
+    triangle_id = trimesh.proximity.closest_point(mesh, np.expand_dims(start_point, 0))[2][0]
+    # Select any vertex from the triangle specified by the ID (for example, vertex 0).
+    return mesh.faces[triangle_id][0]

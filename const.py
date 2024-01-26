@@ -1,3 +1,17 @@
+KEYPOINTS = {
+    'upper_front': {
+        'neck': [4094, 3171, 607],
+        'left_shoulder': [607, 3010],
+        'left_arm': [3010, 674, 1285],
+        'left_side': [1285, 618],
+        'right_shoulder': [4094, 6469],
+        'right_arm': [6469, 4162, 4767],
+        'right_side': [4767, 4106],
+        'bottom': []
+    }
+}
+
+
 RIGHT_ARMPIT = [
     4767, 4766, 4892, 4891, 6412, 4132, 4131, 4134, 4106, 4109, 6300, 4959, 4962,
     4804, 4118, 4121, 4165, 4332, 6378, 5259, 5258, 4423, 4311, 4927, 4801, 4712,
@@ -83,7 +97,7 @@ INIT_LEFT_FRONT_PANT = 1479
 INIT_RIGHT_BACK_PANT = 4339
 INIT_LEFT_BACK_PANT = 897
 
-SHIRT_LENGTH = 0.25
+SHIRT_LENGTH = 0.35
 SLEEVE_LENGTH = 0.4
 PANT_LENGTH = 0.5
 
