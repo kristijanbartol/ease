@@ -3,6 +3,23 @@ import open3d as o3d
 import scipy
 import trimesh
 
+from const import (
+    INIT_LEFT_BACK_PANT,
+    INIT_LEFT_FRONT_PANT,
+    INIT_RIGHT_BACK_PANT,
+    INIT_RIGHT_FRONT_PANT,
+    INIT_LEFT_SLEEVE,
+    INIT_RIGHT_SLEEVE,
+    INIT_UPPER_BACK,
+    INIT_UPPER_FRONT,
+    KEYPOINTS,
+    PANT_LENGTH,
+    SEAM_IDX_DICT,
+    SHIRT_LENGTH,
+    SLEEVE_LENGTH
+)
+from seams import extract_parameterized_seams
+
 
 def compute_vertex_normals(verts, faces):
     # Calculate the normals for each face
@@ -74,7 +91,7 @@ def project_points_to_nearest_vertices(points, mesh):
     return projected_points
 
 
-def project_points_to_nearest_faces(mesh, points):
+def project_boundaries_using_faces(mesh, points):
     # Project points onto the nearest faces
     _, _, triangle_ids = trimesh.proximity.closest_point(mesh, points)
 
@@ -85,10 +102,74 @@ def project_points_to_nearest_faces(mesh, points):
     return boundary_vertex_idxs
 
 
-def find_init_vertex_idx(mesh, start_point):
+def project_boundaries(mesh, points):
+    """Project Bezier curves to the mesh surface.
+    
+    Extract set of boundary faces (provided as keys in the returning dictionary).
+    Extract list of boundary points, used to traverse along the boundary when 
+    selecting the starting points for warp/weft directions.
+    Create a face-to-boundary-points dictionary for quick access to the corresponding
+    boundary points, given the face.
+    """
+    boundary_points, _, boundary_faces = trimesh.proximity.closest_point(mesh, points)
+    face_to_points_dict = {}
+    for idx, face in enumerate(boundary_faces):
+        face_to_points_dict[face] = (
+            boundary_points[idx-1],
+            boundary_points[idx],
+            boundary_points[idx+1]
+        )
+    return face_to_points_dict, boundary_points
+
+
+def extract_boundaries(
+        args,
+        orig_verts,
+        sub_verts,
+        body_part_keypoints,
+        num_points
+    ):
+    # TODO: Process all the body parts.
+    BODY_PART = 'upper_front'
+    t_values = np.linspace(0, 1, num_points)
+    body_part_curve_points = np.empty((0, 3))
+    bottom_left_point, bottom_right_point = None, None
+    # Iterate over boundaries of the body part
+    for boundary_key in body_part_keypoints:
+        control_point_idx_list = body_part_keypoints[boundary_key]
+        control_points = [orig_verts[idx] for idx in control_point_idx_list]
+
+        # Select Bezier control points based on the length parameter
+        if boundary_key == 'left_side':
+            _, bottom_left_point = extract_parameterized_seams(
+                verts=sub_verts, 
+                garment_length=args.shirt_length, 
+                seam_vertex_indices=SEAM_IDX_DICT[BODY_PART]['left_armpit']
+            )
+            control_points.append(bottom_left_point)
+        if boundary_key == 'right_side':
+            _, bottom_right_point = extract_parameterized_seams(
+                verts=sub_verts, 
+                garment_length=args.shirt_length, 
+                seam_vertex_indices=SEAM_IDX_DICT[BODY_PART]['right_armpit']
+            )
+            control_points.append(bottom_right_point)
+        if boundary_key == 'bottom':
+            mid_point = (bottom_left_point + bottom_right_point) / 2
+            mid_point[2] += 0.1
+            control_points.extend([bottom_left_point, mid_point, bottom_right_point])
+
+        # Obtain Bezier curve points and concatenate to the list of unprojected boundaries
+        body_part_curve_points = np.vstack([
+            body_part_curve_points,
+            np.array([bezier_curve(t, control_points) for t in t_values])
+        ])
+
+
+def find_init_face(mesh, start_point):
     # Offset the provided starting point in the Z direction to project it to the mesh surface.
     start_point[2] += start_point[2] + 0.1
     # Project from the offset point and find a corresponding triangle ID.
     triangle_id = trimesh.proximity.closest_point(mesh, np.expand_dims(start_point, 0))[2][0]
     # Select any vertex from the triangle specified by the ID (for example, vertex 0).
-    return mesh.faces[triangle_id][0]
+    return mesh.faces[triangle_id]

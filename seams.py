@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, inner_seams=False):
     remaining_length = garment_length
     last_point = None

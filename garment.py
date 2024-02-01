@@ -1,13 +1,17 @@
 import numpy as np
 
-from geometry import apply_offset_to_verts
+from geometry import (
+    apply_offset_to_verts,
+    find_init_face
+)
 
 
 class Garment:
     def __init__(self, verts, faces):
         self.verts = verts
         self.faces = faces
-        self.adjacency_list = self.build_vertex_adjacency_list(faces)
+        self.vertex_adjacency_list = self.build_vertex_adjacency_list(faces)
+        self.face_adjacency_list = self.build_face_adjacency_list(faces)
 
     @staticmethod
     def build_vertex_adjacency_list(F):
@@ -21,7 +25,30 @@ class Garment:
                 adjacency_list[vertex].remove(vertex)  # A vertex is not a neighbor to itself
         return adjacency_list
 
-    def flood_fill_vertices(self, vertex_positions, boundary_vertices, y_threshold, start_vertex):
+    @staticmethod
+    def build_face_adjacency_list(faces):
+        # Initialize the adjacency list
+        adjacency_list = {i: set() for i in range(len(faces))}
+        
+        # Initialize a vertex-to-face map
+        vertex_to_face = {}
+        for i, face in enumerate(faces):
+            for vertex in face:
+                if vertex not in vertex_to_face:
+                    vertex_to_face[vertex] = set()
+                vertex_to_face[vertex].add(i)
+        
+        # Build the adjacency list
+        for face_index, face in enumerate(faces):
+            for vertex in face:
+                adjacent_faces = vertex_to_face[vertex]
+                for adj_face_index in adjacent_faces:
+                    if adj_face_index != face_index:
+                        adjacency_list[face_index].add(adj_face_index)
+        
+        return adjacency_list
+
+    def flood_fill_vertices_deprecated(self, vertex_positions, boundary_vertices, y_threshold, start_vertex):
         # Convert boundary vertices to a set for efficient lookup
         boundary_set = set(boundary_vertices)
 
@@ -45,7 +72,7 @@ class Garment:
                 selected_vertices.add(vertex_idx)
 
                 # Iterate over the neighbors of the current vertex
-                for neighbor_idx in self.adjacency_list[vertex_idx]:
+                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
                     # If the neighbor hasn't been visited, add it to the stack
                     if neighbor_idx not in visited:
                         stack.append(neighbor_idx)
@@ -81,7 +108,7 @@ class Garment:
                 selected_vertices.add(vertex_idx)
 
                 # Iterate over the neighbors of the current vertex
-                for neighbor_idx in self.adjacency_list[vertex_idx]:
+                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
                     # If the neighbor hasn't been visited, add it to the stack
                     if neighbor_idx not in visited:
                         stack.append(neighbor_idx)
@@ -90,6 +117,26 @@ class Garment:
         selected_vertices.update(boundary_vertices)
 
         return list(selected_vertices)
+    
+    @staticmethod
+    def extract_starting_face(boundary_points):
+        return find_init_face(boundary_points.mean())
+
+    def select_faces(self, boundary_faces, starting_face):
+        """Select the inner faces using the Flood Fill algorithm."""
+        stack = [starting_face]
+        visited = set()
+        selected = set()
+        while stack:
+            face = stack.pop()
+            if face not in visited and face not in boundary_faces:
+                visited.add(face)
+                selected.add(face)
+                for neighbor_face in self.face_adjacency_list[face]:
+                    if neighbor_face not in visited:
+                        stack.append(neighbor_face)
+        selected.update(boundary_faces)
+        return selected
 
     def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
         # Get the X coordinates of the starting and ending seam vertices

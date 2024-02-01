@@ -1,3 +1,10 @@
+'''
+Use for selecting the garment submeshes.
+
+Relevant at the point when PBS will be applied, until then, the
+3D grid creation operations can be done on the original mesh.
+'''
+
 import trimesh
 import numpy as np
 
@@ -19,13 +26,15 @@ from const import (
 from garment import Garment
 from geometry import (
     bezier_curve,
-    determine_pant_seams,
-    determine_shirt_seams,
     find_init_vertex_idx,
-    project_points_to_nearest_faces,
+    project_boundaries_using_faces,
     subdivide_mesh
 )
-from seams import extract_parameterized_seams
+from seams import (
+    determine_pant_seams,
+    determine_shirt_seams,
+    extract_parameterized_seams
+)
 from utils import (
     export_to_ply,
     update_color_indices
@@ -87,7 +96,7 @@ def select_subdivided(args, smpl_model):
 
         # Project the Bezier curve boundaries to the mesh surface
         # TODO: Project to the triangles instead of vertices for smoother cut-out surface.
-        projected_vertex_idxs = project_points_to_nearest_faces(
+        projected_vertex_idxs = project_boundaries_using_faces(
             mesh=mesh,
             points=body_part_curve_points
         )
@@ -135,11 +144,11 @@ def select_original(smpl_model):
 
     # For the front shirt
     seam_idxs_front, y_shirt_threshold = determine_shirt_seams(verts, SHIRT_LENGTH, SEAM_IDX_DICT['upper_front'])
-    front_v_idxs = garment.flood_fill_vertices(verts, seam_idxs_front, y_shirt_threshold, INIT_UPPER_FRONT)
+    front_v_idxs = garment.flood_fill_vertices_deprecated(verts, seam_idxs_front, y_shirt_threshold, INIT_UPPER_FRONT)
     
     # For the back shirt
     seam_idxs_back, _ = determine_shirt_seams(verts, SHIRT_LENGTH, SEAM_IDX_DICT['upper_back'])
-    back_v_idxs = garment.flood_fill_vertices(verts, seam_idxs_back, y_shirt_threshold, INIT_UPPER_BACK)
+    back_v_idxs = garment.flood_fill_vertices_deprecated(verts, seam_idxs_back, y_shirt_threshold, INIT_UPPER_BACK)
 
     # For the right sleeve
     right_sleeve_v_idxs = garment.select_sleeve_verts(verts, INIT_RIGHT_SLEEVE, SEAM_IDX_DICT['sleeves']['right'], SLEEVE_LENGTH, -1)
@@ -157,7 +166,7 @@ def select_original(smpl_model):
     pant_indices = {}
     for key, (init_idx, side) in pant_seams_and_thresholds.items():
         seams, y_pant_threshold = determine_pant_seams(verts, PANT_LENGTH, SEAM_IDX_DICT[f'pant_{key}'], side)
-        pant_indices[key] = garment.flood_fill_vertices(verts, seams, y_pant_threshold, init_idx)
+        pant_indices[key] = garment.flood_fill_vertices_deprecated(verts, seams, y_pant_threshold, init_idx)
 
     # Create upper and lower garment meshes
     offset_distance = 0.001
