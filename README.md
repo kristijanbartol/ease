@@ -8,7 +8,7 @@ TailorLang is the first DSL for parametric clothing with accurate cloth fitting.
 The central result for solving the fitting problem is to find "characteristic" pieces of fabric that fit specified body areas. As part of the TailorLang, the algorithm for finding the characteristic pieces
 of fabric will be implemented.
 
-This is an ongoing project.
+🚧 This is an ongoing project. 🚧
 
 ## Installation
 
