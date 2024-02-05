@@ -36,7 +36,6 @@ RUN pip install --ignore-installed \
 	smplx \
 	scipy \
 	einops \
-	chumpy \
 	open3d \
     trimesh \
     rtree

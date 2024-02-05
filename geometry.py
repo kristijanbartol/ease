@@ -114,6 +114,8 @@ def project_boundaries(mesh, points):
     boundary_points, _, boundary_faces = trimesh.proximity.closest_point(mesh, points)
     face_to_points_dict = {}
     for idx, face in enumerate(boundary_faces):
+        # The tuple stores the current projected boundary point, as well as the left
+        # and right neighboring ones.
         face_to_points_dict[face] = (
             boundary_points[idx-1],
             boundary_points[idx],
@@ -126,7 +128,7 @@ def extract_boundaries(
         args,
         orig_verts,
         sub_verts,
-        body_part_keypoints,
+        body_part_keypoints_dict,
         num_points
     ):
     # TODO: Process all the body parts.
@@ -135,26 +137,26 @@ def extract_boundaries(
     body_part_curve_points = np.empty((0, 3))
     bottom_left_point, bottom_right_point = None, None
     # Iterate over boundaries of the body part
-    for boundary_key in body_part_keypoints:
-        control_point_idx_list = body_part_keypoints[boundary_key]
+    for boundary_part in body_part_keypoints_dict:
+        control_point_idx_list = body_part_keypoints_dict[boundary_part]
         control_points = [orig_verts[idx] for idx in control_point_idx_list]
 
         # Select Bezier control points based on the length parameter
-        if boundary_key == 'left_side':
+        if boundary_part == 'left_side':
             _, bottom_left_point = extract_parameterized_seams(
                 verts=sub_verts, 
                 garment_length=args.shirt_length, 
                 seam_vertex_indices=SEAM_IDX_DICT[BODY_PART]['left_armpit']
             )
             control_points.append(bottom_left_point)
-        if boundary_key == 'right_side':
+        if boundary_part == 'right_side':
             _, bottom_right_point = extract_parameterized_seams(
                 verts=sub_verts, 
                 garment_length=args.shirt_length, 
                 seam_vertex_indices=SEAM_IDX_DICT[BODY_PART]['right_armpit']
             )
             control_points.append(bottom_right_point)
-        if boundary_key == 'bottom':
+        if boundary_part == 'bottom':
             mid_point = (bottom_left_point + bottom_right_point) / 2
             mid_point[2] += 0.1
             control_points.extend([bottom_left_point, mid_point, bottom_right_point])
@@ -164,6 +166,7 @@ def extract_boundaries(
             body_part_curve_points,
             np.array([bezier_curve(t, control_points) for t in t_values])
         ])
+    return body_part_curve_points
 
 
 def find_init_face(mesh, start_point):

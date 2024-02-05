@@ -1,3 +1,6 @@
+import numpy as np
+
+
 KEYPOINTS = {
     'upper_front': {
         'neck': [4094, 3171, 607],
@@ -100,6 +103,12 @@ INIT_LEFT_BACK_PANT = 897
 SHIRT_LENGTH = 0.35
 SLEEVE_LENGTH = 0.4
 PANT_LENGTH = 0.5
+
+DISCRETE_STEP = 0.001
+YARN_DIST = 0.005
+
+GLOBAL_WARP = np.array([0, 0, 1])
+GLOBAL_WEFT = np.array([1, 0, 0])
 
 COLOR_MAP = {
     'red': (255, 0, 0),

@@ -1,0 +1,11 @@
+tripy
+numpy
+matplotlib
+seaborn
+opencv-python
+smplx
+scipy
+einops
+open3d
+trimesh
+rtree

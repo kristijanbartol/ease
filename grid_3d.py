@@ -4,14 +4,17 @@ import trimesh
 import numpy as np
 
 from const import (
+    DISCRETE_STEP,
+    GLOBAL_WARP,
+    GLOBAL_WEFT,
     KEYPOINTS,
     PANT_LENGTH,
     SHIRT_LENGTH,
-    SLEEVE_LENGTH
+    SLEEVE_LENGTH,
+    YARN_DIST
 )
 from garment import Garment
 from geometry import (
-    find_init_face,
     project_boundaries,
     subdivide_mesh,
     extract_boundaries
@@ -31,20 +34,16 @@ def prepare_grid_processing_data(
         args=args,
         orig_verts=orig_verts,
         sub_verts=verts,
-        body_part_keypoints=KEYPOINTS['upper_front'],
+        body_part_keypoints_dict=KEYPOINTS['upper_front'],
         num_points=1000
     )
     boundary_face_to_points_dict, boundary_points = project_boundaries(
         mesh=mesh,
         points=boundary_points
     )
-    starting_face = find_init_face(
-        mesh=mesh, 
-        start_point=boundary_face_to_points_dict.values()
-    )
     inner_faces = Garment(verts, faces).select_faces(
-        boundary_faces=boundary_face_to_points_dict.keys(),
-        starting_face=starting_face
+        boundary_points=boundary_points,
+        boundary_faces=boundary_face_to_points_dict.keys()
     )
     return (
         mesh,
@@ -117,6 +116,8 @@ if __name__ == '__main__':
     parser.add_argument('--shirt_length', '-S', type=float, default=SHIRT_LENGTH)
     parser.add_argument('--pant_length', '-P', type=float, default=PANT_LENGTH)
     parser.add_argument('--sleeve_length', '-L', type=float, default=SLEEVE_LENGTH)
+    parser.add_argument('--discrete_step', '-D', type=float, default=DISCRETE_STEP)
+    parser.add_argument('--yarn_dist', '-Y', type=float, default=YARN_DIST)
     args = parser.parse_args()
 
     smpl_model = SMPL(model_path='/data/hierprob3d/smpl/SMPL_FEMALE.pkl')
@@ -131,13 +132,7 @@ if __name__ == '__main__':
         orig_verts=smpl_model().vertices[0].cpu().detach().numpy(),
         orig_faces=smpl_model.faces
     )
-
     mesh.rezero()   # recalculate normals
-    GLOBAL_WARP = np.array([0, 0, 1])
-    GLOBAL_WEFT = np.array([1, 0, 0])
-    DISCRETE_STEP = 0.001
-    LINE_DIST = 0.005
-    NUM_NEXT = 3
 
     # TODO: Update the algorithm to also traverse the right direction.
     # TODO: Update the algorithm to also include the weft-warp direction.
@@ -150,12 +145,13 @@ if __name__ == '__main__':
         inside_boundaries = True
 
         while inside_boundaries:
+            # TODO: Instead of explicit warp/weft, obtain the required one based on parameter.
             local_warp = get_local_yarn_direction(
                 mesh=mesh,
                 point=warp_lines_dict[current_line_point][-1],
                 global_yarn=GLOBAL_WARP
             )
-            next_point = warp_lines_dict[current_line_point][-1] + local_warp * DISCRETE_STEP
+            next_point = warp_lines_dict[current_line_point][-1] + local_warp * args.discrete_step
             next_point, _, face = trimesh.proximity.closest_point(
                 mesh, 
                 next_point
@@ -173,7 +169,11 @@ if __name__ == '__main__':
                         mesh, 
                         last_point
                     )
-                left_boundary, right_boundary = boundary_face_points_dict[face]
+                # TODO: Currently, the last point is projected on the line segment
+                # between the two neighboring boundaries. It is more accurate to
+                # first determine whether the point should be projected to the
+                # (left, middle) or (middle, right) segment and then project.
+                left_boundary, _, right_boundary = boundary_face_points_dict[face]
                 last_point = project_point_onto_line_segment(
                     left_boundary,
                     right_boundary,
@@ -189,7 +189,7 @@ if __name__ == '__main__':
             point=current_line_point,
             global_yarn=GLOBAL_WEFT
         )
-        local_next_line_point = current_line_point - local_weft * LINE_DIST
+        local_next_line_point = current_line_point - local_weft * args.yarn_dist
         local_boundary_points = trimesh.proximity.closest_point(
             mesh, 
             boundary_points

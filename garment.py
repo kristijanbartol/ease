@@ -1,4 +1,5 @@
 import numpy as np
+import trimesh
 
 from geometry import (
     apply_offset_to_verts,
@@ -8,8 +9,7 @@ from geometry import (
 
 class Garment:
     def __init__(self, verts, faces):
-        self.verts = verts
-        self.faces = faces
+        self.mesh = trimesh.Trimesh(vertices=verts, faces=faces)
         self.vertex_adjacency_list = self.build_vertex_adjacency_list(faces)
         self.face_adjacency_list = self.build_face_adjacency_list(faces)
 
@@ -118,12 +118,12 @@ class Garment:
 
         return list(selected_vertices)
     
-    @staticmethod
-    def extract_starting_face(boundary_points):
-        return find_init_face(boundary_points.mean())
-
-    def select_faces(self, boundary_faces, starting_face):
+    def select_faces(self, boundary_points, boundary_faces):
         """Select the inner faces using the Flood Fill algorithm."""
+        starting_face = find_init_face(
+            mesh=self.mesh,
+            start_point=boundary_points.mean()
+        )
         stack = [starting_face]
         visited = set()
         selected = set()
