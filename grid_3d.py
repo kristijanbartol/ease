@@ -145,7 +145,7 @@ if __name__ == '__main__':
     warp_lines_dict = {}
     boundary_idx = 0
     current_line_point = boundary_points[boundary_idx]
-    while boundary_idx < boundary_points.shape[0]:
+    while True:     # inner while-else is breaking the outer loop
         warp_lines_dict[current_line_point] = [current_line_point]
         inside_boundaries = True
 
@@ -211,3 +211,5 @@ if __name__ == '__main__':
                 # current direction, which will be detected by the optimization and
                 # moved back to prevent stretching.
                 current_line_point = boundary_points[boundary_idx]
+        else:
+            break
