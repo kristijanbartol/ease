@@ -43,7 +43,7 @@ def prepare_grid_processing_data(
     )
     inner_faces = Garment(verts, faces).select_faces(
         boundary_vertex_ids=boundary_vertex_ids,
-        boundary_faces=boundary_face_id_to_points_dict.keys()
+        boundary_points=boundary_points
     )
     return (
         mesh,
@@ -158,7 +158,7 @@ if __name__ == '__main__':
                 mesh, 
                 next_point
             )
-            if face[0] not in inner_faces:
+            if face[0] not in inner_face_ids:
                 inside_boundaries = False
                 last_point = warp_lines_list[-1][-1]
                 while face[0] not in boundary_face_id_to_points_dict:

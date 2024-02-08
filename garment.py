@@ -140,7 +140,7 @@ class Garment:
         return selected
     '''
 
-    def select_faces(self, boundary_vertex_ids, start_vertex):
+    def select_faces(self, boundary_vertex_ids, boundary_points):
         starting_vertex_id = find_init_vertex(
             mesh=self.mesh,
             start_point=boundary_points.mean(axis=0)
