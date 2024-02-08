@@ -27,7 +27,7 @@ from garment import Garment
 from geometry import (
     bezier_curve,
     find_init_vertex_idx,
-    project_boundaries_using_faces,
+    project_boundaries_using_faces_deprecated,
     subdivide_mesh
 )
 from seams import (
@@ -96,7 +96,7 @@ def select_subdivided(args, smpl_model):
 
         # Project the Bezier curve boundaries to the mesh surface
         # TODO: Project to the triangles instead of vertices for smoother cut-out surface.
-        projected_vertex_idxs = project_boundaries_using_faces(
+        projected_vertex_idxs = project_boundaries_using_faces_deprecated(
             mesh=mesh,
             points=body_part_curve_points
         )
@@ -108,7 +108,6 @@ def select_subdivided(args, smpl_model):
         # Create adjacency matrix in Garment object and apply Flood Fill
         garment = Garment(verts, faces)
         selected_verts = garment.flood_fill_vertices_subdivided(
-            vertex_positions=verts, 
             boundary_vertices=projected_vertex_idxs, 
             start_vertex=init_idx
         )

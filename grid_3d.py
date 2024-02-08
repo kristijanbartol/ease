@@ -37,17 +37,17 @@ def prepare_grid_processing_data(
         body_part_keypoints_dict=KEYPOINTS['upper_front'],
         num_points=1000
     )
-    boundary_face_to_points_dict, boundary_points = project_boundaries(
+    boundary_face_id_to_points_dict, boundary_points, boundary_vertex_ids = project_boundaries(
         mesh=mesh,
         points=boundary_points
     )
     inner_faces = Garment(verts, faces).select_faces(
-        boundary_points=boundary_points,
-        boundary_faces=boundary_face_to_points_dict.keys()
+        boundary_vertex_ids=boundary_vertex_ids,
+        boundary_faces=boundary_face_id_to_points_dict.keys()
     )
     return (
         mesh,
-        boundary_face_to_points_dict,
+        boundary_face_id_to_points_dict,
         boundary_points,
         inner_faces
     )
@@ -89,7 +89,7 @@ def get_local_yarn_direction(
         global_yarn
     ):
     _, _, face_index = mesh.nearest.on_surface(point)
-    point_normal = mesh.face_normals[face_index]
+    point_normal = mesh.face_normals[face_index[0]]
     local_yarn = global_yarn - (np.dot(point_normal, global_yarn) * point_normal)
     return local_yarn
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     # List of inner faces: to determine when out of boundaries.
     # List of boundary points: for traversing the boundary.
     # Dictionary of {face: (lbound, rbound)}: to get the corresponding boundary points given a face.
-    mesh, boundary_face_points_dict, boundary_points, inner_faces = prepare_grid_processing_data(
+    mesh, boundary_face_id_to_points_dict, boundary_points, inner_face_ids = prepare_grid_processing_data(
         orig_verts=smpl_model().vertices[0].cpu().detach().numpy(),
         orig_faces=smpl_model.faces
     )
@@ -137,29 +137,31 @@ if __name__ == '__main__':
     # TODO: Update the algorithm to also traverse the right direction.
     # TODO: Update the algorithm to also include the weft-warp direction.
 
-    warp_lines_dict = {}
+    warp_lines_list = []
     boundary_idx = 0
-    current_line_point = boundary_points[boundary_idx]
+    current_line_point = np.expand_dims(boundary_points[boundary_idx], axis=0)
     while True:     # inner while-else is breaking the outer loop
-        warp_lines_dict[current_line_point] = [current_line_point]
+        warp_lines_list.append([current_line_point])
+        print(f'Creating warp line #{len(warp_lines_list)}...')
         inside_boundaries = True
 
         while inside_boundaries:
+            print(f'Propagating point #{len(warp_lines_list[-1])}...')
             # TODO: Instead of explicit warp/weft, obtain the required one based on parameter.
             local_warp = get_local_yarn_direction(
                 mesh=mesh,
-                point=warp_lines_dict[current_line_point][-1],
+                point=warp_lines_list[-1][-1],
                 global_yarn=GLOBAL_WARP
             )
-            next_point = warp_lines_dict[current_line_point][-1] + local_warp * args.discrete_step
+            next_point = warp_lines_list[-1][-1] + local_warp * args.discrete_step
             next_point, _, face = trimesh.proximity.closest_point(
                 mesh, 
                 next_point
             )
-            if face not in inner_faces:
+            if face[0] not in inner_faces:
                 inside_boundaries = False
-                last_point = warp_lines_dict[current_line_point][-1]
-                while face not in boundary_face_points_dict:
+                last_point = warp_lines_list[-1][-1]
+                while face[0] not in boundary_face_id_to_points_dict:
                     direction_vector = get_direction_vector(
                         last_point,
                         next_point
@@ -173,15 +175,15 @@ if __name__ == '__main__':
                 # between the two neighboring boundaries. It is more accurate to
                 # first determine whether the point should be projected to the
                 # (left, middle) or (middle, right) segment and then project.
-                left_boundary, _, right_boundary = boundary_face_points_dict[face]
+                left_boundary, _, right_boundary = boundary_face_id_to_points_dict[face[0]]
                 last_point = project_point_onto_line_segment(
                     left_boundary,
                     right_boundary,
                     last_point
                 )
-                warp_lines_dict[current_line_point].append(last_point)
+                warp_lines_list[-1].append(last_point)
             else:
-                warp_lines_dict[current_line_point].append(next_point)
+                warp_lines_list[-1].append(next_point)
 
         # Calculate weft direction on the local tangent of the current line point.
         local_weft = get_local_yarn_direction(
@@ -192,7 +194,7 @@ if __name__ == '__main__':
         local_next_line_point = current_line_point - local_weft * args.yarn_dist
         local_boundary_points = trimesh.proximity.closest_point(
             mesh, 
-            boundary_points
+            np.expand_dims(boundary_points, axis=0)
         )
         # Iterate through boundary points projected to local plane to search for the
         # next line point. If not found, the loop will "naturally" terminate.

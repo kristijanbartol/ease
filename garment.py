@@ -3,7 +3,7 @@ import trimesh
 
 from geometry import (
     apply_offset_to_verts,
-    find_init_face
+    find_init_vertex
 )
 
 
@@ -84,12 +84,12 @@ class Garment:
 
         return list(selected_vertices)
     
-    def flood_fill_vertices_subdivided(self, vertex_positions, boundary_vertices, start_vertex):
+    def flood_fill_vertices_subdivided(self, boundary_vertex_ids, starting_vertex_id):
         # Convert boundary vertices to a set for efficient lookup
-        boundary_set = set(boundary_vertices)
+        boundary_set = set(boundary_vertex_ids)
 
         # Initialize the stack with the start vertex, which is assumed to be inside the boundary and above the y_threshold
-        stack = [start_vertex]
+        stack = [starting_vertex_id]
 
         # Initialize the set to keep track of visited vertices
         visited = set()
@@ -114,15 +114,16 @@ class Garment:
                         stack.append(neighbor_idx)
         
         # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
-        selected_vertices.update(boundary_vertices)
+        selected_vertices.update(boundary_vertex_ids)
 
         return list(selected_vertices)
     
+    '''
     def select_faces(self, boundary_points, boundary_faces):
         """Select the inner faces using the Flood Fill algorithm."""
         starting_face = find_init_face(
             mesh=self.mesh,
-            start_point=boundary_points.mean()
+            start_point=boundary_points.mean(axis=0)
         )
         stack = [starting_face]
         visited = set()
@@ -137,6 +138,22 @@ class Garment:
                         stack.append(neighbor_face)
         selected.update(boundary_faces)
         return selected
+    '''
+
+    def select_faces(self, boundary_vertex_ids, start_vertex):
+        starting_vertex_id = find_init_vertex(
+            mesh=self.mesh,
+            start_point=boundary_points.mean(axis=0)
+        )
+        selected_verts = self.flood_fill_vertices_subdivided(
+            boundary_vertex_ids=boundary_vertex_ids,
+            starting_vertex_id=starting_vertex_id
+        )
+        selected_faces = []
+        for face_idx, face in enumerate(self.mesh.faces):
+            if face[0] in selected_verts and face[1] in selected_verts and face[2] in selected_verts:
+                selected_faces.append(face_idx)
+        return set(selected_faces)
 
     def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
         # Get the X coordinates of the starting and ending seam vertices

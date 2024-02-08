@@ -2,6 +2,7 @@ import numpy as np
 import open3d as o3d
 import scipy
 import trimesh
+import random
 
 from const import (
     INIT_LEFT_BACK_PANT,
@@ -91,7 +92,7 @@ def project_points_to_nearest_vertices(points, mesh):
     return projected_points
 
 
-def project_boundaries_using_faces(mesh, points):
+def project_boundaries_using_faces_deprecated(mesh, points):
     # Project points onto the nearest faces
     _, _, triangle_ids = trimesh.proximity.closest_point(mesh, points)
 
@@ -111,17 +112,19 @@ def project_boundaries(mesh, points):
     Create a face-to-boundary-points dictionary for quick access to the corresponding
     boundary points, given the face.
     """
-    boundary_points, _, boundary_faces = trimesh.proximity.closest_point(mesh, points)
-    face_to_points_dict = {}
-    for idx, face in enumerate(boundary_faces):
+    boundary_points, _, boundary_face_ids = trimesh.proximity.closest_point(mesh, points)
+    face_id_to_points_dict = {}
+    boundary_vertex_ids = []
+    for idx, face_id in enumerate(boundary_face_ids):
         # The tuple stores the current projected boundary point, as well as the left
         # and right neighboring ones.
-        face_to_points_dict[face] = (
+        face_id_to_points_dict[face_id] = (
             boundary_points[idx-1],
             boundary_points[idx],
-            boundary_points[idx+1]
+            boundary_points[(idx+1)%boundary_face_ids.shape[0]]
         )
-    return face_to_points_dict, boundary_points
+        boundary_vertex_ids.extend(mesh.faces[face_id])
+    return face_id_to_points_dict, boundary_points, boundary_vertex_ids
 
 
 def extract_boundaries(
@@ -169,10 +172,19 @@ def extract_boundaries(
     return body_part_curve_points
 
 
-def find_init_face(mesh, start_point):
+def find_init_face_deprecated(mesh, start_point):
     # Offset the provided starting point in the Z direction to project it to the mesh surface.
-    start_point[2] += start_point[2] + 0.1
+    start_point[2] += 0.1
     # Project from the offset point and find a corresponding triangle ID.
     triangle_id = trimesh.proximity.closest_point(mesh, np.expand_dims(start_point, 0))[2][0]
     # Select any vertex from the triangle specified by the ID (for example, vertex 0).
-    return mesh.faces[triangle_id]
+    return triangle_id
+
+
+def find_init_vertex(mesh, start_point):
+    # Offset the provided starting point in the Z direction to project it to the mesh surface.
+    start_point[2] += 0.1
+    # Project from the offset point and find a corresponding triangle ID.
+    triangle_id = trimesh.proximity.closest_point(mesh, np.expand_dims(start_point, 0))[2][0]
+    # Select any vertex from the triangle specified by the ID (for example, vertex 0).
+    return mesh.faces[triangle_id][random.randint(0, 2)]
