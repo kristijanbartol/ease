@@ -3,7 +3,7 @@ import trimesh
 
 from geometry import (
     apply_offset_to_verts,
-    find_init_vertex
+    find_init_vertex_idx
 )
 
 
@@ -141,7 +141,7 @@ class Garment:
     '''
 
     def select_faces(self, boundary_vertex_ids, boundary_points):
-        starting_vertex_id = find_init_vertex(
+        starting_vertex_id = find_init_vertex_idx(
             mesh=self.mesh,
             start_point=boundary_points.mean(axis=0)
         )
@@ -153,7 +153,7 @@ class Garment:
         for face_idx, face in enumerate(self.mesh.faces):
             if face[0] in selected_verts and face[1] in selected_verts and face[2] in selected_verts:
                 selected_faces.append(face_idx)
-        return set(selected_faces)
+        return set(selected_faces), selected_verts
 
     def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
         # Get the X coordinates of the starting and ending seam vertices
@@ -183,7 +183,7 @@ class Garment:
             if current_index not in selected_indices and x_min <= verts[current_index, 0] <= x_max:
                 selected_indices.add(current_index)
                 # Get the indices of the vertices connected to the current vertex
-                connected_vertices = self.adjacency_list[current_index]
+                connected_vertices = self.vertex_adjacency_list[current_index]
                 # Add unvisited vertices to the to_visit list
                 for vertex_index in connected_vertices:
                     if vertex_index not in selected_indices:
@@ -192,7 +192,7 @@ class Garment:
         return list(selected_indices)
 
     @staticmethod
-    def extract_garment_mesh(verts, faces, garment_vertex_indices, offset=0):
+    def extract_garment_mesh(verts, faces, garment_vertex_indices, offset=0.):
         # Apply offset if specified
         if offset != 0:
             verts = apply_offset_to_verts(verts, faces, offset)

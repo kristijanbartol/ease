@@ -36,6 +36,7 @@ from seams import (
     extract_parameterized_seams
 )
 from utils import (
+    export,
     export_to_ply,
     update_color_indices
 )
@@ -108,8 +109,8 @@ def select_subdivided(args, smpl_model):
         # Create adjacency matrix in Garment object and apply Flood Fill
         garment = Garment(verts, faces)
         selected_verts = garment.flood_fill_vertices_subdivided(
-            boundary_vertices=projected_vertex_idxs, 
-            start_vertex=init_idx
+            boundary_vertex_ids=projected_vertex_idxs, 
+            starting_vertex_id=init_idx
         )
         body_part_verts, body_part_faces = garment.extract_garment_mesh(verts, faces, selected_verts, offset=0.005)
         body_part_colors = {
@@ -119,23 +120,25 @@ def select_subdivided(args, smpl_model):
             'gray': list(range(len(verts)))
         }
         body_part_garment_colors = update_color_indices(selected_verts, body_part_colors)
-        export_to_ply(
+        export(
             body_part_verts, 
             body_part_faces, 
             body_part_garment_colors, 
-            'output/front_upper'
+            'output/front_upper',
+            args.file_format
         )
-        export_to_ply(
+        export(
             verts, 
             faces, 
             body_colors, 
-            'output/body'
+            'output/body',
+            args.file_format
         )
         body_part_return_dict[body_part] = (verts, faces, projected_vertex_idxs)
     return body_part_return_dict
 
 
-def select_original(smpl_model):
+def select_original(args, smpl_model):
     verts = smpl_model().vertices[0].cpu().detach().numpy()
     faces = smpl_model.faces
 
@@ -171,10 +174,20 @@ def select_original(smpl_model):
     offset_distance = 0.001
     upper_indices = front_v_idxs + back_v_idxs + right_sleeve_v_idxs + left_sleeve_v_idxs
     lower_indices = sum(pant_indices.values(), [])
+
     upper_garment_verts, upper_garment_faces = garment.extract_garment_mesh(verts, faces, upper_indices, offset=offset_distance)
     lower_garment_verts, lower_garment_faces = garment.extract_garment_mesh(verts, faces, lower_indices, offset=offset_distance)
 
-    # Export garment meshes with color
+    front_shirt_verts, front_shirt_faces = garment.extract_garment_mesh(verts, faces, front_v_idxs, offset=offset_distance)
+    back_shirt_verts, back_shirt_faces = garment.extract_garment_mesh(verts, faces, back_v_idxs, offset=offset_distance)
+    right_sleeve_verts, right_sleeve_faces = garment.extract_garment_mesh(verts, faces, right_sleeve_v_idxs, offset=offset_distance)
+    left_sleeve_verts, left_sleeve_faces = garment.extract_garment_mesh(verts, faces, left_sleeve_v_idxs, offset=offset_distance)
+    front_right_pant_verts, front_right_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['front_right'], offset=offset_distance)
+    front_left_pant_verts, front_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['front_left'], offset=offset_distance)
+    back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_right'], offset=offset_distance)
+    back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_left'], offset=offset_distance)
+
+    # Set garment mesh colors
     upper_garment_colors = {
         'red': front_v_idxs,
         'blue': back_v_idxs,
@@ -187,11 +200,62 @@ def select_original(smpl_model):
         'orange': pant_indices['back_right'],
         'yellow': pant_indices['back_left']
     }
+
+    front_shirt_colors = {
+        'red': front_v_idxs,
+    }
+    back_shirt_colors = {
+        'blue': back_v_idxs,
+    }
+    right_sleeve_colors = {
+        'light_green': right_sleeve_v_idxs,
+    }
+    left_sleeve_colors = {
+        'dark_green': left_sleeve_v_idxs
+    }
+
+    front_right_pant_colors = {
+        'dark_blue': pant_indices['front_right'],
+    }
+    front_left_pant_colors = {
+        'light_blue': pant_indices['front_left'],
+    }
+    back_right_pant_colors = {
+        'orange': pant_indices['back_right'],
+    }
+    back_left_pant_colors = {
+        'yellow': pant_indices['back_left']
+    }
     body_colors = {
         'gray': list(range(len(verts)))
     }
+
+    # Update garment component colors
     updated_upper_garment_colors = update_color_indices(upper_indices, upper_garment_colors)
     updated_lower_garment_colors = update_color_indices(lower_indices, lower_garment_colors)
-    export_to_ply(upper_garment_verts, upper_garment_faces, updated_upper_garment_colors, 'output/upper_garment')
-    export_to_ply(lower_garment_verts, lower_garment_faces, updated_lower_garment_colors, 'output/lower_garment')
-    export_to_ply(verts, faces, body_colors, 'output/body')
+
+    updated_front_shirt_colors = update_color_indices(front_v_idxs, front_shirt_colors)
+    updated_back_shirt_colors = update_color_indices(back_v_idxs, back_shirt_colors)
+    updated_right_sleeve_colors = update_color_indices(right_sleeve_v_idxs, right_sleeve_colors)
+    updated_left_sleeve_colors = update_color_indices(left_sleeve_v_idxs, left_sleeve_colors)
+
+    updated_front_right_pant_colors = update_color_indices(pant_indices['front_right'], front_right_pant_colors)
+    updated_front_left_pant_colors = update_color_indices(pant_indices['front_left'], front_left_pant_colors)
+    updated_back_right_pant_colors = update_color_indices(pant_indices['back_right'], back_right_pant_colors)
+    updated_back_left_pant_colors = update_color_indices(pant_indices['back_left'], back_left_pant_colors)
+
+    # Export garment component meshes
+    export(upper_garment_verts, upper_garment_faces, updated_upper_garment_colors, 'output/orig_upper_garment', args.file_format)
+    export(lower_garment_verts, lower_garment_faces, updated_lower_garment_colors, 'output/orig_lower_garment', args.file_format)
+
+    export(front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, 'output/orig_front_shirt', args.file_format)
+    export(back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, 'output/orig_back_shirt', args.file_format)
+    export(right_sleeve_verts, right_sleeve_faces, updated_right_sleeve_colors, 'output/orig_right_sleeve', args.file_format)
+    export(left_sleeve_verts, left_sleeve_faces, updated_left_sleeve_colors, 'output/orig_left_sleeve', args.file_format)
+
+    export(front_right_pant_verts, front_right_pant_faces, updated_front_right_pant_colors, 'output/orig_front_right_pant', args.file_format)
+    export(front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, 'output/orig_front_left_pant', args.file_format)
+    export(back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, 'output/orig_back_right_pant', args.file_format)
+    export(back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, 'output/orig_back_left_pant', args.file_format)
+
+    export(verts, faces, body_colors, 'output/orig_body', args.file_format)

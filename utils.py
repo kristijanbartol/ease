@@ -43,6 +43,18 @@ def write_ply_file(filename, verts, faces, vertex_colors):
             f.write(f"3 {' '.join(str(v) for v in face)}\n")
 
 
+def write_obj_file(filename, verts, faces):
+    with open(filename, 'w') as f:
+        # Write vertices
+        for vert in verts:
+            f.write(f"v {vert[0]} {vert[1]} {vert[2]}\n")
+        
+        # Write faces
+        # OBJ files use 1-based indexing, so we need to add 1 to each vertex index
+        for face in faces:
+            f.write(f"f {' '.join(str(v + 1) for v in face)}\n")
+
+
 def export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix):
     # Map each vertex to its color
     vertex_colors = {tuple(verts[i]): color for color, indices in vertex_indices_by_color.items() for i in indices}
@@ -58,3 +70,24 @@ def export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix):
     # Write to PLY
     ply_filename = f"{filename_prefix}.ply"
     write_ply_file(ply_filename, verts, updated_faces, vertex_colors)
+
+
+def export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix):
+    # Make sure faces are referring to the correct vertex indices
+    used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
+    verts = verts[list(used_vertex_indices)]
+    
+    # Update the face indices
+    index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
+    updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
+
+    # Write to PLY
+    ply_filename = f"{filename_prefix}.obj"
+    write_obj_file(ply_filename, verts, updated_faces)
+
+
+def export(verts, faces, vertex_indices_by_color, filename_prefix, format='ply'):
+    if format == 'ply':
+        export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix)
+    else:
+        export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix)

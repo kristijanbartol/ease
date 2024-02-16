@@ -11,7 +11,10 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--subdivide"]
+            "args": [
+                //"--subdivide",
+                "--file_format", "ply"
+            ]
         }
     ]
 }

@@ -16,6 +16,7 @@ from selector import (
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gender', '-G', type=str, choices=['male', 'female', 'neutral'], default='female')
+    parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj'], default='ply')
     parser.add_argument('--subdivide', dest='subdivide', action='store_true')
     parser.add_argument('--shirt_length', '-S', type=float, default=SHIRT_LENGTH)
     parser.add_argument('--pant_length', '-P', type=float, default=PANT_LENGTH)
@@ -27,4 +28,4 @@ if __name__ == '__main__':
     if args.subdivide:
         select_subdivided(args, smpl_model)
     else:
-        select_original(smpl_model)
+        select_original(args, smpl_model)

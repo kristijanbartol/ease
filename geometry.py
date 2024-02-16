@@ -181,7 +181,7 @@ def find_init_face_deprecated(mesh, start_point):
     return triangle_id
 
 
-def find_init_vertex(mesh, start_point):
+def find_init_vertex_idx(mesh, start_point):
     # Offset the provided starting point in the Z direction to project it to the mesh surface.
     start_point[2] += 0.1
     # Project from the offset point and find a corresponding triangle ID.

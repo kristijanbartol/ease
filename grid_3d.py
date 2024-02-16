@@ -19,6 +19,10 @@ from geometry import (
     subdivide_mesh,
     extract_boundaries
 )
+from utils import (
+    export_to_ply,
+    update_color_indices
+)
 
 
 def prepare_grid_processing_data(
@@ -41,10 +45,35 @@ def prepare_grid_processing_data(
         mesh=mesh,
         points=boundary_points
     )
-    inner_faces = Garment(verts, faces).select_faces(
+    garment = Garment(verts, faces)
+    inner_faces, inner_vert_ids = garment.select_faces(
         boundary_vertex_ids=boundary_vertex_ids,
         boundary_points=boundary_points
     )
+
+    ##### DEBUG #####
+    body_part_verts, body_part_faces = garment.extract_garment_mesh(verts, faces, inner_vert_ids, inner_faces, offset=0.005)
+    body_part_colors = {
+        'red': inner_vert_ids
+    }
+    body_colors = {
+        'gray': list(range(len(verts)))
+    }
+    body_part_garment_colors = update_color_indices(inner_vert_ids, body_part_colors)
+    export_to_ply(
+        body_part_verts, 
+        body_part_faces, 
+        body_part_garment_colors, 
+        'output/front_upper'
+    )
+    export_to_ply(
+        verts, 
+        faces, 
+        body_colors, 
+        'output/body'
+    )
+    #################
+
     return (
         mesh,
         boundary_face_id_to_points_dict,
@@ -132,6 +161,8 @@ if __name__ == '__main__':
         orig_verts=smpl_model().vertices[0].cpu().detach().numpy(),
         orig_faces=smpl_model.faces
     )
+
+
     mesh.rezero()   # recalculate normals
 
     # TODO: Update the algorithm to also traverse the right direction.
