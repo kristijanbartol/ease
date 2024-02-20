@@ -6,6 +6,7 @@ Relevant at the point when PBS will be applied, until then, the
 '''
 
 import trimesh
+import torch
 import numpy as np
 
 from const import (
@@ -169,6 +170,20 @@ def select_original(args, smpl_model):
     for key, (init_idx, side) in pant_seams_and_thresholds.items():
         seams, y_pant_threshold = determine_pant_seams(verts, PANT_LENGTH, SEAM_IDX_DICT[f'pant_{key}'], side)
         pant_indices[key] = garment.flood_fill_vertices_deprecated(verts, seams, y_pant_threshold, init_idx)
+
+    
+    ###### TEMPORARY #######
+    pose = torch.zeros((1, 23 * 3))
+    # 0, 1 -> left leg
+    # 1, 2 -> right leg
+    # 2, 3 -> mid-hip
+    # 3, 4 -> left knee
+    i, j = 3, 4
+    pose[0, i*3:j*3] = torch.tensor([np.pi / 2, 0, 0])
+    verts = smpl_model(body_pose=pose).vertices[0].cpu().detach().numpy()
+    ########################
+
+
 
     # Create upper and lower garment meshes
     offset_distance = 0.001

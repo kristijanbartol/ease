@@ -13,7 +13,7 @@
             "justMyCode": false,
             "args": [
                 //"--subdivide",
-                "--file_format", "ply"
+                "--file_format", "both"
             ]
         }
     ]

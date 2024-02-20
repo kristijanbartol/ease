@@ -89,5 +89,8 @@ def export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix):
 def export(verts, faces, vertex_indices_by_color, filename_prefix, format='ply'):
     if format == 'ply':
         export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix)
+    elif format == 'obj':
+        export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix)
     else:
+        export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix)
         export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix)
