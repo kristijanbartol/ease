@@ -64,13 +64,13 @@ def prepare_grid_processing_data(
         body_part_verts, 
         body_part_faces, 
         body_part_garment_colors, 
-        'output/front_upper'
+        'results/tl_out/front_upper'
     )
     export_to_ply(
         verts, 
         faces, 
         body_colors, 
-        'output/body'
+        'results/tl_out/body'
     )
     #################
 

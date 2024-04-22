@@ -20,7 +20,7 @@ if __name__ == '__main__':
                 current_mesh = current_mesh.filter_smooth_simple(number_of_iterations=smooth_iter)
             current_mesh.compute_vertex_normals()
 
-            mesh_path = f'output/subdiv-{subdiv_iter}-smooth-{smooth_iter}.ply'
+            mesh_path = f'results/tl_out/subdiv-{subdiv_iter}-smooth-{smooth_iter}.ply'
             print(f'Storing {mesh_path}...')
             o3d.io.write_triangle_mesh(
                 mesh_path, 

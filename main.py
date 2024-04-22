@@ -34,7 +34,7 @@ if __name__ == '__main__':
     pose[0, i*3:j*3] = torch.tensor([np.pi / 2 / 2, 0, 0])
     '''
 
-    smpl_model = SMPL(model_path='/data/hierprob3d/smpl/SMPL_FEMALE.pkl',
+    smpl_model = SMPL(model_path='/home/kristijan/data/hierprob3d/smpl/SMPL_FEMALE.pkl',
                       #body_pose=pose)
     )
 

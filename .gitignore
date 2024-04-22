@@ -1,2 +1,4 @@
-output/
+results/
 __pycache__/
+*.ply
+*.obj

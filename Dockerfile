@@ -1,7 +1,12 @@
 FROM pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel
 
+RUN rm /etc/apt/sources.list.d/cuda.list
+RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y gnupg2 wget
+
 # needed to allow apt update
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
+#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
 
 RUN apt update && apt install -y \
     libturbojpeg \
