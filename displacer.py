@@ -269,6 +269,7 @@ def calculate_triangle_area_from_index(vertices, triangle_indices):
 '''
 
 
+'''
 import numpy as np
 import torch
 import trimesh
@@ -392,3 +393,243 @@ if __name__ == '__main__':
 
     optimized_mesh = trimesh.Trimesh(vertices=vertices.detach().numpy(), faces=triangles.numpy())
     optimized_mesh.export('results/optim_out/optimized_fron_shirt.ply')
+'''
+
+import os
+import numpy as np
+import trimesh
+import torch
+from scipy.spatial import KDTree
+
+
+def compute_jacobians(vertices, triangles, warp_direction, weft_direction):
+    # Extract vertices of the triangles
+    v0s = vertices[triangles[:, 0]]
+    v1s = vertices[triangles[:, 1]]
+    v2s = vertices[triangles[:, 2]]
+
+    # Compute edge vectors for all triangles simultaneously
+    edge1s = v1s - v0s
+    edge2s = v2s - v0s
+
+    # Project edge vectors onto warp and weft directions for all triangles
+    J_warp = torch.stack((torch.sum(edge1s * warp_direction, dim=1),
+                          torch.sum(edge2s * warp_direction, dim=1)), dim=1)
+    J_weft = torch.stack((torch.sum(edge1s * weft_direction, dim=1),
+                          torch.sum(edge2s * weft_direction, dim=1)), dim=1)
+
+    # Form the Jacobian matrices from the projections
+    J = torch.stack((J_warp, J_weft), dim=2)
+    return J
+
+def jacobian_loss_function(initial_jacobians, target_jacobians):
+    # Compute the Frobenius norm of the difference between Jacobians for all triangles
+    loss = torch.norm(initial_jacobians - target_jacobians, dim=(1, 2))
+    return torch.mean(loss)
+
+
+def compute_sdf(mesh, grid_resolution=100, device='cuda'):
+    """
+    Compute the signed-distance function for a given mesh using pure PyTorch (no Kaolin).
+
+    Parameters:
+    - mesh (trimesh.Trimesh): Trimesh object of the mesh
+    - grid_resolution (int): The resolution of the grid in each dimension.
+    - device (str): Device to perform computation ('cuda' or 'cpu')
+
+    Returns:
+    - torch.Tensor: The SDF grid values shaped in a 3D tensor.
+    - torch.Tensor: The grid points as a single tensor of 3D coordinates.
+    """
+    # Define the bounds of the grid based on the mesh bounds
+    bounds = mesh.bounds
+    grid_min, grid_max = np.array(bounds[0]), np.array(bounds[1])
+
+    # Create a grid using torch
+    x = torch.linspace(grid_min[0], grid_max[0], grid_resolution, device=device)
+    y = torch.linspace(grid_min[1], grid_max[1], grid_resolution, device=device)
+    z = torch.linspace(grid_min[2], grid_max[2], grid_resolution, device=device)
+    xv, yv, zv = torch.meshgrid(x, y, z, indexing='ij')
+    grid_points = torch.stack((xv, yv, zv), dim=-1).reshape(-1, 3)
+
+    # Mesh vertices and faces to tensors
+    vertices = torch.tensor(mesh.vertices, dtype=torch.float32, device=device)
+
+    # Compute distance from each grid point to the nearest mesh vertex
+    dists = torch.cdist(grid_points, vertices)
+    min_dists, _ = torch.min(dists, dim=1)
+    sdf_grid = min_dists.reshape(grid_resolution, grid_resolution, grid_resolution)
+
+    sdf_grid = sdf_grid.detach().cpu().numpy()
+    grid_points = grid_points.detach().cpu().numpy()
+
+    return sdf_grid, grid_points
+
+
+def trilinear_interpolation(grid, points, grid_min, grid_max):
+    """
+    Perform trilinear interpolation on a 3D grid at specified points.
+    
+    Parameters:
+    - grid (torch.Tensor): The 3D tensor representing the SDF grid.
+    - points (torch.Tensor): Nx3 tensor of points where SDF values need to be interpolated.
+    - grid_min (torch.Tensor): The minimum coordinate of the SDF grid in 3D space.
+    - grid_max (torch.Tensor): The maximum coordinate of the SDF grid in 3D space.
+    
+    Returns:
+    - torch.Tensor: Interpolated SDF values at the given points.
+    """
+    # Ensure that all tensors are on the same device
+    device = grid.device
+    points = points.to(device)
+    grid_min = grid_min.to(device)
+    grid_max = grid_max.to(device)
+
+    # Normalize points to the grid scale
+    grid_size = torch.tensor(grid.shape, device=device).float() - 1
+    points_scaled = (points - grid_min) / (grid_max - grid_min) * grid_size
+
+    # Compute the indices of the grid points to interpolate
+    x0 = points_scaled[:, 0].floor().clamp(0, grid_size[0])
+    x1 = (x0 + 1).clamp(0, grid_size[0])
+    y0 = points_scaled[:, 1].floor().clamp(0, grid_size[1])
+    y1 = (y0 + 1).clamp(0, grid_size[1])
+    z0 = points_scaled[:, 2].floor().clamp(0, grid_size[2])
+    z1 = (z0 + 1).clamp(0, grid_size[2])
+
+    # Interpolation weights
+    xd = (points_scaled[:, 0] - x0)
+    yd = (points_scaled[:, 1] - y0)
+    zd = (points_scaled[:, 2] - z0)
+
+    # Fetch grid values at corner points using advanced indexing
+    x0, x1, y0, y1, z0, z1 = [x.long() for x in [x0, x1, y0, y1, z0, z1]]
+    c000 = grid[x0, y0, z0]
+    c001 = grid[x0, y0, z1]
+    c010 = grid[x0, y1, z0]
+    c011 = grid[x0, y1, z1]
+    c100 = grid[x1, y0, z0]
+    c101 = grid[x1, y0, z1]
+    c110 = grid[x1, y1, z0]
+    c111 = grid[x1, y1, z1]
+
+    # Trilinear interpolation
+    c00 = c000 * (1 - xd) + c100 * xd
+    c01 = c001 * (1 - xd) + c101 * xd
+    c10 = c010 * (1 - xd) + c110 * xd
+    c11 = c011 * (1 - xd) + c111 * xd
+
+    c0 = c00 * (1 - yd) + c10 * yd
+    c1 = c01 * (1 - yd) + c11 * yd
+
+    c = c0 * (1 - zd) + c1 * zd
+    return c
+
+
+ALPHA = 1.0
+BETA = .0
+N_ITER = 500
+GRID_RES = 70
+
+
+if __name__ == '__main__':
+    # Load meshes, setup tensors, etc.
+    body_mesh = trimesh.load('results/tl_out/orig_body.ply')
+
+    garment_mesh = trimesh.load('results/optim_in/orig_front_shirt_0.001.ply')
+    garment_vertices = torch.tensor(garment_mesh.vertices, dtype=torch.float32, requires_grad=True)
+    garment_triangles = torch.tensor(garment_mesh.faces, dtype=torch.int32)
+
+    parameterized_mesh = trimesh.load('results/optim_in/param_front_shirt_0.001.obj')
+    parameterized_vertices = torch.tensor(parameterized_mesh.vertices, dtype=torch.float32)
+
+    # Set parameters
+    warp_direction = torch.tensor([1, 0, 0], dtype=torch.float32)
+    weft_direction = torch.tensor([0, 1, 0], dtype=torch.float32)
+
+    # Compute Jacobians for all triangles in both meshes
+    initial_jacobians = compute_jacobians(garment_vertices, garment_triangles, warp_direction, weft_direction)
+    target_jacobians = compute_jacobians(parameterized_vertices, garment_triangles, warp_direction, weft_direction)
+
+    sdf_grid_path = f'results/optim_in/sdf_grid_{GRID_RES}.npy'
+    grid_points_path = f'results/optim_in/grid_points_{GRID_RES}.npy'
+
+    if not os.path.exists(sdf_grid_path):
+        sdf_grid, grid_points = compute_sdf(body_mesh, grid_resolution=GRID_RES)
+        #np.save(sdf_grid_path, sdf_grid)
+        #np.save(grid_points_path, grid_points)
+    else:
+        sdf_grid = np.load(sdf_grid_path)
+        grid_points = np.load(grid_points_path)
+
+    sdf_grid_tensor = torch.tensor(sdf_grid, dtype=torch.float32)
+    sdf_min = torch.tensor(grid_points.min(axis=0), dtype=torch.float32)#.to(device)
+    sdf_max = torch.tensor(grid_points.max(axis=0), dtype=torch.float32)#.to(device)
+
+    print('Calculated SDF and Jacobians, starting the optimization...')
+
+    optimizer = torch.optim.Adam([garment_vertices], lr=0.001)
+
+    for iteration in range(N_ITER):
+        optimizer.zero_grad()
+        
+        # Compute Jacobians and SDF based loss
+        current_jacobians = compute_jacobians(garment_vertices, garment_triangles, warp_direction, weft_direction)
+        jacobian_loss = jacobian_loss_function(current_jacobians, target_jacobians)
+        sdf_values = trilinear_interpolation(sdf_grid_tensor, garment_vertices, sdf_min, sdf_max)
+        collision_loss = torch.mean(torch.relu(-sdf_values))  # Assuming SDF is negative inside the mesh
+
+        total_loss = ALPHA * jacobian_loss + BETA * collision_loss
+        
+        total_loss.backward()
+        optimizer.step()
+
+        if iteration % 5 == 0:
+            print(f"Iteration {iteration}, Total Loss: {total_loss.item()} (Jacobian: {jacobian_loss}, Collision: {collision_loss})")
+
+        #if total_loss.item() < 0.001:
+        #    print("Convergence reached")
+        #    break
+
+    final_vertices = garment_vertices.detach().cpu().numpy()
+    optimized_mesh = trimesh.Trimesh(vertices=final_vertices, faces=garment_triangles.cpu().numpy())
+    optimized_mesh.export('optimized_mesh.ply')
+
+
+    '''
+    # Load meshes, setup tensors, etc.
+    mesh = trimesh.load('results/optim_in/orig_front_shirt_0.001.ply')
+    vertices = torch.tensor(mesh.vertices, dtype=torch.float32, requires_grad=True)
+    triangles = torch.tensor(mesh.faces, dtype=torch.int32)
+
+    parameterized_mesh = trimesh.load('results/optim_in/param_front_shirt.obj')
+    parameterized_vertices = torch.tensor(parameterized_mesh.vertices, dtype=torch.float32)
+
+    # Define warp and weft directions (these should be normalized)
+    warp_direction = torch.tensor([1, 0, 0], dtype=torch.float32)  # Example direction
+    weft_direction = torch.tensor([0, 1, 0], dtype=torch.float32)
+
+    # Compute Jacobians for all triangles in both meshes
+    initial_jacobians = compute_jacobians(vertices, triangles, warp_direction, weft_direction)
+    target_jacobians = compute_jacobians(parameterized_vertices, triangles, warp_direction, weft_direction)
+
+    num_iterations = 100
+    optimizer = torch.optim.Adam([vertices], lr=0.001)
+    for iteration in range(num_iterations):
+        optimizer.zero_grad()
+
+        # Recompute current Jacobians based on updated vertices
+        current_jacobians = compute_jacobians(vertices, triangles, warp_direction, weft_direction)
+        jacobian_loss = jacobian_loss_function(current_jacobians, target_jacobians)
+        
+        jacobian_loss.backward()
+        optimizer.step()
+
+        if iteration % 5 == 0:
+            print(f"Iteration {iteration}, Jacobian Loss: {jacobian_loss.item()}")
+
+    # Save or further process the optimized mesh
+    optimized_mesh = trimesh.Trimesh(vertices=vertices.detach().numpy(), faces=triangles.numpy())
+    optimized_mesh.export('optimized_mesh.ply')
+    '''
+    
