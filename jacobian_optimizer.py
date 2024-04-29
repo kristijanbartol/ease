@@ -395,11 +395,20 @@ if __name__ == '__main__':
     optimized_mesh.export('results/optim_out/optimized_fron_shirt.ply')
 '''
 
+
+# NOTE: This could better be done by enforcing the stretch component of the Jacobians only instead
+# of enforcing the whole Jacobians since it makes the final mesh more rigid (enforcing target shears).
+
 import os
 import numpy as np
 import trimesh
 import torch
 from scipy.spatial import KDTree
+from concurrent.futures import ThreadPoolExecutor
+from smplx import SMPL
+from pytorch3d.structures import Meshes
+from pytorch3d.io import load_objs_as_meshes
+from plyfile import PlyData, PlyElement
 
 
 def compute_jacobians(vertices, triangles, warp_direction, weft_direction):
@@ -466,6 +475,41 @@ def compute_sdf(mesh, grid_resolution=100, device='cuda'):
     return sdf_grid, grid_points
 
 
+def create_voxel_grid(mesh, grid_resolution):
+    # Get the bounds of the mesh
+    bounds = mesh.bounds
+    min_bounds, max_bounds = bounds[0] - 0.05, bounds[1] + 0.05
+    
+    # Generate grid points
+    x = np.linspace(min_bounds[0], max_bounds[0], grid_resolution)
+    y = np.linspace(min_bounds[1], max_bounds[1], grid_resolution)
+    z = np.linspace(min_bounds[2], max_bounds[2], grid_resolution)
+    grid_x, grid_y, grid_z = np.meshgrid(x, y, z, indexing='ij')
+    
+    # Flatten the grid to pass to the distance calculation
+    grid_points = np.vstack((grid_x.ravel(), grid_y.ravel(), grid_z.ravel())).T
+
+    return grid_points
+
+
+def compute_signed_distance_grid(mesh, grid_points, grid_res=100):
+    """
+    Computes a signed distance grid for a given mesh.
+
+    Parameters:
+    - mesh (trimesh.Trimesh): The mesh for which to compute the signed distance.
+    - grid_resolution (int): The resolution of the grid in each dimension.
+
+    Returns:
+    - numpy.ndarray: A 3D grid of signed distances.
+    """
+    signed_distances = mesh.nearest.signed_distance(grid_points)
+
+    distance_grid = signed_distances.reshape((grid_res, grid_res, grid_res))
+    
+    return distance_grid
+
+
 def trilinear_interpolation(grid, points, grid_min, grid_max):
     """
     Perform trilinear interpolation on a 3D grid at specified points.
@@ -526,22 +570,209 @@ def trilinear_interpolation(grid, points, grid_min, grid_max):
     return c
 
 
-ALPHA = 1.0
-BETA = .0
+def calculate_sdf(mesh_vertices, signed_distance_grid, grid_min, grid_max):
+    """
+    Calculate the signed distances for the vertices of a garment mesh using a precomputed grid.
+
+    Parameters:
+    - mesh_vertices (torch.Tensor): The vertices of the garment mesh as a tensor of shape (N, 3).
+    - signed_distance_grid (torch.Tensor): The precomputed signed distance grid as a tensor of shape (D, H, W).
+    - grid_min (torch.Tensor): The minimum coordinates of the grid's bounding box.
+    - grid_max (torch.Tensor): The maximum coordinates of the grid's bounding box.
+
+    Returns:
+    - torch.Tensor: The signed distances at the mesh vertices.
+    """
+    # Normalize the mesh vertices to the range [-1, 1] based on the grid bounds
+    normalized_vertices = 2 * (mesh_vertices - grid_min) / (grid_max - grid_min) - 1
+
+    # Ensure the vertices are in the shape (1, C, 1, 1, 3) for grid_sample and grid (1, D, H, W, 3)
+    normalized_vertices = normalized_vertices.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+    signed_distance_grid = signed_distance_grid.unsqueeze(0).unsqueeze(1)
+
+    # Use grid_sample to interpolate the SDF values at the garment vertices
+    # grid_sample requires input of shape (N, C, ID, IH, IW) and grid of shape (N, OH, OW, OD, 3)
+    # Since our SDF grid is 3D, we need to add a channel dimension to it
+    sdf_values = torch.nn.functional.grid_sample(signed_distance_grid,  # Add batch dimension
+                                                 normalized_vertices,
+                                                 mode='bilinear',  # Use bilinear interpolation
+                                                 padding_mode='border',  # Extrapolate or clamp for out-of-bound grid locations
+                                                 align_corners=True)  # Align the corners of the grid to [-1, 1]
+
+    # Remove unnecessary dimensions and return
+    return sdf_values.squeeze()
+
+
+def differentiable_sdf(body_vertices, body_faces, garment_vertices):
+    """
+    Calculate a differentiable SDF from a body mesh to each garment vertex.
+
+    Parameters:
+    - body_vertices (torch.Tensor): Tensor of shape (V, 3), vertices of the body mesh.
+    - body_faces (torch.Tensor): LongTensor of shape (F, 3), indices of vertices forming each triangle of the body mesh.
+    - garment_vertices (torch.Tensor): Tensor of shape (N, 3), vertices of the garment mesh.
+
+    Returns:
+    - torch.Tensor: Differentiable distances from each garment vertex to the closest point on the body mesh.
+    """
+    # Get vertices of each triangle
+    triangles = body_vertices[body_faces]  # shape (F, 3, 3)
+
+    # Calculate vectors for each edge of the triangle
+    edge1 = triangles[:, 1] - triangles[:, 0]
+    edge2 = triangles[:, 2] - triangles[:, 0]
+    normal = torch.cross(edge1, edge2)
+    normal = normal / torch.norm(normal, dim=1, keepdim=True)  # Normalize normals
+
+    # Calculate distances to the plane of each triangle for each garment vertex
+    # Distance to plane
+    v_to_triangle = garment_vertices.unsqueeze(1) - triangles[:, 0].unsqueeze(0)  # Broadcasting
+    dist_to_plane = torch.abs(torch.sum(v_to_triangle * normal.unsqueeze(0), dim=2))  # Dot product
+
+    # Assume some differentiability in projecting to the triangle's plane
+    # We need to check if the projection is within the triangle
+    # This part is tricky and may require further approximations or custom ops
+    # Simplest case, not fully correct: take minimum distance to plane for now
+    min_dist, _ = torch.min(dist_to_plane, dim=1)
+
+    return min_dist
+
+
+def differentiable_sdf_softmin(body_vertices, body_faces, garment_vertices, beta=3):
+    """
+    Calculate a differentiable SDF from a body mesh to each garment vertex using a soft minimum.
+
+    Parameters:
+    - body_vertices (torch.Tensor): Tensor of shape (V, 3), vertices of the body mesh.
+    - body_faces (torch.Tensor): LongTensor of shape (F, 3), indices of vertices forming each triangle of the body mesh.
+    - garment_vertices (torch.Tensor): Tensor of shape (N, 3), vertices of the garment mesh.
+    - beta (float): Sharpness parameter for the softmin function; higher values make it closer to a hard minimum.
+
+    Returns:
+    - torch.Tensor: Differentiable distances from each garment vertex to the closest point on the body mesh.
+    """
+    # Get vertices of each triangle
+    triangles = body_vertices[body_faces]  # shape (F, 3, 3)
+
+    # Calculate vectors for each edge of the triangle
+    edge1 = triangles[:, 1] - triangles[:, 0]
+    edge2 = triangles[:, 2] - triangles[:, 0]
+    normal = torch.cross(edge1, edge2)
+    normal = normal / torch.norm(normal, dim=1, keepdim=True)  # Normalize normals
+
+    # Calculate distances to the plane of each triangle for each garment vertex
+    v_to_triangle = garment_vertices.unsqueeze(1) - triangles[:, 0].unsqueeze(0)  # Broadcasting
+    dist_to_plane = torch.abs(torch.sum(v_to_triangle * normal.unsqueeze(0), dim=2))  # Dot product
+
+    # Calculate the soft minimum of distances using the log-sum-exp trick
+    # -beta * distances -> then take log(sum(exp(values))) -> then divide by -beta
+    max_dist = torch.max(beta * dist_to_plane)
+    #max_dist = torch.max(dist_to_plane)
+    soft_min_dist = -torch.log(torch.sum(torch.exp(-beta * (dist_to_plane - max_dist)), dim=1)) / beta + max_dist / beta
+
+    return soft_min_dist
+
+
+def save_point_cloud(points, filename='point_cloud.ply'):
+    """
+    Save a set of 3D points to a PLY file.
+
+    Parameters:
+    - points (numpy.ndarray): Numpy array of shape (n_points, 3) representing the point cloud.
+    - filename (str): Filename for the output PLY file.
+    """
+    # Create a structured array
+    dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
+    structured_array = np.array(list(map(tuple, points)), dtype=dtype)
+    
+    # Create a PlyElement object
+    el = PlyElement.describe(structured_array, 'vertex')
+    
+    # Write to file
+    PlyData([el], text=True).write(filename)
+    print(f"Saved {len(points)} points to {filename}")
+
+
+def check_mesh_vertices_inside_mesh(body_mesh, garment_mesh):
+    """
+    Determine whether vertices of one mesh are inside another mesh using normals.
+
+    Args:
+    - body_mesh (pytorch3d.structures.Meshes): The PyTorch3D Mesh object for the body.
+    - garment_mesh (pytorch3d.structures.Meshes): The PyTorch3D Mesh object for the garment.
+    
+    Returns:
+    - torch.Tensor: A tensor of -1s and 1s. -1 for each vertex of the garment that is inside the body mesh, 1 otherwise.
+    """
+    # Get vertices from the garment mesh
+    garment_vertices = garment_mesh.verts_packed()  # Shape: (G, 3)
+
+    # Get vertices and faces from the body mesh
+    body_vertices = body_mesh.verts_packed()  # Shape: (V, 3)
+    body_faces = body_mesh.faces_packed()  # Shape: (F, 3)
+    body_faces_vertices = body_vertices[body_faces]  # Shape: (F, 3, 3)
+
+    # Calculate normals for the body mesh
+    body_normals = body_mesh.faces_normals_packed()  # Shape: (F, 3)
+
+    # Broadcast garment vertices across all body mesh faces for vector calculation
+    vectors = garment_vertices[:, None, :] - body_faces_vertices[:, 0, :]  # Shape: (G, F, 3)
+
+    # Calculate dot products
+    dot_products = (body_normals[None, :, :] * vectors).sum(dim=2)  # Shape: (G, F)
+
+    # Check if all dot products per vertex are positive (outside)
+    inside_mask = (dot_products <= 0).any(dim=1)  # Shape: (G,)
+
+    # Convert boolean mask to -1s and 1s
+    result_tensor = torch.where(inside_mask, torch.tensor(-1), torch.tensor(1))
+
+    return result_tensor
+
+
+ALPHA = .0
+BETA = 1.0
 N_ITER = 500
-GRID_RES = 70
+GRID_RES = 35
 
 
 if __name__ == '__main__':
     # Load meshes, setup tensors, etc.
-    body_mesh = trimesh.load('results/tl_out/orig_body.ply')
+    #body_mesh = trimesh.load('results/tl_out/orig_body.ply')
+
+    smpl_model = SMPL(model_path='/home/kristijan/data/hierprob3d/smpl/SMPL_FEMALE.pkl')
+    pose = torch.zeros((1, 23 * 3))
+    # 0, 1 -> left leg
+    # 1, 2 -> right leg
+    # 2, 3 -> mid-hip
+    # 3, 4 -> left knee
+    i, j = 0, 1
+    pose[0, i*3:j*3] = torch.tensor([-np.pi / 8, 0, 0])
+    verts = smpl_model(body_pose=pose).vertices[0].cpu().detach().numpy()
+    body_mesh = trimesh.Trimesh(vertices=verts, faces=smpl_model.faces)
+    body_verts = torch.tensor(body_mesh.vertices, dtype=torch.float32)
+    body_faces = torch.tensor(body_mesh.faces, dtype=torch.int32)
+
+    body_mesh.export('body_mesh.ply')
 
     garment_mesh = trimesh.load('results/optim_in/orig_front_shirt_0.001.ply')
     garment_vertices = torch.tensor(garment_mesh.vertices, dtype=torch.float32, requires_grad=True)
-    garment_triangles = torch.tensor(garment_mesh.faces, dtype=torch.int32)
+    garment_triangles = torch.tensor(garment_mesh.faces, dtype=torch.long)
 
     parameterized_mesh = trimesh.load('results/optim_in/param_front_shirt_0.001.obj')
     parameterized_vertices = torch.tensor(parameterized_mesh.vertices, dtype=torch.float32)
+
+    
+
+
+    body_mesh_pytorch3d = Meshes(verts=body_verts.unsqueeze(0), faces=body_faces.unsqueeze(0))
+    garment_mesh_pytorch3d = Meshes(verts=garment_vertices.unsqueeze(0), faces=garment_triangles.unsqueeze(0))
+    optimized_mesh = trimesh.load('optimized_mesh.ply')
+    optimized_vertices = torch.tensor(optimized_mesh.vertices, dtype=torch.float32)
+    optimized_triangles = torch.tensor(optimized_mesh.faces, dtype=torch.float32)
+    optimized_mesh_pytorch3d = Meshes(verts=optimized_vertices.unsqueeze(0), faces=optimized_triangles.unsqueeze(0))
+
+    results = check_mesh_vertices_inside_mesh(body_mesh_pytorch3d, optimized_mesh_pytorch3d)
 
     # Set parameters
     warp_direction = torch.tensor([1, 0, 0], dtype=torch.float32)
@@ -555,12 +786,19 @@ if __name__ == '__main__':
     grid_points_path = f'results/optim_in/grid_points_{GRID_RES}.npy'
 
     if not os.path.exists(sdf_grid_path):
-        sdf_grid, grid_points = compute_sdf(body_mesh, grid_resolution=GRID_RES)
-        #np.save(sdf_grid_path, sdf_grid)
-        #np.save(grid_points_path, grid_points)
+        from time import time
+        start_time = time()
+        #compute_sdf(mesh=body_mesh, grid_resolution=10)
+        grid_points = create_voxel_grid(mesh=garment_mesh, grid_resolution=GRID_RES)
+        sdf_grid = compute_signed_distance_grid(mesh=body_mesh, grid_points=grid_points, grid_res=GRID_RES)
+        print(f'SDF time: {time() - start_time}...')
+        np.save(sdf_grid_path, sdf_grid)
+        np.save(grid_points_path, grid_points)
     else:
         sdf_grid = np.load(sdf_grid_path)
         grid_points = np.load(grid_points_path)
+
+    save_point_cloud(grid_points, 'grid_points.ply')
 
     sdf_grid_tensor = torch.tensor(sdf_grid, dtype=torch.float32)
     sdf_min = torch.tensor(grid_points.min(axis=0), dtype=torch.float32)#.to(device)
@@ -568,7 +806,7 @@ if __name__ == '__main__':
 
     print('Calculated SDF and Jacobians, starting the optimization...')
 
-    optimizer = torch.optim.Adam([garment_vertices], lr=0.001)
+    optimizer = torch.optim.Adam([garment_vertices], lr=0.0001)
 
     for iteration in range(N_ITER):
         optimizer.zero_grad()
@@ -576,8 +814,10 @@ if __name__ == '__main__':
         # Compute Jacobians and SDF based loss
         current_jacobians = compute_jacobians(garment_vertices, garment_triangles, warp_direction, weft_direction)
         jacobian_loss = jacobian_loss_function(current_jacobians, target_jacobians)
-        sdf_values = trilinear_interpolation(sdf_grid_tensor, garment_vertices, sdf_min, sdf_max)
-        collision_loss = torch.mean(torch.relu(-sdf_values))  # Assuming SDF is negative inside the mesh
+        #sdf_values = calculate_sdf(mesh_vertices=garment_vertices, signed_distance_grid=sdf_grid_tensor, grid_min=sdf_min, grid_max=sdf_max)
+        sdf_values = differentiable_sdf(body_vertices=body_verts, body_faces=body_faces, garment_vertices=garment_vertices)
+        soft_sdf_values = differentiable_sdf_softmin(body_vertices=body_verts, body_faces=body_faces, garment_vertices=garment_vertices)
+        collision_loss = torch.mean(torch.relu(-soft_sdf_values))  # Assuming SDF is negative inside the mesh
 
         total_loss = ALPHA * jacobian_loss + BETA * collision_loss
         
@@ -585,7 +825,7 @@ if __name__ == '__main__':
         optimizer.step()
 
         if iteration % 5 == 0:
-            print(f"Iteration {iteration}, Total Loss: {total_loss.item()} (Jacobian: {jacobian_loss}, Collision: {collision_loss})")
+            print(f"Iteration {iteration}, Total Loss: {total_loss.item()} (Jacobian: {ALPHA * jacobian_loss}, Collision: {BETA * collision_loss})")
 
         #if total_loss.item() < 0.001:
         #    print("Convergence reached")

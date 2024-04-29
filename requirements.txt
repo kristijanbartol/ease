@@ -9,3 +9,5 @@ einops
 open3d
 trimesh
 rtree
+torch
+torchvision
