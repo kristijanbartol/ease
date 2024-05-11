@@ -45,3 +45,10 @@ def determine_pant_seams(verts, pant_length, seam_idx_dict, side, inner_seams=Tr
         pant_seams += inner_points + seam_idx_dict['mid_inner']
     pant_seams += seam_idx_dict['waistline']
     return pant_seams, last_outer_point[1]
+
+
+def determine_sleeve_seams(verts, sleeve_length, seam_idx_dict):
+    up_points, last_up_point = extract_parameterized_seams(verts, sleeve_length, seam_idx_dict['up'])
+    down_points, last_down_point = extract_parameterized_seams(verts, sleeve_length, seam_idx_dict['down'])
+    sleeve_seams = up_points + down_points + seam_idx_dict['side']
+    return sleeve_seams, last_up_point[0]   # return last x axis

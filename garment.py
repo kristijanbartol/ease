@@ -48,7 +48,7 @@ class Garment:
         
         return adjacency_list
 
-    def flood_fill_vertices_deprecated(self, vertex_positions, boundary_vertices, y_threshold, start_vertex):
+    def flood_fill_vertices(self, vertex_positions, boundary_vertices, y_threshold, start_vertex):
         # Convert boundary vertices to a set for efficient lookup
         boundary_set = set(boundary_vertices)
 
@@ -80,6 +80,51 @@ class Garment:
         # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
         # Note that only those boundary vertices whose Y coordinate is larger than a threshold should be selected
         thresh_boundaries = [index for index in boundary_vertices if vertex_positions[index][1] > y_threshold]
+        selected_vertices.update(thresh_boundaries)
+
+        return list(selected_vertices)
+    
+    def flood_fill_sleeve_vertices(self, vertex_positions, boundary_vertices, start_vertex, x_threshold, side):
+
+        def threshold_check(vertex_positions, vertex_idx, x_threshold, side):
+            if side == 'right':
+                return vertex_positions[vertex_idx, 0] > x_threshold
+            else:
+                return vertex_positions[vertex_idx, 0] < x_threshold
+            
+        sign = -1 if side == 'left' else 1
+
+        # Convert boundary vertices to a set for efficient lookup
+        boundary_set = set(boundary_vertices)
+
+        # Initialize the stack with the start vertex, which is assumed to be inside the boundary and above the y_threshold
+        stack = [start_vertex]
+
+        # Initialize the set to keep track of visited vertices
+        visited = set()
+
+        # Initialize the set to store the selected vertices
+        selected_vertices = set()
+
+        while stack:
+            # Pop the last vertex from the stack
+            vertex_idx = stack.pop()
+
+            # If the vertex has not been visited yet and is not on the boundary or below y_threshold, process it
+            if vertex_idx not in visited and vertex_idx not in boundary_set and threshold_check(vertex_positions, vertex_idx, x_threshold, side):
+                # Mark the vertex as visited and add to selected
+                visited.add(vertex_idx)
+                selected_vertices.add(vertex_idx)
+
+                # Iterate over the neighbors of the current vertex
+                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
+                    # If the neighbor hasn't been visited, add it to the stack
+                    if neighbor_idx not in visited:
+                        stack.append(neighbor_idx)
+        
+        # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
+        # Note that only those boundary vertices whose Y coordinate is larger than a threshold should be selected
+        thresh_boundaries = [index for index in boundary_vertices if threshold_check(vertex_positions, index, x_threshold, side)]
         selected_vertices.update(thresh_boundaries)
 
         return list(selected_vertices)
