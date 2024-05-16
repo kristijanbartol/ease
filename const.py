@@ -134,7 +134,7 @@ PANT_LENGTH = 0.8
 
 DISCRETE_STEP = 0.001
 YARN_DIST = 0.005
-DISPLACEMENTS = 0.005
+DISPLACEMENTS = 0.0025
 
 GLOBAL_WARP = np.array([0, 0, -1])
 GLOBAL_WEFT = np.array([1, 0, 0])
@@ -149,5 +149,5 @@ COLOR_MAP = {
     'light_blue': (173, 216, 230),
     'brown': (165, 42, 42),
     'yellow': (255, 255, 0),
-    'black': (0, 0, 0)
+    'white': (255, 255, 255)
 }
