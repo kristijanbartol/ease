@@ -6,7 +6,6 @@ Relevant at the point when PBS will be applied, until then, the
 '''
 
 import trimesh
-import torch
 import numpy as np
 import os
 
@@ -43,7 +42,7 @@ from seams import (
 )
 from utils import (
     export,
-    export_to_ply,
+    color_code_stretches,
     update_color_indices
 )
 from mesh_sets import SETS
@@ -210,21 +209,17 @@ def select_original(args, smpl_model):
         back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_right'], offset=offset_distance)
         back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_left'], offset=offset_distance)
 
-        # Set garment mesh colors
-        upper_garment_colors = {
-            'red': front_v_idxs,
-            'blue': back_v_idxs,
-            'light_green': sleeve_indices['front_right'],
-            'dark_green': sleeve_indices['back_right'],
-            'brown': sleeve_indices['front_left'],
-            'white': sleeve_indices['back_left']
-        }
-        lower_garment_colors = {
-            'dark_blue': pant_indices['front_right'],
-            'light_blue': pant_indices['front_left'],
-            'orange': pant_indices['back_right'],
-            'yellow': pant_indices['back_left']
-        }
+        # TODO: Update the stretches array to take non-trivial distribution.
+        upper_garment_mesh = color_code_stretches(
+            verts=upper_garment_verts, 
+            faces=upper_garment_faces,
+            stretch_array=np.ones(upper_garment_faces.shape[0]) * 1.1
+        )
+        lower_garment_mesh = color_code_stretches(
+            verts=lower_garment_verts, 
+            faces=lower_garment_faces,
+            stretch_array=np.ones(lower_garment_faces.shape[0]) * 1.1
+        )
 
         front_shirt_colors = {
             'red': front_v_idxs,
@@ -261,10 +256,6 @@ def select_original(args, smpl_model):
             'gray': list(range(len(verts)))
         }
 
-        # Update garment component colors
-        updated_upper_garment_colors = update_color_indices(upper_indices, upper_garment_colors)
-        updated_lower_garment_colors = update_color_indices(lower_indices, lower_garment_colors)
-
         updated_front_shirt_colors = update_color_indices(front_v_idxs, front_shirt_colors)
         updated_back_shirt_colors = update_color_indices(back_v_idxs, back_shirt_colors)
         updated_front_right_sleeve_colors = update_color_indices(sleeve_indices['front_right'], front_right_sleeve_colors)
@@ -291,8 +282,8 @@ def select_original(args, smpl_model):
             os.makedirs(os.path.join(mesh_set_dir, 'front_left_pant/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_right_pant/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_left_pant/'), exist_ok=True)
-        export(upper_garment_verts, upper_garment_faces, updated_upper_garment_colors, f'{mesh_set_dir}/upper_garment_{mesh_name}', args.file_format)
-        export(lower_garment_verts, lower_garment_faces, updated_lower_garment_colors, f'{mesh_set_dir}/lower_garment_{mesh_name}', args.file_format)
+        upper_garment_mesh.export(f'{mesh_set_dir}/upper_garment_{mesh_name}.ply')
+        lower_garment_mesh.export(f'{mesh_set_dir}/lower_garment_{mesh_name}.ply')
 
         export(front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{mesh_set_dir}/front_shirt/{mesh_name}', args.file_format)
         export(back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{mesh_set_dir}/back_shirt/{mesh_name}', args.file_format)
