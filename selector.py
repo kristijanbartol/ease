@@ -28,17 +28,10 @@ from const import (
     SLEEVE_LENGTH
 )
 from garment import Garment
-from geometry import (
-    bezier_curve,
-    find_init_vertex_idx,
-    project_boundaries_using_faces_deprecated,
-    subdivide_mesh
-)
 from seams import (
     determine_pant_seams,
     determine_shirt_seams,
-    determine_sleeve_seams,
-    extract_parameterized_seams
+    determine_sleeve_seams
 )
 from utils import (
     export,
@@ -46,102 +39,6 @@ from utils import (
     update_color_indices
 )
 from mesh_sets import SETS
-
-
-def select_subdivided(args, smpl_model):
-    # Keep original vertices for selecting the control point locations for the Bezier curves
-    orig_verts = smpl_model().vertices[0].cpu().detach().numpy()
-    orig_faces = smpl_model.faces
-
-    # Subdivide mesh for smoothness - geometric operations will be more accurate
-    verts, faces = subdivide_mesh(
-        verts=orig_verts, 
-        faces=orig_faces
-    )
-
-    # Create trimesh.Trimesh for projecting 3D points to the mesh surface
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-    num_points = 1000
-    t_values = np.linspace(0, 1, num_points)
-
-    # Iterate over body parts
-    body_part_return_dict = {}
-    for body_part in ['upper_front']:
-        body_part_curve_points = np.empty((0, 3))
-        bottom_left_point, bottom_right_point = None, None
-
-        # Iterate over boundaries of the body part
-        for boundary_key in KEYPOINTS[body_part]:
-            control_point_idx_list = KEYPOINTS[body_part][boundary_key]
-            control_points = [orig_verts[idx] for idx in control_point_idx_list]
-
-            # Select Bezier control points based on the length parameter
-            if boundary_key == 'left_side':
-                _, bottom_left_point = extract_parameterized_seams(
-                    verts=verts, 
-                    garment_length=args.shirt_length, 
-                    seam_vertex_indices=SEAM_IDX_DICT[body_part]['left_armpit']
-                )
-                control_points.append(bottom_left_point)
-            if boundary_key == 'right_side':
-                _, bottom_right_point = extract_parameterized_seams(
-                    verts=verts, 
-                    garment_length=args.shirt_length, 
-                    seam_vertex_indices=SEAM_IDX_DICT[body_part]['right_armpit']
-                )
-                control_points.append(bottom_right_point)
-            if boundary_key == 'bottom':
-                mid_point = (bottom_left_point + bottom_right_point) / 2
-                mid_point[2] += 0.1
-                control_points.extend([bottom_left_point, mid_point, bottom_right_point])
-
-            # Obtain Bezier curve points and concatenate to the list of unprojected boundaries
-            body_part_curve_points = np.vstack([
-                body_part_curve_points,
-                np.array([bezier_curve(t, control_points) for t in t_values])
-            ])
-
-        # Project the Bezier curve boundaries to the mesh surface
-        # TODO: Project to the triangles instead of vertices for smoother cut-out surface.
-        projected_vertex_idxs = project_boundaries_using_faces_deprecated(
-            mesh=mesh,
-            points=body_part_curve_points
-        )
-        # Find the starting point on the mesh surface for the Flood Fill algorithm
-        init_idx = find_init_vertex_idx(
-            mesh=mesh,
-            start_point=np.mean(control_points, axis=0)
-        )
-        # Create adjacency matrix in Garment object and apply Flood Fill
-        garment = Garment(verts, faces)
-        selected_verts = garment.flood_fill_vertices_subdivided(
-            boundary_vertex_ids=projected_vertex_idxs, 
-            starting_vertex_id=init_idx
-        )
-        body_part_verts, body_part_faces = garment.extract_garment_mesh(verts, faces, selected_verts, offset=0.005)
-        body_part_colors = {
-            'red': selected_verts
-        }
-        body_colors = {
-            'gray': list(range(len(verts)))
-        }
-        body_part_garment_colors = update_color_indices(selected_verts, body_part_colors)
-        export(
-            body_part_verts, 
-            body_part_faces, 
-            body_part_garment_colors, 
-            'results/tl_out/front_upper',
-            args.file_format
-        )
-        export(
-            verts, 
-            faces, 
-            body_colors, 
-            'results/tl_out/body',
-            args.file_format
-        )
-        body_part_return_dict[body_part] = (verts, faces, projected_vertex_idxs)
-    return body_part_return_dict
 
 
 def select_original(args, smpl_model):
@@ -297,4 +194,4 @@ def select_original(args, smpl_model):
         export(back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{mesh_set_dir}/back_right_pant/{mesh_name}', args.file_format)
         export(back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{mesh_set_dir}/back_left_pant/{mesh_name}', args.file_format)
 
-        export(verts, faces, body_colors, f'{mesh_set_dir}/body-{mesh_idx:2d}', args.file_format)
+        export(verts, faces, body_colors, f'{mesh_set_dir}/body-{mesh_idx:02d}', args.file_format)

@@ -1,5 +1,4 @@
 import numpy as np
-import open3d as o3d
 import scipy
 import trimesh
 import random
@@ -51,19 +50,6 @@ def apply_offset_to_verts(verts, faces, offset):
     offset_verts = verts + vertex_normals * offset
 
     return offset_verts
-
-
-def subdivide_mesh(verts, faces):
-    o3d_verts = o3d.utility.Vector3dVector(verts)
-    o3d_faces = o3d.utility.Vector3iVector(faces)
-
-    mesh = o3d.geometry.TriangleMesh()
-    mesh.vertices = o3d_verts
-    mesh.triangles = o3d_faces
-    mesh.compute_vertex_normals()
-    mesh = mesh.subdivide_loop(number_of_iterations=2)
-
-    return np.asarray(mesh.vertices), np.asarray(mesh.triangles)
 
 
 def bezier_curve(t, control_points):
