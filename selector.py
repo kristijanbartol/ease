@@ -5,9 +5,9 @@ Relevant at the point when PBS will be applied, until then, the
 3D grid creation operations can be done on the original mesh.
 '''
 
-import trimesh
 import numpy as np
 import os
+import json
 
 from const import (
     DISPLACEMENTS,
@@ -21,11 +21,7 @@ from const import (
     INIT_BACK_LEFT_SLEEVE,
     INIT_UPPER_BACK,
     INIT_UPPER_FRONT,
-    KEYPOINTS,
-    PANT_LENGTH,
-    SEAM_IDX_DICT,
-    SHIRT_LENGTH,
-    SLEEVE_LENGTH
+    SEAM_IDX_DICT
 )
 from garment import Garment
 from seams import (
@@ -36,7 +32,8 @@ from seams import (
 from utils import (
     export,
     color_code_stretches,
-    update_color_indices
+    update_color_indices,
+    set_local_stretches
 )
 from mesh_sets import SETS
 
@@ -47,15 +44,33 @@ def select_original(args, smpl_model):
 
     garment = Garment(verts, faces)
 
-    # For the front shirt
-    seam_idxs_front, y_shirt_threshold = determine_shirt_seams(verts, SHIRT_LENGTH, SEAM_IDX_DICT['upper_front'])
-    front_v_idxs = garment.flood_fill_vertices(verts, seam_idxs_front, y_shirt_threshold, INIT_UPPER_FRONT)
-    
-    # For the back shirt
-    seam_idxs_back, _ = determine_shirt_seams(verts, SHIRT_LENGTH, SEAM_IDX_DICT['upper_back'])
-    back_v_idxs = garment.flood_fill_vertices(verts, seam_idxs_back, y_shirt_threshold, INIT_UPPER_BACK)
+    with open(f'data/designs/design-{args.design}.json', 'r') as json_file:
+        design_dict = json.load(json_file)
 
-    # Process the sleeves
+    seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['shirt'], 
+        seam_idx_dict=SEAM_IDX_DICT['upper_front']
+    )
+    front_v_idxs = garment.flood_fill_vertices(
+        vertex_positions=verts, 
+        boundary_vertices=seam_idxs_front, 
+        y_threshold=y_shirt_threshold, 
+        start_vertex=INIT_UPPER_FRONT
+    )
+    
+    seam_idxs_back, _ = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['shirt'], 
+        seam_idx_dict=SEAM_IDX_DICT['upper_back']
+    )
+    back_v_idxs = garment.flood_fill_vertices(
+        vertex_positions=verts, 
+        boundary_vertices=seam_idxs_back, 
+        y_threshold=y_shirt_threshold, 
+        start_vertex=INIT_UPPER_BACK
+    )
+
     sleeve_seams_and_thresholds = {
         'front_right': INIT_FRONT_RIGHT_SLEEVE,
         'back_right': INIT_BACK_RIGHT_SLEEVE,
@@ -64,11 +79,20 @@ def select_original(args, smpl_model):
     }
     sleeve_indices = {}
     for key, init_idx in sleeve_seams_and_thresholds.items():
-        seams, x_sleeve_threshold = determine_sleeve_seams(verts, SLEEVE_LENGTH, SEAM_IDX_DICT[f'sleeve_{key}'])
+        seams, x_sleeve_threshold = determine_sleeve_seams(
+            verts=verts, 
+            sleeve_length=design_dict['dims']['sleeves'], 
+            seam_idx_dict=SEAM_IDX_DICT[f'sleeve_{key}']
+        )
         side = key.split('_')[1]
-        sleeve_indices[key] = garment.flood_fill_sleeve_vertices(verts, seams, init_idx, x_sleeve_threshold, side)
+        sleeve_indices[key] = garment.flood_fill_sleeve_vertices(
+            vertex_positions=verts, 
+            boundary_vertices=seams, 
+            start_vertex=init_idx, 
+            x_threshold=x_sleeve_threshold, 
+            side=side
+        )
 
-    # Process the pants
     pant_seams_and_thresholds = {
         'front_right': (INIT_RIGHT_FRONT_PANT, 'right'),
         'front_left': (INIT_LEFT_FRONT_PANT, 'left'),
@@ -77,18 +101,18 @@ def select_original(args, smpl_model):
     }
     pant_indices = {}
     for key, (init_idx, side) in pant_seams_and_thresholds.items():
-        seams, y_pant_threshold = determine_pant_seams(verts, PANT_LENGTH, SEAM_IDX_DICT[f'pant_{key}'], side)
+        seams, y_pant_threshold = determine_pant_seams(
+            verts=verts, 
+            pant_length=design_dict['dims']['pants'], 
+            seam_idx_dict=SEAM_IDX_DICT[f'pant_{key}'], 
+            side=side
+        )
         pant_indices[key] = garment.flood_fill_vertices(verts, seams, y_pant_threshold, init_idx)
-
-
 
     offset_distance = DISPLACEMENTS
     for mesh_idx, (pose_fun, shape_fun) in enumerate(SETS[args.mesh_set]):
-
         verts = smpl_model(body_pose=pose_fun(), betas=shape_fun()).vertices[0].cpu().detach().numpy()
 
-
-        # Create upper and lower garment meshes
         upper_indices = front_v_idxs + back_v_idxs + sleeve_indices['front_right'] + sleeve_indices['back_right'] + sleeve_indices['front_left'] + sleeve_indices['back_left']
         lower_indices = sum(pant_indices.values(), [])
 
@@ -104,19 +128,7 @@ def select_original(args, smpl_model):
         front_right_pant_verts, front_right_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['front_right'], offset=offset_distance)
         front_left_pant_verts, front_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['front_left'], offset=offset_distance)
         back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_right'], offset=offset_distance)
-        back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_left'], offset=offset_distance)
-
-        # TODO: Update the stretches array to take non-trivial distribution.
-        upper_garment_mesh = color_code_stretches(
-            verts=upper_garment_verts, 
-            faces=upper_garment_faces,
-            stretch_array=np.ones(upper_garment_faces.shape[0]) * 1.1
-        )
-        lower_garment_mesh = color_code_stretches(
-            verts=lower_garment_verts, 
-            faces=lower_garment_faces,
-            stretch_array=np.ones(lower_garment_faces.shape[0]) * 1.1
-        )
+        back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(verts, faces, pant_indices['back_left'], offset=offset_distance)       
 
         front_shirt_colors = {
             'red': front_v_idxs,
@@ -167,7 +179,7 @@ def select_original(args, smpl_model):
 
         # Export garment component meshes
         mesh_name = 'init' if mesh_idx == 0 else f'target-{mesh_idx:02d}'
-        mesh_set_dir = os.path.join(f'results/target_meshes/{args.mesh_set}/')
+        mesh_set_dir = os.path.join(f'data/final/{args.design}-{args.mesh_set}/')
         if not os.path.exists(mesh_set_dir):
             os.makedirs(os.path.join(mesh_set_dir, 'front_shirt/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_shirt/'), exist_ok=True)
@@ -179,8 +191,6 @@ def select_original(args, smpl_model):
             os.makedirs(os.path.join(mesh_set_dir, 'front_left_pant/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_right_pant/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_left_pant/'), exist_ok=True)
-        upper_garment_mesh.export(f'{mesh_set_dir}/upper_garment_{mesh_name}.ply')
-        lower_garment_mesh.export(f'{mesh_set_dir}/lower_garment_{mesh_name}.ply')
 
         export(front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{mesh_set_dir}/front_shirt/{mesh_name}', args.file_format)
         export(back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{mesh_set_dir}/back_shirt/{mesh_name}', args.file_format)
@@ -193,5 +203,104 @@ def select_original(args, smpl_model):
         export(front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, f'{mesh_set_dir}/front_left_pant/{mesh_name}', args.file_format)
         export(back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{mesh_set_dir}/back_right_pant/{mesh_name}', args.file_format)
         export(back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{mesh_set_dir}/back_left_pant/{mesh_name}', args.file_format)
+
+        # Prepare local stretch arrays
+        front_shirt_stretch_array = set_local_stretches(
+            verts=front_shirt_verts,
+            faces=front_shirt_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='upper'
+        )
+        back_shirt_strech_array = set_local_stretches(
+            verts=back_shirt_verts,
+            faces=back_shirt_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='upper'
+        )
+        front_right_sleeve_stretch_array = set_local_stretches(
+            verts=front_right_sleeve_verts,
+            faces=front_right_sleeve_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='sleeves'
+        )
+        back_right_sleeve_stretch_array = set_local_stretches(
+            verts=back_right_sleeve_verts,
+            faces=back_right_sleeve_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='sleeves'
+        )
+        front_left_sleeve_stretch_array = set_local_stretches(
+            verts=front_left_sleeve_verts,
+            faces=front_left_sleeve_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='sleeves'
+        )
+        back_left_sleeve_stretch_array = set_local_stretches(
+            verts=back_left_sleeve_verts,
+            faces=back_left_sleeve_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='sleeves'
+        )
+
+        front_right_pant_stretch_array = set_local_stretches(
+            verts=front_right_pant_verts,
+            faces=front_right_pant_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='lower'
+        )
+        back_right_pant_stretch_array = set_local_stretches(
+            verts=back_right_pant_verts,
+            faces=back_right_pant_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='lower'
+        )
+        front_left_pant_stretch_array = set_local_stretches(
+            verts=front_left_pant_verts,
+            faces=front_left_pant_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='lower'
+        )
+        back_left_pant_stretch_array = set_local_stretches(
+            verts=back_left_pant_verts,
+            faces=back_left_pant_faces,
+            design_dict=design_dict['stretches'],
+            garment_part='lower'
+        )
+
+        np.savetxt(f'{mesh_set_dir}/front_shirt/streches.txt', front_shirt_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_shirt/streches.txt', back_shirt_strech_array)
+        np.savetxt(f'{mesh_set_dir}/front_right_sleeve/streches.txt', front_right_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_right_sleeve/streches.txt', back_right_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_left_sleeve/streches.txt', front_left_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_left_sleeve/streches.txt', back_left_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_right_pant/streches.txt', front_right_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_right_pant/streches.txt', back_right_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_left_pant/streches.txt', front_left_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_left_pant/streches.txt', back_left_pant_stretch_array)
+
+        # Store for the initial color-coded designs.
+        if mesh_name == 'init':
+            upper_garment_mesh = color_code_stretches(
+                verts=upper_garment_verts, 
+                faces=upper_garment_faces,
+                stretch_array=set_local_stretches(
+                    verts=upper_garment_verts,
+                    faces=upper_garment_faces,
+                    design_dict=design_dict['stretches'],
+                    garment_part='upper'
+                )
+            )
+            lower_garment_mesh = color_code_stretches(
+                verts=lower_garment_verts, 
+                faces=lower_garment_faces,
+                stretch_array=set_local_stretches(
+                    verts=lower_garment_verts,
+                    faces=lower_garment_faces,
+                    design_dict=design_dict['stretches'],
+                    garment_part='lower'
+                )
+            )
+            upper_garment_mesh.export(f'{mesh_set_dir}/upper_garment_{mesh_name}.ply')
+            lower_garment_mesh.export(f'{mesh_set_dir}/lower_garment_{mesh_name}.ply')
 
         export(verts, faces, body_colors, f'{mesh_set_dir}/body-{mesh_idx:02d}', args.file_format)

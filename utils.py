@@ -129,10 +129,15 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
         else:
             vertex_colors[i] = [128, 128, 128, 255]  # Default gray color if no face uses this vertex
 
-    # Create the mesh with vertex colors
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
+    return trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
 
-    # Export the mesh to a PLY file
-    #mesh.export('colored_mesh.ply')
 
-    return mesh
+def set_local_stretches(verts, faces, design_dict, garment_part) -> np.ndarray:
+    if design_dict[garment_part]['type'] == 'uniform':
+        return np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch']
+    elif design_dict[garment_part]['type'] == 'linear':
+        pass
+    elif design_dict[garment_part]['type'] == 'linear_from':
+        pass
+    else:
+        print('WARNING: Wrong design stretch type, returning uniform (1.0).')

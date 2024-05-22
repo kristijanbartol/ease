@@ -13,7 +13,7 @@
             "justMyCode": false,
             "args": [
                 "--file_format", "both",
-                "--os", "macos"
+                "--os", "linux"
             ]
         }
     ]

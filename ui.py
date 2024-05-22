@@ -77,9 +77,9 @@ class GarmentDesignerUI(QWidget):
         
     def apply_changes(self):
         # Get current values
-        sleeve_length = self.sleeve_slider.value()
-        shirt_size = self.shirt_slider.value()
-        pant_size = self.pant_slider.value()
+        sleeve_length = float(self.sleeve_slider.value()) / 100.
+        shirt_size = float(self.shirt_slider.value()) / 100.
+        pant_size = float(self.pant_slider.value()) / 100.
         checkpoint = self.checkpoint_dropdown.currentText()
         
         # Apply your existing logic to update the garment meshes based on these values
