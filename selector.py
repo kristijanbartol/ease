@@ -21,7 +21,8 @@ from const import (
     INIT_BACK_LEFT_SLEEVE,
     INIT_UPPER_BACK,
     INIT_UPPER_FRONT,
-    SEAM_IDX_DICT
+    SEAM_IDX_DICT,
+    SETS
 )
 from garment import Garment
 from seams import (
@@ -35,7 +36,6 @@ from utils import (
     update_color_indices,
     set_local_stretches
 )
-from mesh_sets import SETS
 
 
 def select_original(args, smpl_model):
