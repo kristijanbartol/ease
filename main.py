@@ -15,11 +15,14 @@ if __name__ == '__main__':
 
     # TODO: Anonymize the paths before submission!!!
     if args.os == 'macos':
-        smpl_model = SMPL(model_path=f'/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/SMPL_{args.gender.upper()}.pkl')
+        smpl_path = f'/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/SMPL_{args.gender.upper()}.pkl'
     else:
-        smpl_model = SMPL(model_path=f'/home/kristijan/data/hierprob3d/smpl/SMPL_{args.gender.upper()}.pkl')
+        smpl_path = f'/home/kristijan/data/hierprob3d/smpl/SMPL_{args.gender.upper()}.pkl'
+
+    smpl_model = SMPL(smpl_path)
 
     select_original(
         args, 
-        smpl_model
+        smpl_model,
+        smpl_path
     )

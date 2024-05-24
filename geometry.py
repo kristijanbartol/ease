@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 import trimesh
+import torch
 import random
 
 from const import (
@@ -178,10 +179,15 @@ def find_init_vertex_idx(mesh, start_point):
     return mesh.faces[triangle_id][random.randint(0, 2)]
 
 
-def modify_mesh_with_plane(vertices, faces, point):
-    # Calculate the normal of the vertical plane
-    plane_normal = np.array([1, 0, 0])  # Assuming the plane is vertical and normal is along the x-axis
-    plane_point = np.array(point)
+def modify_mesh_with_plane_cut(vertices, faces, cutting_point, plane_orientation, sleeve_side=None):
+    if plane_orientation == 'vertical':
+        plane_side = -1 if sleeve_side == 'right' else 1
+        plane_normal = np.array([plane_side, 0, 0])
+        plane_point = np.array([cutting_point, 0, 0])
+    elif plane_orientation == 'horizontal':
+        plane_normal = np.array([0, -1, 0])
+        plane_point = np.array([0, cutting_point, 0])
+    
     plane_d = -np.dot(plane_normal, plane_point)
 
     def point_plane_distance(vertex):
@@ -244,5 +250,4 @@ def modify_mesh_with_plane(vertices, faces, point):
             if point_plane_distance(vertex) > 0:
                 new_vertices[v_idx] = move_to_nearest_edge(vertex, polygon_edges)
 
-    modified_mesh = trimesh.Trimesh(vertices=new_vertices, faces=faces)
-    return modified_mesh
+    return new_vertices

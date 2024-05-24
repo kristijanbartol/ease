@@ -6,8 +6,11 @@ Relevant at the point when PBS will be applied, until then, the
 '''
 
 import numpy as np
+import torch
 import os
 import json
+from smplx import SMPL
+import trimesh
 
 from const import (
     DISPLACEMENTS,
@@ -25,6 +28,9 @@ from const import (
     SETS
 )
 from garment import Garment
+from geometry import (
+    modify_mesh_with_plane_cut
+)
 from seams import (
     determine_pant_seams,
     determine_shirt_seams,
@@ -38,7 +44,7 @@ from utils import (
 )
 
 
-def select_original(args, smpl_model):
+def select_original(args, smpl_model, smpl_path):
     verts = smpl_model().vertices[0].cpu().detach().numpy()
     faces = smpl_model.faces
 
@@ -71,14 +77,20 @@ def select_original(args, smpl_model):
         start_vertex=INIT_UPPER_BACK
     )
 
-    sleeve_seams_and_thresholds = {
+    sleeve_init_points = {
         'front_right': INIT_FRONT_RIGHT_SLEEVE,
         'back_right': INIT_BACK_RIGHT_SLEEVE,
         'front_left': INIT_FRONT_LEFT_SLEEVE,
         'back_left': INIT_BACK_LEFT_SLEEVE
     }
     sleeve_indices = {}
-    for key, init_idx in sleeve_seams_and_thresholds.items():
+    sleeve_thresholds = { 
+        'front_right': 0.0,
+        'back_right': 0.0,
+        'front_left': 0.0,
+        'back_left': 0.0
+    }
+    for key, init_idx in sleeve_init_points.items():
         seams, x_sleeve_threshold = determine_sleeve_seams(
             verts=verts, 
             sleeve_length=design_dict['dims']['sleeves'], 
@@ -92,6 +104,7 @@ def select_original(args, smpl_model):
             x_threshold=x_sleeve_threshold, 
             side=side
         )
+        sleeve_thresholds[key] = x_sleeve_threshold
 
     pant_seams_and_thresholds = {
         'front_right': (INIT_RIGHT_FRONT_PANT, 'right'),
@@ -108,6 +121,28 @@ def select_original(args, smpl_model):
             side=side
         )
         pant_indices[key] = garment.flood_fill_vertices(verts, seams, y_pant_threshold, init_idx)
+
+    verts = modify_mesh_with_plane_cut(
+        vertices=verts,
+        faces=faces,
+        cutting_point=y_shirt_threshold,
+        plane_orientation='horizontal'
+    )
+    verts = modify_mesh_with_plane_cut(
+        vertices=verts,
+        faces=faces,
+        cutting_point=max(sleeve_thresholds['front_left'], sleeve_thresholds['back_left']),
+        plane_orientation='vertical',
+        sleeve_side='left'
+    )
+    verts = modify_mesh_with_plane_cut(
+        vertices=verts,
+        faces=faces,
+        cutting_point=min(sleeve_thresholds['front_right'], sleeve_thresholds['back_right']),
+        plane_orientation='vertical',
+        sleeve_side='right'
+    )
+    smpl_model = SMPL(smpl_path, v_template=torch.from_numpy(verts))
 
     offset_distance = DISPLACEMENTS
     for mesh_idx, (pose_fun, shape_fun) in enumerate(SETS[args.mesh_set]):
