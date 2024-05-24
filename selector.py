@@ -53,30 +53,7 @@ def select_original(args, smpl_model, smpl_path):
     with open(f'data/designs/design-{args.design}.json', 'r') as json_file:
         design_dict = json.load(json_file)
 
-    seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
-        verts=verts, 
-        shirt_length=design_dict['dims']['shirt'], 
-        seam_idx_dict=SEAM_IDX_DICT['upper_front']
-    )
-    front_v_idxs = garment.flood_fill_vertices(
-        vertex_positions=verts, 
-        boundary_vertices=seam_idxs_front, 
-        y_threshold=y_shirt_threshold, 
-        start_vertex=INIT_UPPER_FRONT
-    )
-    
-    seam_idxs_back, _ = determine_shirt_seams(
-        verts=verts, 
-        shirt_length=design_dict['dims']['shirt'], 
-        seam_idx_dict=SEAM_IDX_DICT['upper_back']
-    )
-    back_v_idxs = garment.flood_fill_vertices(
-        vertex_positions=verts, 
-        boundary_vertices=seam_idxs_back, 
-        y_threshold=y_shirt_threshold, 
-        start_vertex=INIT_UPPER_BACK
-    )
-
+    # Helper structures.
     sleeve_init_points = {
         'front_right': INIT_FRONT_RIGHT_SLEEVE,
         'back_right': INIT_BACK_RIGHT_SLEEVE,
@@ -84,44 +61,49 @@ def select_original(args, smpl_model, smpl_path):
         'back_left': INIT_BACK_LEFT_SLEEVE
     }
     sleeve_indices = {}
-    sleeve_thresholds = { 
-        'front_right': 0.0,
-        'back_right': 0.0,
-        'front_left': 0.0,
-        'back_left': 0.0
+    sleeve_thresholds = {}
+
+    pant_init_points = {
+        'front_right': INIT_RIGHT_FRONT_PANT,
+        'front_left': INIT_LEFT_FRONT_PANT,
+        'back_right': INIT_RIGHT_BACK_PANT,
+        'back_left': INIT_LEFT_BACK_PANT
     }
+    pant_indices = {}
+    pant_thresholds = {}
+
+    # Determine seams.
+    seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['shirt'], 
+        seam_idx_dict=SEAM_IDX_DICT['upper_front']
+    )
+    seam_idxs_back, _ = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['shirt'], 
+        seam_idx_dict=SEAM_IDX_DICT['upper_back']
+    )
+
     for key, init_idx in sleeve_init_points.items():
         seams, x_sleeve_threshold = determine_sleeve_seams(
             verts=verts, 
             sleeve_length=design_dict['dims']['sleeves'], 
             seam_idx_dict=SEAM_IDX_DICT[f'sleeve_{key}']
         )
-        side = key.split('_')[1]
-        sleeve_indices[key] = garment.flood_fill_sleeve_vertices(
-            vertex_positions=verts, 
-            boundary_vertices=seams, 
-            start_vertex=init_idx, 
-            x_threshold=x_sleeve_threshold, 
-            side=side
-        )
+        sleeve_indices[key] = seams
         sleeve_thresholds[key] = x_sleeve_threshold
 
-    pant_seams_and_thresholds = {
-        'front_right': (INIT_RIGHT_FRONT_PANT, 'right'),
-        'front_left': (INIT_LEFT_FRONT_PANT, 'left'),
-        'back_right': (INIT_RIGHT_BACK_PANT, 'right'),
-        'back_left': (INIT_LEFT_BACK_PANT, 'left')
-    }
-    pant_indices = {}
-    for key, (init_idx, side) in pant_seams_and_thresholds.items():
+    for key, init_idx in pant_init_points.items():
         seams, y_pant_threshold = determine_pant_seams(
             verts=verts, 
             pant_length=design_dict['dims']['pants'], 
             seam_idx_dict=SEAM_IDX_DICT[f'pant_{key}'], 
-            side=side
+            side=key.split('_')[1]
         )
-        pant_indices[key] = garment.flood_fill_vertices(verts, seams, y_pant_threshold, init_idx)
+        pant_indices[key] = seams
+        pant_thresholds[key] = y_pant_threshold
 
+    # Modify body mesh by cutting planes.
     verts = modify_mesh_with_plane_cut(
         vertices=verts,
         faces=faces,
@@ -142,6 +124,36 @@ def select_original(args, smpl_model, smpl_path):
         plane_orientation='vertical',
         sleeve_side='right'
     )
+
+    # Flood fill.
+    front_v_idxs = garment.flood_fill_vertices(
+        vertex_positions=verts, 
+        boundary_vertices=seam_idxs_front, 
+        y_threshold=y_shirt_threshold, 
+        start_vertex=INIT_UPPER_FRONT
+    )
+    back_v_idxs = garment.flood_fill_vertices(
+        vertex_positions=verts, 
+        boundary_vertices=seam_idxs_back, 
+        y_threshold=y_shirt_threshold, 
+        start_vertex=INIT_UPPER_BACK
+    )
+    for key, init_idx in sleeve_init_points.items():
+        sleeve_indices[key] = garment.flood_fill_sleeve_vertices(
+            vertex_positions=verts, 
+            boundary_vertices=sleeve_indices[key], 
+            start_vertex=init_idx, 
+            x_threshold=sleeve_thresholds[key], 
+            side=key.split('_')[1]
+        )
+    for key, init_idx in pant_init_points.items():
+        pant_indices[key] = garment.flood_fill_vertices(
+            vertex_positions=verts, 
+            boundary_vertices=pant_indices[key],
+            y_threshold=pant_thresholds[key], 
+            start_vertex=init_idx
+        )
+
     smpl_model = SMPL(smpl_path, v_template=torch.from_numpy(verts))
 
     offset_distance = DISPLACEMENTS
