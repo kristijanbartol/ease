@@ -134,7 +134,10 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
 
 def set_local_stretches(verts, faces, design_dict, garment_part) -> np.ndarray:
     if design_dict[garment_part]['type'] == 'uniform':
-        return np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch']
+        return (
+            np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_u'],
+            np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
+        )
     elif design_dict[garment_part]['type'] == 'linear':
         pass
     elif design_dict[garment_part]['type'] == 'linear_from':

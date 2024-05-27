@@ -10,17 +10,20 @@
     "stretches": {
         "sleeves": {
             "type": "uniform",
-            "base_stretch": 1.1,
+            "base_stretch_u": 1.0,
+            "base_stretch_v": 1.1,
             "max_stretch": 1.1
         },
         "upper": {
             "type": "uniform",
-            "base_stretch": 1.05,
+            "base_stretch_u": 1.05,
+            "base_stretch_v": 1.0,
             "max_stretch": 1.05
         },
         "lower": {
             "type": "uniform",
-            "base_stretch": 1.05,
+            "base_stretch_u": 1.05,
+            "base_stretch_v": 1.0,
             "max_stretch": 1.05
         }
     }
