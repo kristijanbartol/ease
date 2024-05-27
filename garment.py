@@ -79,7 +79,7 @@ class Garment:
         
         # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
         # Note that only those boundary vertices whose Y coordinate is larger than a threshold should be selected
-        thresh_boundaries = [index for index in boundary_vertices if vertex_positions[index][1] > y_threshold]
+        thresh_boundaries = [index for index in boundary_vertices if vertex_positions[index][1] >= y_threshold]
         selected_vertices.update(thresh_boundaries)
 
         return list(selected_vertices)
