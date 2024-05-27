@@ -314,16 +314,27 @@ def select_original(args, smpl_model, smpl_path):
             garment_part='lower'
         )
 
-        np.savetxt(f'{mesh_set_dir}/front_shirt/streches.txt', front_shirt_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/back_shirt/streches.txt', back_shirt_strech_array)
-        np.savetxt(f'{mesh_set_dir}/front_right_sleeve/streches.txt', front_right_sleeve_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/back_right_sleeve/streches.txt', back_right_sleeve_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/front_left_sleeve/streches.txt', front_left_sleeve_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/back_left_sleeve/streches.txt', back_left_sleeve_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/front_right_pant/streches.txt', front_right_pant_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/back_right_pant/streches.txt', back_right_pant_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/front_left_pant/streches.txt', front_left_pant_stretch_array)
-        np.savetxt(f'{mesh_set_dir}/back_left_pant/streches.txt', back_left_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_shirt/stretches_u.txt', front_shirt_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_shirt/stretches_u.txt', back_shirt_strech_array)
+        np.savetxt(f'{mesh_set_dir}/front_right_sleeve/stretches_u.txt', front_right_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_right_sleeve/stretches_u.txt', back_right_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_left_sleeve/stretches_u.txt', front_left_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_left_sleeve/stretches_u.txt', back_left_sleeve_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_right_pant/stretches_u.txt', front_right_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_right_pant/stretches_u.txt', back_right_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/front_left_pant/stretches_u.txt', front_left_pant_stretch_array)
+        np.savetxt(f'{mesh_set_dir}/back_left_pant/stretches_u.txt', back_left_pant_stretch_array)
+
+        np.savetxt(f'{mesh_set_dir}/front_shirt/stretches_v.txt', np.ones_like(front_shirt_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/back_shirt/stretches_v.txt', np.ones_like(back_shirt_strech_array))
+        np.savetxt(f'{mesh_set_dir}/front_right_sleeve/stretches_v.txt', np.ones_like(front_right_sleeve_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/back_right_sleeve/stretches_v.txt', np.ones_like(back_right_sleeve_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/front_left_sleeve/stretches_v.txt', np.ones_like(front_left_sleeve_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/back_left_sleeve/stretches_v.txt', np.ones_like(back_left_sleeve_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/front_right_pant/stretches_v.txt', np.ones_like(front_right_pant_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/back_right_pant/stretches_v.txt', np.ones_like(back_right_pant_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/front_left_pant/stretches_v.txt', np.ones_like(front_left_pant_stretch_array))
+        np.savetxt(f'{mesh_set_dir}/back_left_pant/stretches_v.txt', np.ones_like(back_left_pant_stretch_array))
 
         # Store for the initial color-coded designs.
         if mesh_name == 'init':

@@ -13,13 +13,16 @@ def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, inne
 
         if edge_length < remaining_length:
             remaining_length -= edge_length
-        elif edge_length == remaining_length:
+            if i == len(seam_vertex_indices) - 2:   # in case we came to the end
+                return seam_vertex_indices, verts[seam_vertex_indices[-1]]
+        else:
             # Find the point along the edge that corresponds to the remaining length
             direction = (end_vertex - start_vertex) / edge_length
             last_point = start_vertex + direction * remaining_length
-            return seam_vertex_indices[:(i + 1) + 1], last_point
-        else:
-            return seam_vertex_indices[:(i + 1) + 2], last_point
+            if edge_length == remaining_length:
+                return seam_vertex_indices[:(i + 1) + 1], last_point
+            else:
+                return seam_vertex_indices[:(i + 1) + 2], last_point
 
 
 def determine_shirt_seams(verts, shirt_length, seam_idx_dict):
