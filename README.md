@@ -33,6 +33,8 @@ pip install -r requirements.txt
 python setup.py --cuda_samples_dir <path_to_cuda_samples_dir> install
 ```
 
+Finally, for torch-mesh-isect project, download this per-triangle part segmentation file: [smplx_parts_segm.pkl](https://smpl-x.is.tue.mpg.de/download.php).
+
 ### Docker (not up-to-date)
 
 Use Docker to build an image (`docker build -t <img-name> .`) and run the container (`docker run -it -v <project-path>:/<project-name> <img-name>`).
