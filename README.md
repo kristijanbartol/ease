@@ -1,9 +1,5 @@
 # TailorLang
 
-<p align="center">
-<img src="tailorlang-0.1.PNG" width="50%" height="50%">
-<p align="center">
-
 TailorLang is the first DSL for parametric clothing with accurate cloth fitting. The project is motivated by the fact there is still no way to accurately determine how a piece of fabric fits the 3D body.
 The central result for solving the fitting problem is to find "characteristic" pieces of fabric that fit specified body areas. As part of the TailorLang, the algorithm for finding the characteristic pieces
 of fabric will be implemented.
@@ -11,6 +7,33 @@ of fabric will be implemented.
 🚧 This is an ongoing project. 🚧
 
 ## Installation
+
+### Conda environment
+
+Create and activate conda environment:
+
+```
+conda create -n tailorlang-env python=3.8
+conda activate tailorlang-env
+```
+
+Install requirements:
+
+```
+pip install -r requirements.txt
+```
+
+Additional dependencies:
+
+```
+git clone https://github.com/NVIDIA/cuda-samples.git   # in case it does not exist locally already
+git clone https://github.com/kristijanbartol/torch-mesh-isect.git
+cd torch-mesh-isect/
+pip install -r requirements.txt
+python setup.py --cuda_samples_dir <path_to_cuda_samples_dir> install
+```
+
+### Docker (not up-to-date)
 
 Use Docker to build an image (`docker build -t <img-name> .`) and run the container (`docker run -it -v <project-path>:/<project-name> <img-name>`).
 
