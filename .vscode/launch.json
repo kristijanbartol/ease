@@ -12,8 +12,11 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
+                "--regenerate",
                 "--file_format", "both",
-                "--os", "linux"
+                "--os", "linux",
+                "--set", "set1",
+                "--design", "default"
             ]
         }
     ]

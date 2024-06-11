@@ -132,15 +132,59 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
     return trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
 
 
-def set_local_stretches(verts, faces, design_dict, garment_part) -> np.ndarray:
+def set_local_stretches(verts, faces, design_dict, garment_part, side=None) -> np.ndarray:
+
     if design_dict[garment_part]['type'] == 'uniform':
-        return (
-            np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_u'],
-            np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
-        )
+        stretches_u = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_u']
+        stretches_v = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
+
     elif design_dict[garment_part]['type'] == 'linear':
-        pass
+        stretches_u, stretches_v = [], []
+        mean_face_coords = np.mean(verts[faces], axis=1)
+        if garment_part == 'sleeves':
+            min_x = np.min(verts[:, 0])
+            max_x = np.max(verts[:, 0])
+            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeves']['base_stretch_u']
+            base_stretch, max_stretch = design_dict['sleeves']['base_stretch_v'], design_dict['sleeves']['max_stretch']
+            if side == 'left':
+                stretches_v = base_stretch + ((mean_face_coords[:, 0] - min_x) / (max_x - min_x)) * (max_stretch - base_stretch)
+            else:
+                stretches_v = base_stretch + ((mean_face_coords[:, 0] - max_x) / (min_x - max_x)) * (max_stretch - base_stretch)
+        else:
+            min_y = np.min(verts[:, 1])
+            max_y = np.max(verts[:, 1])
+            base_stretch, max_stretch = design_dict[garment_part]['base_stretch_u'], design_dict[garment_part]['max_stretch']
+            stretches_u = base_stretch + ((mean_face_coords[:, 0] - max_y) / (min_y - max_y)) * (max_stretch - base_stretch)
+            stretches_v = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
+
     elif design_dict[garment_part]['type'] == 'linear_from':
-        pass
+        stretches_u, stretches_v = [], []
+        mean_face_coords = np.mean(verts[faces], axis=1)
+        if garment_part == 'sleeves':
+            ref_x = design_dict[garment_part]['ref_x']
+            min_x = np.min(verts[:, 0])
+            max_x = np.max(verts[:, 0])
+            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeves']['base_stretch_u']
+            base_stretch, max_stretch = design_dict['sleeves']['base_stretch_v'], design_dict['sleeves']['max_stretch']
+            if side == 'left':
+                ref_mask = mean_face_coords[:, 0] > ref_x
+                stretches_v[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 0] - ref_x) / (max_x - ref_x)) * (max_stretch - base_stretch)
+                stretches_v[np.where(~ref_mask)] = design_dict['sleeves']['base_stretch_v']
+            else:
+                ref_mask = mean_face_coords[:, 0] < -ref_x
+                stretches_v[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 0] - max_x) / (ref_x - max_x)) * (max_stretch - base_stretch)
+                stretches_v[np.where(~ref_mask)] = design_dict['sleeves']['base_stretch_v']
+        else:
+            ref_y = design_dict[garment_part]['ref_y']
+            min_y = np.min(verts[:, 1])
+            max_y = np.max(verts[:, 1])
+            base_stretch, max_stretch = design_dict[garment_part]['base_stretch_u'], design_dict[garment_part]['max_stretch']
+            ref_mask = mean_face_coords[:, 1] < ref_y
+            stretches_u[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 0] - ref_y) / (min_y - ref_y)) * (max_stretch - base_stretch)
+            stretches_u[np.where(~ref_mask)] = design_dict[garment_part]['base_stretch_u']
+            stretches_v = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
+
     else:
         print('WARNING: Wrong design stretch type, returning uniform (1.0).')
+    
+    return stretches_u, stretches_v

@@ -137,7 +137,10 @@ PANT_LENGTH = 0.8
 
 DISCRETE_STEP = 0.001
 YARN_DIST = 0.005
-DISPLACEMENTS = 0.0025
+DISPLACEMENTS = {
+    'skintight': 0.0025,
+    'loose': 0.05
+}
 
 GLOBAL_WARP = np.array([0, 0, -1])
 GLOBAL_WEFT = np.array([1, 0, 0])

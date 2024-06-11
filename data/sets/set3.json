@@ -1,0 +1,29 @@
+{
+    "poses": [
+        "a_pose",
+        "arms_up_pose",
+        "sit_pose",
+        "a_pose",
+        "a_pose",
+        "arms_up_pose",
+        "sit_pose"
+    ],
+    "shapes": [
+        "zero_shape",
+        "zero_shape",
+        "zero_shape",
+        "large_shape",
+        "small_shape",
+        "large_shape",
+        "large_shape"
+    ],
+    "genders": [
+        "male",
+        "male",
+        "male",
+        "male",
+        "male",
+        "male",
+        "male"
+    ]
+}
