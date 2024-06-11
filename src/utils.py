@@ -1,7 +1,7 @@
 import trimesh
 import numpy as np
 
-from const import COLOR_MAP
+from src.const import COLOR_MAP
 
 
 def update_color_indices(garment_vertex_indices, color_dict):

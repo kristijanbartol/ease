@@ -1,4 +1,4 @@
-data/final/
+data/
 __pycache__/
 *.ply
 *.obj

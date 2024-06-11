@@ -1,7 +1,7 @@
 import numpy as np
 import trimesh
 
-from geometry import (
+from src.geometry import (
     apply_offset_to_verts,
     find_init_vertex_idx
 )

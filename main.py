@@ -1,7 +1,6 @@
-from smplx import SMPL
 import argparse
 
-from selector import select_original
+from src.selector import select_original
 
 
 if __name__ == '__main__':

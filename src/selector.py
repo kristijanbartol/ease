@@ -11,7 +11,7 @@ import os
 import json
 from smplx import SMPL
 
-from const import (
+from src.const import (
     DISPLACEMENTS,
     INIT_LEFT_BACK_PANT,
     INIT_LEFT_FRONT_PANT,
@@ -25,17 +25,17 @@ from const import (
     INIT_UPPER_FRONT,
     SEAM_IDX_DICT
 )
-import const
-from garment import Garment
-from geometry import (
+import src.const as const
+from src.garment import Garment
+from src.geometry import (
     modify_mesh_with_plane_cut
 )
-from seams import (
+from src.seams import (
     determine_pant_seams,
     determine_shirt_seams,
     determine_sleeve_seams
 )
-from utils import (
+from src.utils import (
     export,
     color_code_stretches,
     update_color_indices,
@@ -52,9 +52,9 @@ def select_original(args, smpl_dir):
 
     garment = Garment(verts, faces)
 
-    with open(f'data/designs/{args.design}.json', 'r') as json_file:
+    with open(f'config/designs/{args.design}.json', 'r') as json_file:
         design_dict = json.load(json_file)
-    with open(f'data/sets/{args.set}.json', 'r') as json_file:
+    with open(f'config/sets/{args.set}.json', 'r') as json_file:
         set_dict = json.load(json_file)
 
     # Helper structures.
@@ -238,8 +238,8 @@ def select_original(args, smpl_dir):
 
             # Export garment component meshes
             mesh_name = 'init' if set_element_idx == 0 else f'target-{set_element_idx:02d}'
-            mesh_set_dir = os.path.join(f'data/final/{args.design}-{args.set}/{offset_type}')
-            latest_set_dir = os.path.join(f'data/final/latest/{offset_type}')
+            mesh_set_dir = os.path.join(f'data/{args.design}-{args.set}/{offset_type}')
+            latest_set_dir = os.path.join(f'data/latest/{offset_type}')
 
             os.makedirs(os.path.join(mesh_set_dir, 'front_shirt/'), exist_ok=True)
             os.makedirs(os.path.join(mesh_set_dir, 'back_shirt/'), exist_ok=True)

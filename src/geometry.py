@@ -4,7 +4,7 @@ import trimesh
 import torch
 import random
 
-from const import (
+from src.const import (
     INIT_LEFT_BACK_PANT,
     INIT_LEFT_FRONT_PANT,
     INIT_RIGHT_BACK_PANT,
@@ -21,7 +21,7 @@ from const import (
     SHIRT_LENGTH,
     SLEEVE_LENGTH
 )
-from seams import extract_parameterized_seams
+from src.seams import extract_parameterized_seams
 
 
 def compute_vertex_normals(verts, faces):
