@@ -139,7 +139,7 @@ DISCRETE_STEP = 0.001
 YARN_DIST = 0.005
 DISPLACEMENTS = {
     'skintight': 0.0025,
-    'loose': 0.05
+    'loose': 0.0075
 }
 
 GLOBAL_WARP = np.array([0, 0, -1])
@@ -184,10 +184,18 @@ COLOR_MAP = {
 # 22 -> right hand
 
 
+def t_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
+    return pose
+
+
 def a_pose():
     pose = torch.zeros((1, 23 * 3))
     pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 16, -np.pi / (4 / 1.1)])
     pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 16, np.pi / (4 / 1.1)])
+    return pose
 
 
 def arms_up_pose():
@@ -235,24 +243,6 @@ def small_shape():
     shape = torch.zeros((1, 10))
     shape[1:10] = -2.5
     return shape
-
-
-SETS = {
-    'set1': [
-        [a_pose, zero_shape],
-        [arms_up_pose, zero_shape],
-        [sit_pose, zero_shape],
-        [a_pose, large_shape],
-        [a_pose, small_shape],
-        [arms_up_pose, large_shape],
-        [sit_pose, large_shape]
-    ],
-    'set2': [
-        [a_pose, zero_shape],
-        [bent_knee_45_pose, zero_shape],
-        [bent_knee_90_pose, zero_shape]
-    ]
-} 
 
 
 def iterate_keypoints():

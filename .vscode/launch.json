@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Main",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
@@ -16,7 +16,8 @@
                 "--file_format", "both",
                 "--os", "linux",
                 "--set", "set1",
-                "--design", "default"
+                "--design", "default",
+                "--standard_export"
             ]
         }
     ]

@@ -10,6 +10,8 @@ if __name__ == '__main__':
     parser.add_argument('--design', '-D', type=str, default='default')
     parser.add_argument('--set', type=str, default="set1")
     parser.add_argument('--os', type=str, default="linux")
+    parser.add_argument('--use_smplx', action='store_true', dest='use_smplx')
+    parser.add_argument('--standard_export', action='store_true', dest='standard_export')
     args = parser.parse_args()
 
     # TODO: Anonymize the paths before submission!!!

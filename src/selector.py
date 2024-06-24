@@ -39,6 +39,7 @@ from src.utils import (
     export,
     color_code_stretches,
     update_color_indices,
+    read_ref_shape,
     set_local_stretches
 )
 
@@ -164,12 +165,12 @@ def select_original(args, smpl_dir):
     for offset_type in ['skintight', 'loose']:
         for set_element_idx in range(len(set_dict['poses'])):
             pose_fun = getattr(const, set_dict['poses'][set_element_idx])
-            shape_fun = getattr(const, set_dict['shapes'][set_element_idx])
+            betas = read_ref_shape(set_dict['shapes'][set_element_idx]) if args.use_smplx else getattr(const, set_dict['shapes'][set_element_idx])()
             gender = set_dict['genders'][set_element_idx]
             smpl_model = male_smpl_model if gender == 'male' else female_smpl_model
             verts = smpl_model(
                 body_pose=pose_fun(), 
-                betas=shape_fun()
+                betas=betas
             ).vertices[0].cpu().detach().numpy()
 
             upper_indices = front_v_idxs + back_v_idxs + sleeve_indices['front_right'] + sleeve_indices['back_right'] + sleeve_indices['front_left'] + sleeve_indices['back_left']
@@ -263,27 +264,27 @@ def select_original(args, smpl_dir):
             os.makedirs(os.path.join(latest_set_dir, 'back_right_pant/'), exist_ok=True)
             os.makedirs(os.path.join(latest_set_dir, 'back_left_pant/'), exist_ok=True)
 
-            export(front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{mesh_set_dir}/front_shirt/{mesh_name}', args.file_format)
-            export(back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{mesh_set_dir}/back_shirt/{mesh_name}', args.file_format)
-            export(front_right_sleeve_verts, front_right_sleeve_faces, updated_front_right_sleeve_colors, f'{mesh_set_dir}/front_right_sleeve/{mesh_name}', args.file_format)
-            export(back_right_sleeve_verts, back_right_sleeve_faces, updated_back_right_sleeve_colors, f'{mesh_set_dir}/back_right_sleeve/{mesh_name}', args.file_format)
-            export(front_left_sleeve_verts, front_left_sleeve_faces, updated_front_left_sleeve_colors, f'{mesh_set_dir}/front_left_sleeve/{mesh_name}', args.file_format)
-            export(back_left_sleeve_verts, back_left_sleeve_faces, updated_back_left_sleeve_colors, f'{mesh_set_dir}/back_left_sleeve/{mesh_name}', args.file_format)
-            export(front_right_pant_verts, front_right_pant_faces, updated_front_right_pant_colors, f'{mesh_set_dir}/front_right_pant/{mesh_name}', args.file_format)
-            export(front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, f'{mesh_set_dir}/front_left_pant/{mesh_name}', args.file_format)
-            export(back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{mesh_set_dir}/back_right_pant/{mesh_name}', args.file_format)
-            export(back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{mesh_set_dir}/back_left_pant/{mesh_name}', args.file_format)
+            export(args, front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{mesh_set_dir}/front_shirt/{mesh_name}', args.file_format)
+            export(args, back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{mesh_set_dir}/back_shirt/{mesh_name}', args.file_format)
+            export(args, front_right_sleeve_verts, front_right_sleeve_faces, updated_front_right_sleeve_colors, f'{mesh_set_dir}/front_right_sleeve/{mesh_name}', args.file_format)
+            export(args, back_right_sleeve_verts, back_right_sleeve_faces, updated_back_right_sleeve_colors, f'{mesh_set_dir}/back_right_sleeve/{mesh_name}', args.file_format)
+            export(args, front_left_sleeve_verts, front_left_sleeve_faces, updated_front_left_sleeve_colors, f'{mesh_set_dir}/front_left_sleeve/{mesh_name}', args.file_format)
+            export(args, back_left_sleeve_verts, back_left_sleeve_faces, updated_back_left_sleeve_colors, f'{mesh_set_dir}/back_left_sleeve/{mesh_name}', args.file_format)
+            export(args, front_right_pant_verts, front_right_pant_faces, updated_front_right_pant_colors, f'{mesh_set_dir}/front_right_pant/{mesh_name}', args.file_format)
+            export(args, front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, f'{mesh_set_dir}/front_left_pant/{mesh_name}', args.file_format)
+            export(args, back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{mesh_set_dir}/back_right_pant/{mesh_name}', args.file_format)
+            export(args, back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{mesh_set_dir}/back_left_pant/{mesh_name}', args.file_format)
 
-            export(front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{latest_set_dir}/front_shirt/{mesh_name}', args.file_format)
-            export(back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{latest_set_dir}/back_shirt/{mesh_name}', args.file_format)
-            export(front_right_sleeve_verts, front_right_sleeve_faces, updated_front_right_sleeve_colors, f'{latest_set_dir}/front_right_sleeve/{mesh_name}', args.file_format)
-            export(back_right_sleeve_verts, back_right_sleeve_faces, updated_back_right_sleeve_colors, f'{latest_set_dir}/back_right_sleeve/{mesh_name}', args.file_format)
-            export(front_left_sleeve_verts, front_left_sleeve_faces, updated_front_left_sleeve_colors, f'{latest_set_dir}/front_left_sleeve/{mesh_name}', args.file_format)
-            export(back_left_sleeve_verts, back_left_sleeve_faces, updated_back_left_sleeve_colors, f'{latest_set_dir}/back_left_sleeve/{mesh_name}', args.file_format)
-            export(front_right_pant_verts, front_right_pant_faces, updated_front_right_pant_colors, f'{latest_set_dir}/front_right_pant/{mesh_name}', args.file_format)
-            export(front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, f'{latest_set_dir}/front_left_pant/{mesh_name}', args.file_format)
-            export(back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{latest_set_dir}/back_right_pant/{mesh_name}', args.file_format)
-            export(back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{latest_set_dir}/back_left_pant/{mesh_name}', args.file_format)
+            export(args, front_shirt_verts, front_shirt_faces, updated_front_shirt_colors, f'{latest_set_dir}/front_shirt/{mesh_name}', args.file_format)
+            export(args, back_shirt_verts, back_shirt_faces, updated_back_shirt_colors, f'{latest_set_dir}/back_shirt/{mesh_name}', args.file_format)
+            export(args, front_right_sleeve_verts, front_right_sleeve_faces, updated_front_right_sleeve_colors, f'{latest_set_dir}/front_right_sleeve/{mesh_name}', args.file_format)
+            export(args, back_right_sleeve_verts, back_right_sleeve_faces, updated_back_right_sleeve_colors, f'{latest_set_dir}/back_right_sleeve/{mesh_name}', args.file_format)
+            export(args, front_left_sleeve_verts, front_left_sleeve_faces, updated_front_left_sleeve_colors, f'{latest_set_dir}/front_left_sleeve/{mesh_name}', args.file_format)
+            export(args, back_left_sleeve_verts, back_left_sleeve_faces, updated_back_left_sleeve_colors, f'{latest_set_dir}/back_left_sleeve/{mesh_name}', args.file_format)
+            export(args, front_right_pant_verts, front_right_pant_faces, updated_front_right_pant_colors, f'{latest_set_dir}/front_right_pant/{mesh_name}', args.file_format)
+            export(args, front_left_pant_verts, front_left_pant_faces, updated_front_left_pant_colors, f'{latest_set_dir}/front_left_pant/{mesh_name}', args.file_format)
+            export(args, back_right_pant_verts, back_right_pant_faces, updated_back_right_pant_colors, f'{latest_set_dir}/back_right_pant/{mesh_name}', args.file_format)
+            export(args, back_left_pant_verts, back_left_pant_faces, updated_back_left_pant_colors, f'{latest_set_dir}/back_left_pant/{mesh_name}', args.file_format)
 
             # Prepare local stretch arrays
             front_shirt_stretch_array_u, front_shirt_stretch_array_v = set_local_stretches(
@@ -426,5 +427,5 @@ def select_original(args, smpl_dir):
                 upper_garment_mesh.export(f'{latest_set_dir}/upper_garment_{mesh_name}.ply')
                 lower_garment_mesh.export(f'{latest_set_dir}/lower_garment_{mesh_name}.ply')
 
-            export(verts, faces, body_colors, f'{mesh_set_dir}/body-{set_element_idx:02d}', args.file_format)
-            export(verts, faces, body_colors, f'{latest_set_dir}/body-{set_element_idx:02d}', args.file_format)
+            export(args, verts, faces, body_colors, f'{mesh_set_dir}/body-{set_element_idx:02d}', args.file_format)
+            export(args, verts, faces, body_colors, f'{latest_set_dir}/body-{set_element_idx:02d}', args.file_format)

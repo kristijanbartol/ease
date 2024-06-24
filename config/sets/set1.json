@@ -1,5 +1,6 @@
 {
     "poses": [
+        "t_pose",
         "a_pose",
         "arms_up_pose",
         "sit_pose",
@@ -12,12 +13,14 @@
         "zero_shape",
         "zero_shape",
         "zero_shape",
+        "zero_shape",
         "large_shape",
         "small_shape",
         "large_shape",
         "large_shape"
     ],
     "genders": [
+        "female",
         "female",
         "female",
         "female",

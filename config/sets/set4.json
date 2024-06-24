@@ -1,5 +1,6 @@
 {
     "poses": [
+        "t_pose",
         "a_pose",
         "bent_knee_45_pose",
         "bent_knee_90_pose"
@@ -7,9 +8,11 @@
     "shapes": [
         "zero_shape",
         "zero_shape",
+        "zero_shape",
         "zero_shape"
     ],
     "genders": [
+        "male",
         "male",
         "male",
         "male"

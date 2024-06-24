@@ -58,45 +58,49 @@ def write_obj_file(filename, verts, faces):
             f.write(f"f {' '.join(str(v + 1) for v in face)}\n")
 
 
-def export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix):
-    # Map each vertex to its color
-    vertex_colors = {tuple(verts[i]): color for color, indices in vertex_indices_by_color.items() for i in indices}
-    
-    # Make sure faces are referring to the correct vertex indices
-    used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
-    verts = verts[list(used_vertex_indices)]
-    
-    # Update the face indices
-    index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
-    updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
-
-    # Write to PLY
+def export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix):
     ply_filename = f"{filename_prefix}.ply"
-    write_ply_file(ply_filename, verts, updated_faces, vertex_colors)
-
-
-def export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix):
-    # Make sure faces are referring to the correct vertex indices
-    used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
-    verts = verts[list(used_vertex_indices)]
-    
-    # Update the face indices
-    index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
-    updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
-
-    # Write to PLY
-    ply_filename = f"{filename_prefix}.obj"
-    write_obj_file(ply_filename, verts, updated_faces)
-
-
-def export(verts, faces, vertex_indices_by_color, filename_prefix, format='ply'):
-    if format == 'ply':
-        export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix)
-    elif format == 'obj':
-        export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix)
+    if args.standard_export:
+        trimesh.Trimesh(vertices=verts, faces=faces).export(ply_filename)
     else:
-        export_to_ply(verts, faces, vertex_indices_by_color, filename_prefix)
-        export_to_obj(verts, faces, vertex_indices_by_color, filename_prefix)
+        # Map each vertex to its color
+        vertex_colors = {tuple(verts[i]): color for color, indices in vertex_indices_by_color.items() for i in indices}
+        
+        # Make sure faces are referring to the correct vertex indices
+        used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
+        verts = verts[list(used_vertex_indices)]
+        
+        # Update the face indices
+        index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
+        updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
+
+        write_ply_file(ply_filename, verts, updated_faces, vertex_colors)
+
+
+def export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix):
+    obj_filename = f"{filename_prefix}.obj"
+    if args.standard_export:
+        trimesh.Trimesh(vertices=verts, faces=faces).export(obj_filename)
+    else:
+        # Make sure faces are referring to the correct vertex indices
+        used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
+        verts = verts[list(used_vertex_indices)]
+        
+        # Update the face indices
+        index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
+        updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
+
+        write_obj_file(obj_filename, verts, updated_faces)
+
+
+def export(args, verts, faces, vertex_indices_by_color, filename_prefix, format='ply'):
+    if format == 'ply':
+        export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix)
+    elif format == 'obj':
+        export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix)
+    else:
+        export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix)
+        export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix)
 
 
 def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stretch=1.3):
@@ -188,3 +192,7 @@ def set_local_stretches(verts, faces, design_dict, garment_part, side=None) -> n
         print('WARNING: Wrong design stretch type, returning uniform (1.0).')
     
     return stretches_u, stretches_v
+
+
+def read_ref_shape(shape_idx):
+    return np.load(f'data/shapes/params{shape_idx:03d}.npy')
