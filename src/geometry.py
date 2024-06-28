@@ -5,21 +5,10 @@ import torch
 import random
 
 from src.const import (
-    INIT_LEFT_BACK_PANT,
-    INIT_LEFT_FRONT_PANT,
-    INIT_RIGHT_BACK_PANT,
-    INIT_RIGHT_FRONT_PANT,
-    INIT_FRONT_RIGHT_SLEEVE,
-    INIT_BACK_RIGHT_SLEEVE,
-    INIT_FRONT_LEFT_SLEEVE,
-    INIT_BACK_LEFT_SLEEVE,
-    INIT_UPPER_BACK,
-    INIT_UPPER_FRONT,
-    KEYPOINTS,
-    PANT_LENGTH,
+    PLANE_ORIENT_DICT,
     SEAM_IDX_DICT,
-    SHIRT_LENGTH,
-    SLEEVE_LENGTH
+    THRESH_TO_SEAMS_DICT,
+    THRESH_TO_SEGMENT_DICT
 )
 from src.seams import extract_parameterized_seams
 
@@ -251,3 +240,25 @@ def modify_mesh_with_plane_cut(vertices, faces, cutting_point, plane_orientation
                 new_vertices[v_idx] = move_to_nearest_edge(vertex, polygon_edges)
 
     return new_vertices
+
+
+def cut_seamlines(design_dict, verts, faces):
+    threshold_dict = {}
+    for threshold_label in THRESH_TO_SEGMENT_DICT:
+        body_part_label = threshold_label.split('_')[0]
+        seams_label = THRESH_TO_SEAMS_DICT[threshold_label]
+        segment_label = THRESH_TO_SEGMENT_DICT[threshold_label]
+
+        _, threshold = extract_parameterized_seams(
+            verts=verts,
+            garment_length=design_dict['dims'][body_part_label],
+            seam_idx_dict=SEAM_IDX_DICT[segment_label][seams_label]
+        )
+        threshold_dict[threshold_label] = threshold
+        verts = modify_mesh_with_plane_cut(
+            vertices=verts,
+            faces=faces,
+            cutting_point=threshold,
+            plane_orientation=PLANE_ORIENT_DICT[threshold_label]
+        )
+    return verts, threshold_dict

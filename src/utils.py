@@ -58,8 +58,8 @@ def write_obj_file(filename, verts, faces):
             f.write(f"f {' '.join(str(v + 1) for v in face)}\n")
 
 
-def export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix):
-    ply_filename = f"{filename_prefix}.ply"
+def export_to_ply(args, verts, faces, vertex_indices_by_color, path):
+    ply_filename = f"{path}.ply"
     if args.standard_export:
         trimesh.Trimesh(vertices=verts, faces=faces).export(ply_filename)
     else:
@@ -77,8 +77,8 @@ def export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix):
         write_ply_file(ply_filename, verts, updated_faces, vertex_colors)
 
 
-def export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix):
-    obj_filename = f"{filename_prefix}.obj"
+def export_to_obj(args, verts, faces, vertex_indices_by_color, path):
+    obj_filename = f"{path}.obj"
     if args.standard_export:
         trimesh.Trimesh(vertices=verts, faces=faces).export(obj_filename)
     else:
@@ -93,14 +93,14 @@ def export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix):
         write_obj_file(obj_filename, verts, updated_faces)
 
 
-def export(args, verts, faces, vertex_indices_by_color, filename_prefix, format='ply'):
+def export(args, verts, faces, path, format='ply', vertex_indices_by_color=None):
     if format == 'ply':
-        export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix)
+        export_to_ply(args, verts, faces, vertex_indices_by_color, path)
     elif format == 'obj':
-        export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix)
+        export_to_obj(args, verts, faces, vertex_indices_by_color, path)
     else:
-        export_to_ply(args, verts, faces, vertex_indices_by_color, filename_prefix)
-        export_to_obj(args, verts, faces, vertex_indices_by_color, filename_prefix)
+        export_to_ply(args, verts, faces, vertex_indices_by_color, path)
+        export_to_obj(args, verts, faces, vertex_indices_by_color, path)
 
 
 def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stretch=1.3):
@@ -136,7 +136,7 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
     return trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
 
 
-def set_local_stretches(verts, faces, design_dict, garment_part, side=None) -> np.ndarray:
+def extract_local_stretches(verts, faces, design_dict, garment_part, side=None) -> np.ndarray:
 
     if design_dict[garment_part]['type'] == 'uniform':
         stretches_u = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_u']
@@ -145,11 +145,11 @@ def set_local_stretches(verts, faces, design_dict, garment_part, side=None) -> n
     elif design_dict[garment_part]['type'] == 'linear':
         stretches_u, stretches_v = [], []
         mean_face_coords = np.mean(verts[faces], axis=1)
-        if garment_part == 'sleeves':
+        if garment_part == 'sleeve':
             min_x = np.min(verts[:, 0])
             max_x = np.max(verts[:, 0])
-            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeves']['base_stretch_u']
-            base_stretch, max_stretch = design_dict['sleeves']['base_stretch_v'], design_dict['sleeves']['max_stretch']
+            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeve']['base_stretch_u']
+            base_stretch, max_stretch = design_dict['sleeve']['base_stretch_v'], design_dict['sleeve']['max_stretch']
             if side == 'left':
                 stretches_v = base_stretch + ((mean_face_coords[:, 0] - min_x) / (max_x - min_x)) * (max_stretch - base_stretch)
             else:
@@ -164,20 +164,20 @@ def set_local_stretches(verts, faces, design_dict, garment_part, side=None) -> n
     elif design_dict[garment_part]['type'] == 'linear_from':
         stretches_u, stretches_v = [], []
         mean_face_coords = np.mean(verts[faces], axis=1)
-        if garment_part == 'sleeves':
+        if garment_part == 'sleeve':
             ref_x = design_dict[garment_part]['ref_x']
             min_x = np.min(verts[:, 0])
             max_x = np.max(verts[:, 0])
-            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeves']['base_stretch_u']
-            base_stretch, max_stretch = design_dict['sleeves']['base_stretch_v'], design_dict['sleeves']['max_stretch']
+            stretches_u = np.ones(faces.shape[0]) * design_dict['sleeve']['base_stretch_u']
+            base_stretch, max_stretch = design_dict['sleeve']['base_stretch_v'], design_dict['sleeve']['max_stretch']
             if side == 'left':
                 ref_mask = mean_face_coords[:, 0] > ref_x
                 stretches_v[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 0] - ref_x) / (max_x - ref_x)) * (max_stretch - base_stretch)
-                stretches_v[np.where(~ref_mask)] = design_dict['sleeves']['base_stretch_v']
+                stretches_v[np.where(~ref_mask)] = design_dict['sleeve']['base_stretch_v']
             else:
                 ref_mask = mean_face_coords[:, 0] < -ref_x
                 stretches_v[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 0] - max_x) / (ref_x - max_x)) * (max_stretch - base_stretch)
-                stretches_v[np.where(~ref_mask)] = design_dict['sleeves']['base_stretch_v']
+                stretches_v[np.where(~ref_mask)] = design_dict['sleeve']['base_stretch_v']
         else:
             ref_y = design_dict[garment_part]['ref_y']
             min_y = np.min(verts[:, 1])

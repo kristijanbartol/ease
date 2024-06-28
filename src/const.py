@@ -4,6 +4,8 @@ import torch
 import trimesh
 
 
+SEGMENTS_DIR = 'config/segments/'
+
 KEYPOINTS = {
     'upper_front': {
         'neck': [4094, 3171, 607],
@@ -17,7 +19,10 @@ KEYPOINTS = {
     }
 }
 
-
+MID_LINE_FRONT = [3060, 3168, 3169, 3171, 3078, 3073, 3074, 3495, 3496, 3497, 3498, 3506, 3076, 3077, 3079, 1329, 1330, 3511,
+                  1325, 1326, 3509, 3504, 3501, 3500, 1768, 1769, 3503, 3507, 3160, 1806, 1807, 3510, 3145, 3146]
+MID_LINE_BACK = [3470, 3012, 1306, 1305, 2878, 2877, 3471, 1755, 1754, 3482, 3029, 3028, 3027, 3508, 3015, 3014, 3505, 3017,
+                 3016, 3173, 3024, 3023, 3502, 3022, 3021, 1784, 1783, 3159, 3158, 3484, 3120]
 RIGHT_ARMPIT = [
     4767, 4766, 4892, 4891, 6412, 4132, 4131, 4134, 4106, 4109, 6300, 4959, 4962,
     4804, 4118, 4121, 4165, 4332, 6378, 5259, 5258, 4423, 4311, 4927, 4801, 4712,
@@ -31,6 +36,7 @@ LEFT_ARMPIT = [
 ]
 RIGHT_SHOULDER = [6469, 5322, 5325, 4721, 4724, 4270, 4198, 4094, 4097, 4230, 4306, 4305]
 LEFT_SHOULDER = [3010, 1861, 1862, 1238, 1239, 783, 711, 606, 607, 742, 818, 817]
+BOTTOM_SHIRT = [1807, 864, 863, 1205, 1204, 1450, 1799, 868, ]
 RIGHT_OUTER_PANT = [6378, 5259, 5258, 4423, 4311, 4310, 4927, 4801, 4712, 4334, 4335, 4390, 4459, 4460, 
                     4466, 4465, 4507, 4519, 4496, 4495, 4539, 4556, 4559, 4585, 4586, 4943, 
                     4603, 4604, 4622, 6589, 6590, 6608, 6869]
@@ -48,7 +54,100 @@ LEFT_FRONT_ARM = [1285, 1537, 1199, 673, 674, 1898, 3008, 3009, 3010]
 RIGHT_BACK_ARM = [6470, 6352, 6351, 5346, 5345, 5352, 6462, 6459, 6402, 5302, 4200, 4203, 5340, 4243, 4242, 4769, 4768, 4767, 6469]
 LEFT_BACK_ARM = [3011, 2893, 2894, 1887, 1884, 1891, 3003, 3000, 2943, 1841, 712, 713, 1879, 755, 756, 1288, 1284, 1285]
 
+SEGMENT_SETS = {
+    'default': [
+        'upper_front',
+        'upper_back',
+        'sleeve_front_right',
+        'sleeve_back_right',
+        'sleeve_front_left',
+        'sleeve_back_left',
+        'lower_front_right',
+        'lower_back_right',
+        'lower_front_left',
+        'lower_back_left'
+    ],
+    'half': [
+        'upper_front_right',
+        'upper_front_left',
+        'upper_back_right',
+        'upper_back_left',
+        'sleeve_front_right',
+        'sleeve_back_right',
+        'sleeve_front_left',
+        'sleeve_back_left',
+        'lower_front_right',
+        'lower_back_right',
+        'lower_front_left',
+        'lower_back_left'
+    ]
+}
+
+THRESH_TO_SEAMS_DICT = {
+    'upper': 'left_armpit',
+    'lower': 'left_outer',
+    'sleeve_left': 'up',
+    'sleeve_right': 'up'
+}
+
+THRESH_TO_SEGMENT_DICT = {
+    'upper': 'upper_front',
+    'lower': 'lower_front_left',
+    'sleeve_left': 'sleeve_front_left',
+    'sleeve_right': 'sleeve_front_right'
+}
+
+PLANE_ORIENT_DICT = {
+    'upper': 'horizontal',
+    'lower': 'horizontal',
+    'sleeve_left': 'vertical',
+    'sleeve_right': 'vertical'
+}
+
+SEGMENT_TO_THRESH_DICT = {
+    'upper_front_right': 'upper',
+    'upper_front_left': 'upper',
+    'upper_back_right': 'upper',
+    'upper_back_left': 'upper',
+    'sleeve_front_right': 'sleeve_right',
+    'sleeve_back_right': 'sleeve_right',
+    'sleeve_front_left': 'sleeve_left',
+    'sleeve_back_left': 'sleeve_left',
+    'lower_front_right': 'lower',
+    'lower_back_right': 'lower',
+    'lower_front_left': 'lower',
+    'lower_back_left': 'lower'
+}
+
 SEAM_IDX_DICT = {
+    'upper_front_left': {
+        'left_armit': LEFT_ARMPIT,
+        'left_arm': LEFT_FRONT_ARM,
+        'left_shoulder': LEFT_SHOULDER,
+        'left_neck': [3060, 573, 570, 1308, 1307, 821, 819, 817],
+        'mid': MID_LINE_FRONT,
+    },
+    'upper_front_right': {
+        'right_armit': LEFT_ARMPIT,
+        'right_arm': LEFT_FRONT_ARM,
+        'right_shoulder': LEFT_SHOULDER,
+        'right_neck': [4305, 4308, 4309, 4787, 4788, 4058, 4059, 3060],
+        'mid': MID_LINE_FRONT,
+    },
+    'upper_back_left': {
+        'left_armit': LEFT_ARMPIT,
+        'left_arm': LEFT_FRONT_ARM,
+        'left_shoulder': LEFT_SHOULDER,
+        'left_neck': [817, 803, 806, 813, 812, 1219, 3470],
+        'mid': MID_LINE_BACK,
+    },
+    'upper_back_right': {
+        'right_armit': LEFT_ARMPIT,
+        'right_arm': LEFT_FRONT_ARM,
+        'right_shoulder': LEFT_SHOULDER,
+        'right_neck': [3470, 4702, 4302, 4301, 4292, 4291, 4305],
+        'mid': MID_LINE_BACK,
+    },
     'upper_front': {
         'right_armpit': RIGHT_ARMPIT, 
         'left_armpit':  LEFT_ARMPIT,
@@ -63,7 +162,7 @@ SEAM_IDX_DICT = {
         'left_armpit':  LEFT_ARMPIT,
         'right_arm':    RIGHT_BACK_ARM,
         'left_arm':     LEFT_BACK_ARM,
-        'neck':         [817, 803, 806, 813, 812, 1219, 3470, 3470, 4702, 4302, 4301, 4292, 4291, 4305],
+        'neck':         [817, 803, 806, 813, 812, 1219, 3470, 4702, 4302, 4301, 4292, 4291, 4305],
         'right_shoulder': RIGHT_SHOULDER,
         'left_shoulder':  LEFT_SHOULDER
     },
@@ -95,31 +194,57 @@ SEAM_IDX_DICT = {
                       2873, 1722, 1721, 1689, 1690, 1978, 1942, 1941, 1979, 2108, 2060],
         'side': LEFT_BACK_ARM
     },
-    'pant_front_right': {
+    'lower_front_right': {
         'right_outer': RIGHT_OUTER_PANT,
         'right_inner': RIGHT_INNER_PANT,
         'mid_inner': [3507, 3160, 1806, 1807, 3510, 3145, 3146, 3148, 3149, 1208],
         'waistline': [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507]
     },
-    'pant_front_left': {
+    'lower_front_left': {
         'left_outer' : LEFT_OUTER_PANT,
         'left_inner' : LEFT_INNER_PANT,
         'mid_inner': [3507, 3160, 1806, 1807, 3510, 3145, 3146, 3148, 3149, 1208],
         'waistline': [3507, 2922, 2923, 2925, 2920, 2921, 2926, 2927, 2924, 2919]
     },
-    'pant_back_right': {
+    'lower_back_right': {
         'right_outer': RIGHT_OUTER_PANT,
         'right_inner': RIGHT_INNER_PANT,
         'mid_inner': [1784, 1783, 3159, 3158, 3484, 3120, 3119, 3141, 3481, 3102, 1540, 1539, 1476, 1364, 1363, 1515, 3172, 3170, 1353, 1278, 1210, 1209, 1208],
         'waistline': [1784, 5246, 5247, 6544, 6371, 6370, 6376, 6377, 6374, 6375, 6378]
     },
-    'pant_back_left': {
+    'lower_back_left': {
         'left_outer' : LEFT_OUTER_PANT,
         'left_inner' : LEFT_INNER_PANT,
         'mid_inner': [1784, 1783, 3159, 3158, 3484, 3120, 3119, 3141, 3481, 3102, 1540, 1539, 1476, 1364, 1363, 1515, 3172, 3170, 1353, 1278, 1210, 1209, 1208],
         'waistline': [2919, 2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784]
     }
 }
+
+INIT_IDXS = {
+    'upper_front': 4173,
+    'upper_front_left': ...,
+    'upper_front_right': ...,
+    'upper_back': 4238,
+    'upper_back_left': ...,
+    'upper_back_right': ...,
+    'sleeve_front_left': 1429,
+    'sleeve_back_left': 2981,
+    'sleeve_front_right': 4816,
+    'sleeve_back_right': 6453,
+    'lower_front_right': 4952,
+    'lower_back_right': 4339,
+    'lower_front_left': 1479,
+    'lower_back_left': 897
+}
+
+DISPLACEMENTS = {
+    'skintight': 0.0025,
+    'loose': 0.0075
+}
+
+
+
+### DEPRECATED CONSTANTS ###
 INIT_UPPER_FRONT = 4173
 INIT_UPPER_BACK = 4238
 INIT_FRONT_RIGHT_SLEEVE = 4816
@@ -137,10 +262,6 @@ PANT_LENGTH = 0.8
 
 DISCRETE_STEP = 0.001
 YARN_DIST = 0.005
-DISPLACEMENTS = {
-    'skintight': 0.0025,
-    'loose': 0.0075
-}
 
 GLOBAL_WARP = np.array([0, 0, -1])
 GLOBAL_WEFT = np.array([1, 0, 0])
@@ -157,6 +278,8 @@ COLOR_MAP = {
     'yellow': (255, 255, 0),
     'white': (255, 255, 255)
 }
+############################
+
 
 
 # 0 -> left hip
@@ -195,6 +318,8 @@ def a_pose():
     pose = torch.zeros((1, 23 * 3))
     pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 16, -np.pi / (4 / 1.1)])
     pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 16, np.pi / (4 / 1.1)])
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     return pose
 
 
@@ -202,6 +327,8 @@ def arms_up_pose():
     pose = torch.zeros((1, 23 * 3))
     pose[0, 12*3:13*3] = torch.tensor([0, 0, np.pi / 4])  # left arm
     pose[0, 13*3:14*3] = torch.tensor([0, 0, -np.pi / 4]) # right arm
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     return pose
 
 
@@ -218,12 +345,16 @@ def sit_pose():
 
 def bent_knee_45_pose():
     pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 4, 0, 0])
     return pose
 
 
 def bent_knee_90_pose():
     pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])
     return pose
 
@@ -233,15 +364,25 @@ def zero_shape():
     return shape
 
 
-def large_shape():
+def plump_shape():
     shape = torch.zeros((1, 10))
-    shape[1:10] = 2.5
+    shape[:, 1:10] = -2.5
+    return shape
+
+
+def slim_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = 2.5
+    return shape
+
+
+def large_shape():
+    shape = torch.ones((1, 10)) * (-2.5)
     return shape
 
 
 def small_shape():
-    shape = torch.zeros((1, 10))
-    shape[1:10] = -2.5
+    shape = torch.ones((1, 10)) * 2.5
     return shape
 
 

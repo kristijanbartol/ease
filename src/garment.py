@@ -1,10 +1,8 @@
 import numpy as np
 import trimesh
 
-from src.geometry import (
-    apply_offset_to_verts,
-    find_init_vertex_idx
-)
+from src.geometry import apply_offset_to_verts
+from src.const import SEGMENT_TO_THRESH_DICT
 
 
 class Garment:
@@ -129,6 +127,28 @@ class Garment:
 
         return list(selected_vertices)
     
+
+
+    def flood_fill_vertices_simplified(self, boundary_vertices, start_vertex):
+        boundary_set = set(boundary_vertices)
+        stack = [start_vertex]
+        visited = set()
+        selected_vertices = set()
+
+        while stack:
+            vertex_idx = stack.pop()
+            if vertex_idx not in visited and vertex_idx not in boundary_set:
+                visited.add(vertex_idx)
+                selected_vertices.add(vertex_idx)
+
+                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
+                    if neighbor_idx not in visited:
+                        stack.append(neighbor_idx)
+        
+        selected_vertices.update(boundary_set)
+        return list(selected_vertices)
+    
+    '''
     def flood_fill_vertices_subdivided(self, boundary_vertex_ids, starting_vertex_id):
         # Convert boundary vertices to a set for efficient lookup
         boundary_set = set(boundary_vertex_ids)
@@ -162,6 +182,7 @@ class Garment:
         selected_vertices.update(boundary_vertex_ids)
 
         return list(selected_vertices)
+    '''
     
     '''
     def select_faces(self, boundary_points, boundary_faces):
@@ -185,6 +206,7 @@ class Garment:
         return selected
     '''
 
+    '''
     def select_faces(self, boundary_vertex_ids, boundary_points):
         starting_vertex_id = find_init_vertex_idx(
             mesh=self.mesh,
@@ -199,7 +221,9 @@ class Garment:
             if face[0] in selected_verts and face[1] in selected_verts and face[2] in selected_verts:
                 selected_faces.append(face_idx)
         return set(selected_faces), selected_verts
+    '''
 
+    '''
     def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
         # Get the X coordinates of the starting and ending seam vertices
         x_start = verts[seam_indices[0], 0]
@@ -235,6 +259,7 @@ class Garment:
                         to_visit.append(vertex_index)
         
         return list(selected_indices)
+    '''
 
     @staticmethod
     def extract_garment_mesh(verts, faces, garment_vertex_indices, offset=0.):
@@ -252,3 +277,29 @@ class Garment:
         garment_faces = np.array([[index_mapping[v] for v in face] for face in garment_faces])
 
         return garment_verts, garment_faces
+
+    '''
+    @staticmethod
+    def extract_segment_indices(verts, faces, garment_vertex_indices, threshold_dict, segment_label):
+        garment_verts = verts[garment_vertex_indices]
+
+        # TODO: Update this based on whether these are sleeves or other.
+        x_coords = garment_verts[:, 0]
+        filtered_garment_indices = np.where(x_coords > threshold_dict[SEGMENT_TO_THRESH_DICT[segment_label]])[0]
+
+        garment_faces = [face for face in faces if set(face).issubset(filtered_garment_indices)]
+        # Create a mapping from the original vertex indices to the new, local indices
+        index_mapping = {old_index: new_index for new_index, old_index in enumerate(garment_vertex_indices)}
+        # Update the indices in the faces to the new local indices
+        garment_faces = np.array([[index_mapping[v] for v in face] for face in garment_faces])
+
+        return filtered_garment_indices, garment_faces
+    '''
+        
+    @staticmethod
+    def extract_garment_verts(verts, faces, garment_vertex_indices, offset=0.):
+        if offset != 0:
+            verts = apply_offset_to_verts(verts, faces, offset)
+
+        return verts[garment_vertex_indices]
+    

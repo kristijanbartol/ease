@@ -15,7 +15,23 @@
                 "--regenerate",
                 "--file_format", "both",
                 "--os", "linux",
-                "--set", "set1",
+                "--body_set", "set2",
+                "--design", "default",
+                "--standard_export"
+            ]
+        },
+        {
+            "name": "Main (New)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--regenerate",
+                "--file_format", "both",
+                "--os", "linux",
+                "--body_set", "set1",
                 "--design", "default",
                 "--standard_export"
             ]

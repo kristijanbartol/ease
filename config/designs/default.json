@@ -3,12 +3,12 @@
         "skirt_dress": false
     },
     "dims": {
-        "sleeves": 0.33,
-        "shirt": 0.35,
-        "pants": 0.8
+        "sleeve": 0.33,
+        "upper": 0.35,
+        "lower": 0.8
     },
     "stretches": {
-        "sleeves": {
+        "sleeve": {
             "type": "uniform",
             "base_stretch_u": 1.0,
             "base_stretch_v": 1.1,

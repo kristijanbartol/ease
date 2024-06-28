@@ -14,10 +14,10 @@
         "zero_shape",
         "zero_shape",
         "zero_shape",
-        "large_shape",
-        "small_shape",
-        "large_shape",
-        "large_shape"
+        "plump_shape",
+        "slim_shape",
+        "plump_shape",
+        "plump_shape"
     ],
     "genders": [
         "female",
