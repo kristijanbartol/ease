@@ -1,5 +1,6 @@
 import numpy as np
 from smplx import SMPL
+from collections import defaultdict
 import torch
 import trimesh
 
@@ -29,10 +30,17 @@ RIGHT_ARMPIT = [
     4334, 4335, 4390, 4459, 4460, 4466, 4465, 4570, 4519, 4496, 4495, 4539, 4556,
     4559
 ]
+RIGHT_ARMPIT2 = [
+    
+]
 LEFT_ARMPIT = [
     1285, 1286, 1418, 1419, 2953, 644, 645, 646, 618, 619, 2839, 1487, 1488, 1323, 
     630, 631, 677, 846, 2919, 1795, 1796, 937, 822, 823, 1454, 1321, 1228, 850, 849, 
     905, 973, 974, 980, 979, 1022, 1033, 1009, 1010, 1052, 1070, 1072
+]
+LEFT_ARMPIT2 = [
+    1284, 1283, 740, 741, 2954, 643, 642, 647, 621, 620, 2840, 1490, 1489, 1492, 633,
+    632, 676, 830, 2915, 1793, 1794, 816, 808, 809, 1446, 3129
 ]
 RIGHT_SHOULDER = [6469, 5322, 5325, 4721, 4724, 4270, 4198, 4094, 4097, 4230, 4306, 4305]
 LEFT_SHOULDER = [3010, 1861, 1862, 1238, 1239, 783, 711, 606, 607, 742, 818, 817]
@@ -49,10 +57,21 @@ RIGHT_INNER_PANT = [1208, 4364, 4367, 4925, 6553, 4709, 4708, 4450, 4449, 4435, 
 LEFT_INNER_PANT = [1208, 878, 879, 1451, 3131, 1226, 1227, 963, 964, 949, 950, 953, 954, 1028, 
                    1042, 1014, 1015, 1059, 1056, 1078, 1525, 1088, 1089, 1107, 1104, 1122, 
                    3175, 3176, 3198, 3433]
+FRONT_INNER_PANT = [3507, 3160, 1806, 1807, 3510, 3145, 3146, 3148, 3149, 1208]
+BACK_INNER_PANT = [1784, 1783, 3159, 3158, 3484, 3120, 3119, 3141, 3481, 3102, 1540, 1539, 1476, 1364, 1363, 1515, 3172, 3170, 1353, 1278, 1210, 1209, 1208]
 RIGHT_FRONT_ARM = [4767, 5008, 4685, 4163, 4162, 5359, 6467, 6468, 6469]
 LEFT_FRONT_ARM = [1285, 1537, 1199, 673, 674, 1898, 3008, 3009, 3010]
 RIGHT_BACK_ARM = [6470, 6352, 6351, 5346, 5345, 5352, 6462, 6459, 6402, 5302, 4200, 4203, 5340, 4243, 4242, 4769, 4768, 4767, 6469]
 LEFT_BACK_ARM = [3011, 2893, 2894, 1887, 1884, 1891, 3003, 3000, 2943, 1841, 712, 713, 1879, 755, 756, 1288, 1284, 1285]
+
+# Alternative seam vertices.
+LEFT_SHOULDER2 = [3011, 1881, 1822, 1821, 1849, 781, 782, 1810, 743, 744, 804, 803]
+RIGHT_SHOULDER2 = [6470, 5342, 5285, 5282, 5310, 4269, 4271, 5272, 4232, 4231, 4294, 4291]
+
+# Use alternative seam vertices
+LEFT_SHOULDER = LEFT_SHOULDER2
+RIGHT_SHOULDER = RIGHT_SHOULDER2
+LEFT_ARMPIT = LEFT_ARMPIT2
 
 SEGMENT_SETS = {
     'default': [
@@ -119,35 +138,8 @@ SEGMENT_TO_THRESH_DICT = {
     'lower_back_left': 'lower'
 }
 
+# TODO: Rename to SEGMENT_TO_SEAM_IDX_DICT
 SEAM_IDX_DICT = {
-    'upper_front_left': {
-        'left_armit': LEFT_ARMPIT,
-        'left_arm': LEFT_FRONT_ARM,
-        'left_shoulder': LEFT_SHOULDER,
-        'left_neck': [3060, 573, 570, 1308, 1307, 821, 819, 817],
-        'mid': MID_LINE_FRONT,
-    },
-    'upper_front_right': {
-        'right_armit': LEFT_ARMPIT,
-        'right_arm': LEFT_FRONT_ARM,
-        'right_shoulder': LEFT_SHOULDER,
-        'right_neck': [4305, 4308, 4309, 4787, 4788, 4058, 4059, 3060],
-        'mid': MID_LINE_FRONT,
-    },
-    'upper_back_left': {
-        'left_armit': LEFT_ARMPIT,
-        'left_arm': LEFT_FRONT_ARM,
-        'left_shoulder': LEFT_SHOULDER,
-        'left_neck': [817, 803, 806, 813, 812, 1219, 3470],
-        'mid': MID_LINE_BACK,
-    },
-    'upper_back_right': {
-        'right_armit': LEFT_ARMPIT,
-        'right_arm': LEFT_FRONT_ARM,
-        'right_shoulder': LEFT_SHOULDER,
-        'right_neck': [3470, 4702, 4302, 4301, 4292, 4291, 4305],
-        'mid': MID_LINE_BACK,
-    },
     'upper_front': {
         'right_armpit': RIGHT_ARMPIT, 
         'left_armpit':  LEFT_ARMPIT,
@@ -197,28 +189,97 @@ SEAM_IDX_DICT = {
     'lower_front_right': {
         'right_outer': RIGHT_OUTER_PANT,
         'right_inner': RIGHT_INNER_PANT,
-        'mid_inner': [3507, 3160, 1806, 1807, 3510, 3145, 3146, 3148, 3149, 1208],
+        'mid_inner': FRONT_INNER_PANT,
         'waistline': [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507]
     },
     'lower_front_left': {
         'left_outer' : LEFT_OUTER_PANT,
         'left_inner' : LEFT_INNER_PANT,
-        'mid_inner': [3507, 3160, 1806, 1807, 3510, 3145, 3146, 3148, 3149, 1208],
+        'mid_inner': FRONT_INNER_PANT,
         'waistline': [3507, 2922, 2923, 2925, 2920, 2921, 2926, 2927, 2924, 2919]
     },
     'lower_back_right': {
         'right_outer': RIGHT_OUTER_PANT,
         'right_inner': RIGHT_INNER_PANT,
-        'mid_inner': [1784, 1783, 3159, 3158, 3484, 3120, 3119, 3141, 3481, 3102, 1540, 1539, 1476, 1364, 1363, 1515, 3172, 3170, 1353, 1278, 1210, 1209, 1208],
+        'mid_inner': BACK_INNER_PANT,
         'waistline': [1784, 5246, 5247, 6544, 6371, 6370, 6376, 6377, 6374, 6375, 6378]
     },
     'lower_back_left': {
         'left_outer' : LEFT_OUTER_PANT,
         'left_inner' : LEFT_INNER_PANT,
-        'mid_inner': [1784, 1783, 3159, 3158, 3484, 3120, 3119, 3141, 3481, 3102, 1540, 1539, 1476, 1364, 1363, 1515, 3172, 3170, 1353, 1278, 1210, 1209, 1208],
+        'mid_inner': BACK_INNER_PANT,
         'waistline': [2919, 2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784]
     }
 }
+
+SEGMENT_TO_ID = {
+    'upper_front': 0,
+    'upper_back': 1,
+    'sleeve_front_left': 2,
+    'sleeve_back_left': 3,
+    'sleeve_front_right': 4,
+    'sleeve_back_right': 5,
+    'lower_front_left': 6,
+    'lower_back_left': 7,
+    'lower_front_right': 8,
+    'lower_back_right': 9
+}
+
+ID_TO_SEGMENT = {
+    0: 'upper_front',
+    1: 'upper_back',
+    2: 'sleeve_front_left',
+    3: 'sleeve_back_left',
+    4: 'sleeve_front_right',
+    5: 'sleeve_back_right',
+    6: 'lower_front_left',
+    7: 'lower_back_left',
+    8: 'lower_front_right',
+    9: 'lower_back_right'
+}
+
+# More compact version of the above two dictionaries
+#SEGMENT_TO_ID = {key: idx for idx, key in enumerate(SEAM_IDX_DICT.keys())}
+#ID_TO_SEGMENT = {idx: key for idx, key in enumerate(SEAM_IDX_DICT.keys())}
+
+SEAM_TO_SEAM_IDX_DICT = {
+    'left_armpit': LEFT_ARMPIT,
+    'left_front_arm': LEFT_FRONT_ARM,
+    'left_shoulder': LEFT_SHOULDER,
+    'left_back_arm': LEFT_BACK_ARM,
+    'right_armpit': RIGHT_ARMPIT,
+    'right_front_arm': RIGHT_FRONT_ARM,
+    'right_shoulder': RIGHT_SHOULDER,
+    'right_back_arm': RIGHT_BACK_ARM,
+    'left_outer_pant': LEFT_OUTER_PANT,
+    'right_outer_pant': RIGHT_OUTER_PANT,
+    'left_inner_pant': LEFT_INNER_PANT,
+    'right_inner_pant': RIGHT_INNER_PANT,
+    'front_inner_pant': FRONT_INNER_PANT,
+    'back_inner_pant': BACK_INNER_PANT
+}
+
+SEAM_TO_SEGMENT_PAIRS = {
+    'left_armpit': (0, 1),
+    'left_front_arm': (0, 2),
+    'left_shoulder': (0, 1),
+    'left_back_arm': (1, 3),
+    'right_armpit': (0, 1),
+    'right_front_arm': (0, 4),
+    'right_shoulder': (0, 1),
+    'right_back_arm': (1, 5),
+    'left_outer_pant': (6, 7),
+    'front_inner_pant': (6, 8),
+    'back_inner_pant': (7, 9),
+    'left_inner_pant': (6, 7),
+    'right_inner_pant': (8, 9)
+}
+
+SEGMENT_TO_SEAMLINES_DICT = defaultdict(list)
+for key, (id1, id2) in SEAM_TO_SEGMENT_PAIRS.items():
+    SEGMENT_TO_SEAMLINES_DICT[id1].append(key)
+    SEGMENT_TO_SEAMLINES_DICT[id2].append(key)
+SEGMENT_TO_SEAMLINES_DICT = {id_: tuple(keys) for id_, keys in SEGMENT_TO_SEAMLINES_DICT.items()}
 
 INIT_IDXS = {
     'upper_front': 4173,

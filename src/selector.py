@@ -181,16 +181,16 @@ def select_original(args, smpl_dir):
             upper_garment_verts, upper_garment_faces = garment.extract_garment_mesh(posed_verts, faces, upper_indices, offset=DISPLACEMENTS[offset_type])
             lower_garment_verts, lower_garment_faces = garment.extract_garment_mesh(posed_verts, faces, lower_indices, offset=DISPLACEMENTS[offset_type])
 
-            front_shirt_verts, front_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, front_v_idxs, offset=DISPLACEMENTS[offset_type])
-            back_shirt_verts, back_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, back_v_idxs, offset=DISPLACEMENTS[offset_type])
-            front_right_sleeve_verts, front_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_right'], offset=DISPLACEMENTS[offset_type])
-            back_right_sleeve_verts, back_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_right'], offset=DISPLACEMENTS[offset_type])
-            front_left_sleeve_verts, front_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_left'], offset=DISPLACEMENTS[offset_type])
-            back_left_sleeve_verts, back_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_left'], offset=DISPLACEMENTS[offset_type])
-            front_right_pant_verts, front_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_right'], offset=DISPLACEMENTS[offset_type])
-            front_left_pant_verts, front_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_left'], offset=DISPLACEMENTS[offset_type])
-            back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_right'], offset=DISPLACEMENTS[offset_type])
-            back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_left'], offset=DISPLACEMENTS[offset_type])       
+            front_shirt_verts, front_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, front_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_front')
+            back_shirt_verts, back_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, back_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_back')
+            front_right_sleeve_verts, front_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_right')
+            back_right_sleeve_verts, back_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_right')
+            front_left_sleeve_verts, front_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_left')
+            back_left_sleeve_verts, back_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_left')
+            front_right_pant_verts, front_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_right')
+            front_left_pant_verts, front_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_left')
+            back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_right')
+            back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_left')
 
             front_shirt_colors = {
                 'red': front_v_idxs,
@@ -437,3 +437,5 @@ def select_original(args, smpl_dir):
 
             export(args, original_verts, faces, f'{mesh_set_dir}/body-{set_element_idx:02d}', args.file_format, body_colors)
             export(args, original_verts, faces, f'{latest_set_dir}/body-{set_element_idx:02d}', args.file_format, body_colors)
+
+            garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')

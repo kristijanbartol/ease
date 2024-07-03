@@ -1,8 +1,14 @@
 import numpy as np
 import trimesh
+import os
 
 from src.geometry import apply_offset_to_verts
-from src.const import SEGMENT_TO_THRESH_DICT
+from src.const import (
+    SEGMENT_TO_SEAMLINES_DICT,
+    SEGMENT_TO_ID,
+    SEAM_TO_SEAM_IDX_DICT
+)
+from src.utils import save_seamline_pairs_file
 
 
 class Garment:
@@ -10,6 +16,7 @@ class Garment:
         self.mesh = trimesh.Trimesh(vertices=verts, faces=faces)
         self.vertex_adjacency_list = self.build_vertex_adjacency_list(faces)
         self.face_adjacency_list = self.build_face_adjacency_list(faces)
+        self.seam_to_segment_vertex_pairs = {}
 
     @staticmethod
     def build_vertex_adjacency_list(F):
@@ -126,8 +133,6 @@ class Garment:
         selected_vertices.update(thresh_boundaries)
 
         return list(selected_vertices)
-    
-
 
     def flood_fill_vertices_simplified(self, boundary_vertices, start_vertex):
         boundary_set = set(boundary_vertices)
@@ -148,121 +153,19 @@ class Garment:
         selected_vertices.update(boundary_set)
         return list(selected_vertices)
     
-    '''
-    def flood_fill_vertices_subdivided(self, boundary_vertex_ids, starting_vertex_id):
-        # Convert boundary vertices to a set for efficient lookup
-        boundary_set = set(boundary_vertex_ids)
-
-        # Initialize the stack with the start vertex, which is assumed to be inside the boundary and above the y_threshold
-        stack = [starting_vertex_id]
-
-        # Initialize the set to keep track of visited vertices
-        visited = set()
-
-        # Initialize the set to store the selected vertices
-        selected_vertices = set()
-
-        while stack:
-            # Pop the last vertex from the stack
-            vertex_idx = stack.pop()
-
-            # If the vertex has not been visited yet and is not on the boundary or below y_threshold, process it
-            if vertex_idx not in visited and vertex_idx not in boundary_set:
-                # Mark the vertex as visited and add to selected
-                visited.add(vertex_idx)
-                selected_vertices.add(vertex_idx)
-
-                # Iterate over the neighbors of the current vertex
-                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
-                    # If the neighbor hasn't been visited, add it to the stack
-                    if neighbor_idx not in visited:
-                        stack.append(neighbor_idx)
-        
-        # Once all possible vertices have been visited, combine the selected vertices with the boundary vertices
-        selected_vertices.update(boundary_vertex_ids)
-
-        return list(selected_vertices)
-    '''
+    def update_seamline_vertex_pairs(self, old_to_new_index_mapping, segment_name):
+        segment_id = SEGMENT_TO_ID[segment_name]
+        seamlines_list = SEGMENT_TO_SEAMLINES_DICT[segment_id]
+        for seam_name in seamlines_list:
+            if seam_name not in self.seam_to_segment_vertex_pairs:
+                self.seam_to_segment_vertex_pairs[seam_name] = {
+                    segment_id: SEAM_TO_SEAM_IDX_DICT[seam_name]
+                }
+            else:
+                self.seam_to_segment_vertex_pairs[seam_name][segment_id] = \
+                    SEAM_TO_SEAM_IDX_DICT[seam_name]
     
-    '''
-    def select_faces(self, boundary_points, boundary_faces):
-        """Select the inner faces using the Flood Fill algorithm."""
-        starting_face = find_init_face(
-            mesh=self.mesh,
-            start_point=boundary_points.mean(axis=0)
-        )
-        stack = [starting_face]
-        visited = set()
-        selected = set()
-        while stack:
-            face = stack.pop()
-            if face not in visited and face not in boundary_faces:
-                visited.add(face)
-                selected.add(face)
-                for neighbor_face in self.face_adjacency_list[face]:
-                    if neighbor_face not in visited:
-                        stack.append(neighbor_face)
-        selected.update(boundary_faces)
-        return selected
-    '''
-
-    '''
-    def select_faces(self, boundary_vertex_ids, boundary_points):
-        starting_vertex_id = find_init_vertex_idx(
-            mesh=self.mesh,
-            start_point=boundary_points.mean(axis=0)
-        )
-        selected_verts = self.flood_fill_vertices_subdivided(
-            boundary_vertex_ids=boundary_vertex_ids,
-            starting_vertex_id=starting_vertex_id
-        )
-        selected_faces = []
-        for face_idx, face in enumerate(self.mesh.faces):
-            if face[0] in selected_verts and face[1] in selected_verts and face[2] in selected_verts:
-                selected_faces.append(face_idx)
-        return set(selected_faces), selected_verts
-    '''
-
-    '''
-    def select_sleeve_verts(self, verts, start_vertex_index, seam_indices, sleeve_length, x_direction_multiplier):
-        # Get the X coordinates of the starting and ending seam vertices
-        x_start = verts[seam_indices[0], 0]
-
-        # Define the range of X values based on the sleeve length and the direction multiplier
-        if x_direction_multiplier == -1:
-            # For the right sleeve, we find vertices backwards from the start
-            x_min = x_start - sleeve_length
-            x_max = x_start
-        else:
-            # For the left sleeve, we find vertices forwards from the start
-            x_min = x_start
-            x_max = x_start + sleeve_length
-
-        # Ensure x_min is less than x_max
-        x_min, x_max = min(x_min, x_max), max(x_min, x_max)
-
-        # Initialize the set for selected vertex indices
-        selected_indices = set()
-        
-        # List to keep track of the vertices that need to be visited
-        to_visit = [start_vertex_index]
-        
-        while to_visit:
-            current_index = to_visit.pop()
-            if current_index not in selected_indices and x_min <= verts[current_index, 0] <= x_max:
-                selected_indices.add(current_index)
-                # Get the indices of the vertices connected to the current vertex
-                connected_vertices = self.vertex_adjacency_list[current_index]
-                # Add unvisited vertices to the to_visit list
-                for vertex_index in connected_vertices:
-                    if vertex_index not in selected_indices:
-                        to_visit.append(vertex_index)
-        
-        return list(selected_indices)
-    '''
-
-    @staticmethod
-    def extract_garment_mesh(verts, faces, garment_vertex_indices, offset=0.):
+    def extract_garment_mesh(self, verts, faces, garment_vertex_indices, offset=0., segment_name=None):
         # Apply offset if specified
         if offset != 0:
             verts = apply_offset_to_verts(verts, faces, offset)
@@ -272,29 +175,28 @@ class Garment:
         garment_faces = [face for face in faces if set(face).issubset(garment_vertex_indices)]
 
         # Create a mapping from the original vertex indices to the new, local indices
-        index_mapping = {old_index: new_index for new_index, old_index in enumerate(garment_vertex_indices)}
+        old_to_new_index_mapping = {old_index: new_index for new_index, old_index in enumerate(garment_vertex_indices)}
         # Update the indices in the faces to the new local indices
-        garment_faces = np.array([[index_mapping[v] for v in face] for face in garment_faces])
+        garment_faces = np.array([[old_to_new_index_mapping[v] for v in face] for face in garment_faces])
+
+        if segment_name is not None:
+            self.update_seamline_vertex_pairs(old_to_new_index_mapping, segment_name)
 
         return garment_verts, garment_faces
-
-    '''
-    @staticmethod
-    def extract_segment_indices(verts, faces, garment_vertex_indices, threshold_dict, segment_label):
-        garment_verts = verts[garment_vertex_indices]
-
-        # TODO: Update this based on whether these are sleeves or other.
-        x_coords = garment_verts[:, 0]
-        filtered_garment_indices = np.where(x_coords > threshold_dict[SEGMENT_TO_THRESH_DICT[segment_label]])[0]
-
-        garment_faces = [face for face in faces if set(face).issubset(filtered_garment_indices)]
-        # Create a mapping from the original vertex indices to the new, local indices
-        index_mapping = {old_index: new_index for new_index, old_index in enumerate(garment_vertex_indices)}
-        # Update the indices in the faces to the new local indices
-        garment_faces = np.array([[index_mapping[v] for v in face] for face in garment_faces])
-
-        return filtered_garment_indices, garment_faces
-    '''
+    
+    def store_seamline_vertex_pairs(self, subdir):
+        data_dir = 'data/seamlines/'
+        active_subdir_path = os.path.join(data_dir, subdir)
+        latest_subdir_path = os.path.join(data_dir, 'latest')
+        for seam_name in self.seam_to_segment_vertex_pairs:
+            save_seamline_pairs_file(
+                fpath=os.path.join(active_subdir_path, f'{seam_name}.txt'),
+                seamline_pair_dict=self.seam_to_segment_vertex_pairs[seam_name]
+            )
+            save_seamline_pairs_file(
+                fpath=os.path.join(latest_subdir_path, f'{seam_name}.txt'),
+                seamline_pair_dict=self.seam_to_segment_vertex_pairs[seam_name]
+            )
         
     @staticmethod
     def extract_garment_verts(verts, faces, garment_vertex_indices, offset=0.):

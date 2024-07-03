@@ -1,4 +1,6 @@
 import argparse
+import os
+from shutil import rmtree
 
 from src.selector import select_original
 
@@ -18,6 +20,9 @@ if __name__ == '__main__':
         smpl_dir = '/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/'
     else:
         smpl_dir = '/home/kristijan/data/hierprob3d/smpl/'
+
+    if os.path.exists('data/embedded/latest/'):
+        rmtree('data/embedded/latest/')
 
     select_original(
         args,

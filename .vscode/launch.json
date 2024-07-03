@@ -15,25 +15,23 @@
                 "--regenerate",
                 "--file_format", "both",
                 "--os", "linux",
-                "--body_set", "set2",
+                "--body_set", "shaping",
                 "--design", "default",
                 "--standard_export"
             ]
         },
         {
-            "name": "Main (New)",
+            "name": "Visualize Pattern",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "--regenerate",
                 "--file_format", "both",
                 "--os", "linux",
-                "--body_set", "set1",
-                "--design", "default",
-                "--standard_export"
+                "--body_set", "set2",
+                "--design", "default"
             ]
         }
     ]

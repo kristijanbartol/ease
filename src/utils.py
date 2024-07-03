@@ -1,4 +1,5 @@
 import trimesh
+import os
 import numpy as np
 
 from src.const import COLOR_MAP
@@ -196,3 +197,18 @@ def extract_local_stretches(verts, faces, design_dict, garment_part, side=None) 
 
 def read_ref_shape(shape_idx):
     return np.load(f'data/shapes/params{shape_idx:03d}.npy')
+
+
+def save_seamline_pairs_file(fpath, seamline_pair_dict):
+    id1, id2 = list(seamline_pair_dict.keys())
+    vertex_idxs1 = seamline_pair_dict[id1]
+    vertex_idxs2 = seamline_pair_dict[id2]
+
+    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+
+    with open(fpath, 'w') as f:
+        f.write(f"{id1}\n")
+        f.write(f"{id2}\n")
+        
+        for idx1, idx2 in zip(vertex_idxs1, vertex_idxs2):
+            f.write(f"{idx1} {idx2}\n")
