@@ -181,16 +181,16 @@ def select_original(args, smpl_dir):
             upper_garment_verts, upper_garment_faces = garment.extract_garment_mesh(posed_verts, faces, upper_indices, offset=DISPLACEMENTS[offset_type])
             lower_garment_verts, lower_garment_faces = garment.extract_garment_mesh(posed_verts, faces, lower_indices, offset=DISPLACEMENTS[offset_type])
 
-            front_shirt_verts, front_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, front_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_front')
-            back_shirt_verts, back_shirt_faces = garment.extract_garment_mesh(posed_verts, faces, back_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_back')
-            front_right_sleeve_verts, front_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_right')
-            back_right_sleeve_verts, back_right_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_right')
-            front_left_sleeve_verts, front_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_left')
-            back_left_sleeve_verts, back_left_sleeve_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_left')
-            front_right_pant_verts, front_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_right')
-            front_left_pant_verts, front_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_left')
-            back_right_pant_verts, back_right_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_right')
-            back_left_pant_verts, back_left_pant_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_left')
+            upper_front_verts, upper_front_faces = garment.extract_garment_mesh(posed_verts, faces, front_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_front')
+            upper_back_verts, upper_back_faces = garment.extract_garment_mesh(posed_verts, faces, back_v_idxs, offset=DISPLACEMENTS[offset_type], segment_name='upper_back')
+            sleeve_front_right_verts, sleeve_front_right_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_right')
+            sleeve_back_right_verts, sleeve_back_right_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_right')
+            sleeve_front_left_verts, sleeve_front_left_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_front_left')
+            sleeve_back_left_verts, sleeve_back_left_faces = garment.extract_garment_mesh(posed_verts, faces, sleeve_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='sleeve_back_left')
+            lower_front_right_verts, lower_front_right_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_right')
+            lower_front_left_verts, lower_front_left_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['front_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_front_left')
+            lower_back_right_verts, lower_back_right_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_right'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_right')
+            lower_back_left_verts, lower_back_left_faces = garment.extract_garment_mesh(posed_verts, faces, pant_indices['back_left'], offset=DISPLACEMENTS[offset_type], segment_name='lower_back_left')
 
             front_shirt_colors = {
                 'red': front_v_idxs,
@@ -244,160 +244,160 @@ def select_original(args, smpl_dir):
             mesh_set_dir = os.path.join('data/embedded/', f'{args.design}-{args.body_set}/{offset_type}')
             latest_set_dir = os.path.join('data/embedded/latest/', offset_type)
 
-            os.makedirs(os.path.join(mesh_set_dir, 'front_shirt/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'back_shirt/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'front_right_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'back_right_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'front_left_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'back_left_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'front_right_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'front_left_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'back_right_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(mesh_set_dir, 'back_left_pant/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'upper_front/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'upper_back/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'sleeve_front_right/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'sleeve_back_right/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'sleeve_front_left/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'sleeve_back_left/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'lower_front_right/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'lower_front_left/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'lower_back_right/'), exist_ok=True)
+            os.makedirs(os.path.join(mesh_set_dir, 'lower_back_left/'), exist_ok=True)
 
-            os.makedirs(os.path.join(latest_set_dir, 'front_shirt/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'back_shirt/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'front_right_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'back_right_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'front_left_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'back_left_sleeve/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'front_right_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'front_left_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'back_right_pant/'), exist_ok=True)
-            os.makedirs(os.path.join(latest_set_dir, 'back_left_pant/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'upper_front/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'upper_back/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'sleeve_front_right/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'sleeve_back_right/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'sleeve_front_left/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'sleeve_back_left/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'lower_front_right/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'lower_front_left/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'lower_back_right/'), exist_ok=True)
+            os.makedirs(os.path.join(latest_set_dir, 'lower_back_left/'), exist_ok=True)
 
-            export(args, front_shirt_verts, front_shirt_faces, f'{mesh_set_dir}/front_shirt/{mesh_name}', args.file_format, updated_front_shirt_colors)
-            export(args, back_shirt_verts, back_shirt_faces, f'{mesh_set_dir}/back_shirt/{mesh_name}', args.file_format, updated_back_shirt_colors)
-            export(args, front_right_sleeve_verts, front_right_sleeve_faces, f'{mesh_set_dir}/front_right_sleeve/{mesh_name}', args.file_format, updated_front_right_sleeve_colors)
-            export(args, back_right_sleeve_verts, back_right_sleeve_faces, f'{mesh_set_dir}/back_right_sleeve/{mesh_name}', args.file_format, updated_back_right_sleeve_colors)
-            export(args, front_left_sleeve_verts, front_left_sleeve_faces, f'{mesh_set_dir}/front_left_sleeve/{mesh_name}', args.file_format, updated_front_left_sleeve_colors)
-            export(args, back_left_sleeve_verts, back_left_sleeve_faces, f'{mesh_set_dir}/back_left_sleeve/{mesh_name}', args.file_format, updated_back_left_sleeve_colors)
-            export(args, front_right_pant_verts, front_right_pant_faces, f'{mesh_set_dir}/front_right_pant/{mesh_name}', args.file_format, updated_front_right_pant_colors)
-            export(args, front_left_pant_verts, front_left_pant_faces, f'{mesh_set_dir}/front_left_pant/{mesh_name}', args.file_format, updated_front_left_pant_colors)
-            export(args, back_right_pant_verts, back_right_pant_faces, f'{mesh_set_dir}/back_right_pant/{mesh_name}', args.file_format, updated_back_right_pant_colors)
-            export(args, back_left_pant_verts, back_left_pant_faces, f'{mesh_set_dir}/back_left_pant/{mesh_name}', args.file_format, updated_back_left_pant_colors)
+            export(args, upper_front_verts, upper_front_faces, f'{mesh_set_dir}/upper_front/{mesh_name}', args.file_format, updated_front_shirt_colors)
+            export(args, upper_back_verts, upper_back_faces, f'{mesh_set_dir}/upper_back/{mesh_name}', args.file_format, updated_back_shirt_colors)
+            export(args, sleeve_front_right_verts, sleeve_front_right_faces, f'{mesh_set_dir}/sleeve_front_right/{mesh_name}', args.file_format, updated_front_right_sleeve_colors)
+            export(args, sleeve_back_right_verts, sleeve_back_right_faces, f'{mesh_set_dir}/sleeve_back_right/{mesh_name}', args.file_format, updated_back_right_sleeve_colors)
+            export(args, sleeve_front_left_verts, sleeve_front_left_faces, f'{mesh_set_dir}/sleeve_front_left/{mesh_name}', args.file_format, updated_front_left_sleeve_colors)
+            export(args, sleeve_back_left_verts, sleeve_back_left_faces, f'{mesh_set_dir}/sleeve_back_left/{mesh_name}', args.file_format, updated_back_left_sleeve_colors)
+            export(args, lower_front_right_verts, lower_front_right_faces, f'{mesh_set_dir}/lower_front_right/{mesh_name}', args.file_format, updated_front_right_pant_colors)
+            export(args, lower_front_left_verts, lower_front_left_faces, f'{mesh_set_dir}/lower_front_left/{mesh_name}', args.file_format, updated_front_left_pant_colors)
+            export(args, lower_back_right_verts, lower_back_right_faces, f'{mesh_set_dir}/lower_back_right/{mesh_name}', args.file_format, updated_back_right_pant_colors)
+            export(args, lower_back_left_verts, lower_back_left_faces, f'{mesh_set_dir}/lower_back_left/{mesh_name}', args.file_format, updated_back_left_pant_colors)
 
-            export(args, front_shirt_verts, front_shirt_faces, f'{latest_set_dir}/front_shirt/{mesh_name}', args.file_format, updated_front_shirt_colors)
-            export(args, back_shirt_verts, back_shirt_faces, f'{latest_set_dir}/back_shirt/{mesh_name}', args.file_format, updated_back_shirt_colors)
-            export(args, front_right_sleeve_verts, front_right_sleeve_faces, f'{latest_set_dir}/front_right_sleeve/{mesh_name}', args.file_format, updated_front_right_sleeve_colors)
-            export(args, back_right_sleeve_verts, back_right_sleeve_faces, f'{latest_set_dir}/back_right_sleeve/{mesh_name}', args.file_format, updated_back_right_sleeve_colors)
-            export(args, front_left_sleeve_verts, front_left_sleeve_faces, f'{latest_set_dir}/front_left_sleeve/{mesh_name}', args.file_format, updated_front_left_sleeve_colors)
-            export(args, back_left_sleeve_verts, back_left_sleeve_faces, f'{latest_set_dir}/back_left_sleeve/{mesh_name}', args.file_format, updated_back_left_sleeve_colors)
-            export(args, front_right_pant_verts, front_right_pant_faces, f'{latest_set_dir}/front_right_pant/{mesh_name}', args.file_format, updated_front_right_pant_colors)
-            export(args, front_left_pant_verts, front_left_pant_faces, f'{latest_set_dir}/front_left_pant/{mesh_name}', args.file_format, updated_front_left_pant_colors)
-            export(args, back_right_pant_verts, back_right_pant_faces, f'{latest_set_dir}/back_right_pant/{mesh_name}', args.file_format, updated_back_right_pant_colors)
-            export(args, back_left_pant_verts, back_left_pant_faces, f'{latest_set_dir}/back_left_pant/{mesh_name}', args.file_format, updated_back_left_pant_colors)
+            export(args, upper_front_verts, upper_front_faces, f'{latest_set_dir}/upper_front/{mesh_name}', args.file_format, updated_front_shirt_colors)
+            export(args, upper_back_verts, upper_back_faces, f'{latest_set_dir}/upper_back/{mesh_name}', args.file_format, updated_back_shirt_colors)
+            export(args, sleeve_front_right_verts, sleeve_front_right_faces, f'{latest_set_dir}/sleeve_front_right/{mesh_name}', args.file_format, updated_front_right_sleeve_colors)
+            export(args, sleeve_back_right_verts, sleeve_back_right_faces, f'{latest_set_dir}/sleeve_back_right/{mesh_name}', args.file_format, updated_back_right_sleeve_colors)
+            export(args, sleeve_front_left_verts, sleeve_front_left_faces, f'{latest_set_dir}/sleeve_front_left/{mesh_name}', args.file_format, updated_front_left_sleeve_colors)
+            export(args, sleeve_back_left_verts, sleeve_back_left_faces, f'{latest_set_dir}/sleeve_back_left/{mesh_name}', args.file_format, updated_back_left_sleeve_colors)
+            export(args, lower_front_right_verts, lower_front_right_faces, f'{latest_set_dir}/lower_front_right/{mesh_name}', args.file_format, updated_front_right_pant_colors)
+            export(args, lower_front_left_verts, lower_front_left_faces, f'{latest_set_dir}/lower_front_left/{mesh_name}', args.file_format, updated_front_left_pant_colors)
+            export(args, lower_back_right_verts, lower_back_right_faces, f'{latest_set_dir}/lower_back_right/{mesh_name}', args.file_format, updated_back_right_pant_colors)
+            export(args, lower_back_left_verts, lower_back_left_faces, f'{latest_set_dir}/lower_back_left/{mesh_name}', args.file_format, updated_back_left_pant_colors)
 
             # Prepare local stretch arrays
-            front_shirt_stretch_array_u, front_shirt_stretch_array_v = extract_local_stretches(
-                verts=front_shirt_verts,
-                faces=front_shirt_faces,
+            upper_front_stretch_array_u, upper_front_stretch_array_v = extract_local_stretches(
+                verts=upper_front_verts,
+                faces=upper_front_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='upper'
             )
-            back_shirt_strech_array_u, back_shirt_strech_array_v = extract_local_stretches(
-                verts=back_shirt_verts,
-                faces=back_shirt_faces,
+            upper_back_stretch_array_u, upper_back_strech_array_v = extract_local_stretches(
+                verts=upper_back_verts,
+                faces=upper_back_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='upper'
             )
-            front_right_sleeve_stretch_array_u, front_right_sleeve_stretch_array_v = extract_local_stretches(
-                verts=front_right_sleeve_verts,
-                faces=front_right_sleeve_faces,
+            sleeve_front_right_stretch_array_u, sleeve_front_right_stretch_array_v = extract_local_stretches(
+                verts=sleeve_front_right_verts,
+                faces=sleeve_front_right_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='sleeve',
                 side='right'
             )
-            back_right_sleeve_stretch_array_u, back_right_sleeve_stretch_array_v = extract_local_stretches(
-                verts=back_right_sleeve_verts,
-                faces=back_right_sleeve_faces,
+            sleeve_back_right_stretch_array_u, sleeve_back_right_stretch_array_v = extract_local_stretches(
+                verts=sleeve_back_right_verts,
+                faces=sleeve_back_right_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='sleeve',
                 side='right'
             )
-            front_left_sleeve_stretch_array_u, front_left_sleeve_stretch_array_v = extract_local_stretches(
-                verts=front_left_sleeve_verts,
-                faces=front_left_sleeve_faces,
+            sleeve_front_left_stretch_array_u, sleeve_front_left_stretch_array_v = extract_local_stretches(
+                verts=sleeve_front_left_verts,
+                faces=sleeve_front_left_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='sleeve',
                 side='left'
             )
-            back_left_sleeve_stretch_array_u, back_left_sleeve_stretch_array_v = extract_local_stretches(
-                verts=back_left_sleeve_verts,
-                faces=back_left_sleeve_faces,
+            sleeve_back_left_stretch_array_u, sleeve_back_left_stretch_array_v = extract_local_stretches(
+                verts=sleeve_back_left_verts,
+                faces=sleeve_back_left_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='sleeve',
                 side='left'
             )
 
-            front_right_pant_stretch_array_u, front_right_pant_stretch_array_v = extract_local_stretches(
-                verts=front_right_pant_verts,
-                faces=front_right_pant_faces,
+            lower_front_right_stretch_array_u, lower_front_right_stretch_array_v = extract_local_stretches(
+                verts=lower_front_right_verts,
+                faces=lower_front_right_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='lower'
             )
-            back_right_pant_stretch_array_u, back_right_pant_stretch_array_v = extract_local_stretches(
-                verts=back_right_pant_verts,
-                faces=back_right_pant_faces,
+            lower_back_right_stretch_array_u, lower_back_right_stretch_array_v = extract_local_stretches(
+                verts=lower_back_right_verts,
+                faces=lower_back_right_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='lower'
             )
-            front_left_pant_stretch_array_u, front_left_pant_stretch_array_v = extract_local_stretches(
-                verts=front_left_pant_verts,
-                faces=front_left_pant_faces,
+            lower_front_left_stretch_array_u, lower_front_left_stretch_array_v = extract_local_stretches(
+                verts=lower_front_left_verts,
+                faces=lower_front_left_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='lower'
             )
-            back_left_pant_stretch_array_u, back_left_pant_stretch_array_v = extract_local_stretches(
-                verts=back_left_pant_verts,
-                faces=back_left_pant_faces,
+            lower_back_left_stretch_array_u, lower_back_left_stretch_array_v = extract_local_stretches(
+                verts=lower_back_left_verts,
+                faces=lower_back_left_faces,
                 design_dict=design_dict['stretches'],
                 garment_part='lower'
             )
 
-            np.savetxt(f'{mesh_set_dir}/front_shirt/stretches_u.txt', front_shirt_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/back_shirt/stretches_u.txt', back_shirt_strech_array_u)
-            np.savetxt(f'{mesh_set_dir}/front_right_sleeve/stretches_u.txt', front_right_sleeve_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/back_right_sleeve/stretches_u.txt', back_right_sleeve_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/front_left_sleeve/stretches_u.txt', front_left_sleeve_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/back_left_sleeve/stretches_u.txt', back_left_sleeve_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/front_right_pant/stretches_u.txt', front_right_pant_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/back_right_pant/stretches_u.txt', back_right_pant_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/front_left_pant/stretches_u.txt', front_left_pant_stretch_array_u)
-            np.savetxt(f'{mesh_set_dir}/back_left_pant/stretches_u.txt', back_left_pant_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/upper_front/stretches_u.txt', upper_front_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/upper_back/stretches_u.txt', upper_back_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/sleeve_front_right/stretches_u.txt', sleeve_front_right_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/sleeve_back_right/stretches_u.txt', sleeve_back_right_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/sleeve_front_left/stretches_u.txt', sleeve_front_left_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/sleeve_back_left/stretches_u.txt', sleeve_back_left_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/lower_front_right/stretches_u.txt', lower_front_right_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/lower_back_right/stretches_u.txt', lower_back_right_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/lower_front_left/stretches_u.txt', lower_front_left_stretch_array_u)
+            np.savetxt(f'{mesh_set_dir}/lower_back_left/stretches_u.txt', lower_back_left_stretch_array_u)
 
-            np.savetxt(f'{mesh_set_dir}/front_shirt/stretches_v.txt', front_shirt_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/back_shirt/stretches_v.txt', back_shirt_strech_array_v)
-            np.savetxt(f'{mesh_set_dir}/front_right_sleeve/stretches_v.txt', front_right_sleeve_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/back_right_sleeve/stretches_v.txt', back_right_sleeve_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/front_left_sleeve/stretches_v.txt', front_left_sleeve_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/back_left_sleeve/stretches_v.txt', back_left_sleeve_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/front_right_pant/stretches_v.txt', front_right_pant_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/back_right_pant/stretches_v.txt', back_right_pant_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/front_left_pant/stretches_v.txt', front_left_pant_stretch_array_v)
-            np.savetxt(f'{mesh_set_dir}/back_left_pant/stretches_v.txt', back_left_pant_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/upper_front/stretches_v.txt', upper_front_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/upper_back/stretches_v.txt', upper_back_strech_array_v)
+            np.savetxt(f'{mesh_set_dir}/sleeve_front_right/stretches_v.txt', sleeve_front_right_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/sleeve_back_right/stretches_v.txt', sleeve_back_right_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/sleeve_front_left/stretches_v.txt', sleeve_front_left_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/sleeve_back_left/stretches_v.txt', sleeve_back_left_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/lower_front_right/stretches_v.txt', lower_front_right_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/lower_back_right/stretches_v.txt', lower_back_right_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/lower_front_left/stretches_v.txt', lower_front_left_stretch_array_v)
+            np.savetxt(f'{mesh_set_dir}/lower_back_left/stretches_v.txt', lower_back_left_stretch_array_v)
 
-            np.savetxt(f'{latest_set_dir}/front_shirt/stretches_u.txt', front_shirt_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/back_shirt/stretches_u.txt', back_shirt_strech_array_u)
-            np.savetxt(f'{latest_set_dir}/front_right_sleeve/stretches_u.txt', front_right_sleeve_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/back_right_sleeve/stretches_u.txt', back_right_sleeve_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/front_left_sleeve/stretches_u.txt', front_left_sleeve_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/back_left_sleeve/stretches_u.txt', back_left_sleeve_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/front_right_pant/stretches_u.txt', front_right_pant_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/back_right_pant/stretches_u.txt', back_right_pant_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/front_left_pant/stretches_u.txt', front_left_pant_stretch_array_u)
-            np.savetxt(f'{latest_set_dir}/back_left_pant/stretches_u.txt', back_left_pant_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/upper_front/stretches_u.txt', upper_front_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/upper_back/stretches_u.txt', upper_back_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/sleeve_front_right/stretches_u.txt', sleeve_front_right_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/sleeve_back_right/stretches_u.txt', sleeve_back_right_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/sleeve_front_left/stretches_u.txt', sleeve_front_left_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/sleeve_back_left/stretches_u.txt', sleeve_back_left_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/lower_front_right/stretches_u.txt', lower_front_right_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/lower_back_right/stretches_u.txt', lower_back_right_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/lower_front_left/stretches_u.txt', lower_front_left_stretch_array_u)
+            np.savetxt(f'{latest_set_dir}/lower_back_left/stretches_u.txt', lower_back_left_stretch_array_u)
 
-            np.savetxt(f'{latest_set_dir}/front_shirt/stretches_v.txt', front_shirt_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/back_shirt/stretches_v.txt', back_shirt_strech_array_v)
-            np.savetxt(f'{latest_set_dir}/front_right_sleeve/stretches_v.txt', front_right_sleeve_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/back_right_sleeve/stretches_v.txt', back_right_sleeve_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/front_left_sleeve/stretches_v.txt', front_left_sleeve_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/back_left_sleeve/stretches_v.txt', back_left_sleeve_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/front_right_pant/stretches_v.txt', front_right_pant_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/back_right_pant/stretches_v.txt', back_right_pant_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/front_left_pant/stretches_v.txt', front_left_pant_stretch_array_v)
-            np.savetxt(f'{latest_set_dir}/back_left_pant/stretches_v.txt', back_left_pant_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/upper_front/stretches_v.txt', upper_front_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/upper_back/stretches_v.txt', upper_back_strech_array_v)
+            np.savetxt(f'{latest_set_dir}/sleeve_front_right/stretches_v.txt', sleeve_front_right_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/sleeve_back_right/stretches_v.txt', sleeve_back_right_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/sleeve_front_left/stretches_v.txt', sleeve_front_left_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/sleeve_back_left/stretches_v.txt', sleeve_back_left_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/lower_front_right/stretches_v.txt', lower_front_right_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/lower_back_right/stretches_v.txt', lower_back_right_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/lower_front_left/stretches_v.txt', lower_front_left_stretch_array_v)
+            np.savetxt(f'{latest_set_dir}/lower_back_left/stretches_v.txt', lower_back_left_stretch_array_v)
 
             # Store for the initial color-coded designs.
             if mesh_name == 'init' and offset_type == 'skintight':

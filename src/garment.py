@@ -154,16 +154,25 @@ class Garment:
         return list(selected_vertices)
     
     def update_seamline_vertex_pairs(self, old_to_new_index_mapping, segment_name):
+
+        def map_old_to_new_indices(old_indices):
+            new_indices = []
+            for old_index in old_indices:
+                # NOTE: Some old indices might not be in the old-to-new dictionary since they are boundary vertices below the garment length threshold
+                if old_index in old_to_new_index_mapping:
+                    new_indices.append(old_to_new_index_mapping[old_index])
+            return new_indices
+
         segment_id = SEGMENT_TO_ID[segment_name]
         seamlines_list = SEGMENT_TO_SEAMLINES_DICT[segment_id]
         for seam_name in seamlines_list:
             if seam_name not in self.seam_to_segment_vertex_pairs:
                 self.seam_to_segment_vertex_pairs[seam_name] = {
-                    segment_id: SEAM_TO_SEAM_IDX_DICT[seam_name]
+                    segment_id: map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_name])
                 }
             else:
                 self.seam_to_segment_vertex_pairs[seam_name][segment_id] = \
-                    SEAM_TO_SEAM_IDX_DICT[seam_name]
+                    map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_name])
     
     def extract_garment_mesh(self, verts, faces, garment_vertex_indices, offset=0., segment_name=None):
         # Apply offset if specified

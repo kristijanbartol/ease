@@ -79,16 +79,16 @@ def save_combined_image(output_path, combined_image):
 
 
 PATTERN_DICT = {
-    'front_shirt': [0, 0],
-    'back_shirt': [0, -420],
-    'front_right_sleeve': [-300, -150],
-    'back_right_sleeve': [-260, -200],
-    'front_left_sleeve': [320, -180],
-    'back_left_sleeve': [300, -220],
-    'front_right_pant': [-200, 250],
-    'back_right_pant': [-170, 200],
-    'front_left_pant': [300, 250],
-    'back_left_pant': [350, 200]
+    'upper_front': [0, 0],
+    'upper_back': [0, -420],
+    'sleeve_front_right': [-300, -150],
+    'sleeve_back_right': [-260, -200],
+    'sleeve_front_left': [320, -180],
+    'sleeve_back_left': [300, -220],
+    'lower_front_right': [-200, 250],
+    'lower_back_right': [-170, 200],
+    'lower_front_left': [300, 250],
+    'lower_back_left': [350, 200]
 }
 
 
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     for _, dirs, _ in os.walk(data_dir):
         for subdir in dirs:
             pattern_fpath = os.path.join(data_dir, subdir, 'optim.ply')
-            is_front = True if subdir.split('_')[0] == 'front' else False
+            is_front = True if subdir.split('_')[1] == 'front' else False
             meshes.append(
                 Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front)
             )
