@@ -3,7 +3,7 @@
         "skirt_dress": false
     },
     "dims": {
-        "sleeve": 0.33,
+        "sleeve": 0.5,
         "upper": 0.35,
         "lower": 0.8
     },
@@ -11,20 +11,20 @@
         "sleeve": {
             "type": "uniform",
             "base_stretch_u": 1.0,
-            "base_stretch_v": 1.1,
+            "base_stretch_v": 1.0,
             "max_stretch": 1.5,
-            "ref_x": 0.4
+            "ref_x": 0.25
         },
         "upper": {
             "type": "uniform",
-            "base_stretch_u": 1.1,
+            "base_stretch_u": 1.0,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5,
             "ref_y": -0.093
         },
         "lower": {
             "type": "uniform",
-            "base_stretch_u": 1.2,
+            "base_stretch_u": 1.0,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5
         }

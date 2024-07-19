@@ -28,10 +28,6 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "--file_format", "both",
-                "--os", "linux",
-                "--body_set", "set2",
-                "--design", "default"
             ]
         }
     ]

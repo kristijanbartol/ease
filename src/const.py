@@ -300,7 +300,7 @@ INIT_IDXS = {
 
 DISPLACEMENTS = {
     'skintight': 0.0025,
-    'loose': 0.0075
+    'loose': 0.005
 }
 
 

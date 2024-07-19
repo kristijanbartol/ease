@@ -45,132 +45,131 @@ from src.utils import (
 
 
 def select_original(args, smpl_dir):
-    male_smpl_model = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_MALE.pkl'), gender='female')
-    female_smpl_model = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_FEMALE.pkl'), gender='female')
+    smpl_models = {}
+    smpl_models['male'] = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_MALE.pkl'), gender='male')
+    smpl_models['female'] = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_FEMALE.pkl'), gender='female')
 
-    # NOTE: Using the female model to find the segmentations
-    # Male only in case is needed to store the body for PBS or skirtification
-    verts = female_smpl_model().vertices[0].cpu().detach().numpy()
-    faces = female_smpl_model.faces
+    modified_models = {}
+    for gender in ['male', 'female']:
+        verts = smpl_models[gender]().vertices[0].cpu().detach().numpy()
+        faces = smpl_models[gender].faces
 
-    garment = Garment(verts, faces)
+        garment = Garment(verts, faces)
 
-    with open(f'config/designs/{args.design}.json', 'r') as json_file:
-        design_dict = json.load(json_file)
-    with open(f'config/body_sets/{args.body_set}.json', 'r') as json_file:
-        set_dict = json.load(json_file)
+        with open(f'config/designs/{args.design}.json', 'r') as json_file:
+            design_dict = json.load(json_file)
+        with open(f'config/body_sets/{args.body_set}.json', 'r') as json_file:
+            set_dict = json.load(json_file)
 
-    # Helper structures.
-    sleeve_init_points = {
-        'front_right': INIT_FRONT_RIGHT_SLEEVE,
-        'back_right': INIT_BACK_RIGHT_SLEEVE,
-        'front_left': INIT_FRONT_LEFT_SLEEVE,
-        'back_left': INIT_BACK_LEFT_SLEEVE
-    }
-    sleeve_indices = {}
-    sleeve_thresholds = {}
+        # Helper structures.
+        sleeve_init_points = {
+            'front_right': INIT_FRONT_RIGHT_SLEEVE,
+            'back_right': INIT_BACK_RIGHT_SLEEVE,
+            'front_left': INIT_FRONT_LEFT_SLEEVE,
+            'back_left': INIT_BACK_LEFT_SLEEVE
+        }
+        sleeve_indices = {}
+        sleeve_thresholds = {}
 
-    pant_init_points = {
-        'front_right': INIT_RIGHT_FRONT_PANT,
-        'front_left': INIT_LEFT_FRONT_PANT,
-        'back_right': INIT_RIGHT_BACK_PANT,
-        'back_left': INIT_LEFT_BACK_PANT
-    }
-    pant_indices = {}
-    pant_thresholds = {}
+        pant_init_points = {
+            'front_right': INIT_RIGHT_FRONT_PANT,
+            'front_left': INIT_LEFT_FRONT_PANT,
+            'back_right': INIT_RIGHT_BACK_PANT,
+            'back_left': INIT_LEFT_BACK_PANT
+        }
+        pant_indices = {}
+        pant_thresholds = {}
 
-    # Determine seams.
-    seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
-        verts=verts, 
-        shirt_length=design_dict['dims']['upper'], 
-        seam_idx_dict=SEAM_IDX_DICT['upper_front']
-    )
-    seam_idxs_back, _ = determine_shirt_seams(
-        verts=verts, 
-        shirt_length=design_dict['dims']['upper'], 
-        seam_idx_dict=SEAM_IDX_DICT['upper_back']
-    )
-
-    for key, init_idx in sleeve_init_points.items():
-        seams, x_sleeve_threshold = determine_sleeve_seams(
+        # Determine seams.
+        seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
             verts=verts, 
-            sleeve_length=design_dict['dims']['sleeve'], 
-            seam_idx_dict=SEAM_IDX_DICT[f'sleeve_{key}']
+            shirt_length=design_dict['dims']['upper'], 
+            seam_idx_dict=SEAM_IDX_DICT['upper_front']
         )
-        sleeve_indices[key] = seams
-        sleeve_thresholds[key] = x_sleeve_threshold
-
-    for key, init_idx in pant_init_points.items():
-        seams, y_pant_threshold = determine_pant_seams(
+        seam_idxs_back, _ = determine_shirt_seams(
             verts=verts, 
-            pant_length=design_dict['dims']['lower'], 
-            seam_idx_dict=SEAM_IDX_DICT[f'lower_{key}'], 
-            side=key.split('_')[1]
+            shirt_length=design_dict['dims']['upper'], 
+            seam_idx_dict=SEAM_IDX_DICT['upper_back']
         )
-        pant_indices[key] = seams
-        pant_thresholds[key] = y_pant_threshold
 
-    # Modify body mesh by cutting planes.
-    modified_verts = modify_mesh_with_plane_cut(
-        vertices=verts,
-        faces=faces,
-        cutting_point=y_shirt_threshold,
-        plane_orientation='horizontal'
-    )
-    modified_verts = modify_mesh_with_plane_cut(
-        vertices=modified_verts,
-        faces=faces,
-        cutting_point=max(sleeve_thresholds['front_left'], sleeve_thresholds['back_left']),
-        plane_orientation='vertical',
-        sleeve_side='left'
-    )
-    modified_verts = modify_mesh_with_plane_cut(
-        vertices=modified_verts,
-        faces=faces,
-        cutting_point=min(sleeve_thresholds['front_right'], sleeve_thresholds['back_right']),
-        plane_orientation='vertical',
-        sleeve_side='right'
-    )
+        for key, init_idx in sleeve_init_points.items():
+            seams, x_sleeve_threshold = determine_sleeve_seams(
+                verts=verts, 
+                sleeve_length=design_dict['dims']['sleeve'], 
+                seam_idx_dict=SEAM_IDX_DICT[f'sleeve_{key}']
+            )
+            sleeve_indices[key] = seams
+            sleeve_thresholds[key] = x_sleeve_threshold
 
-    # Flood fill.
-    front_v_idxs = garment.flood_fill_vertices(
-        vertex_positions=modified_verts, 
-        boundary_vertices=seam_idxs_front, 
-        y_threshold=y_shirt_threshold, 
-        start_vertex=INIT_UPPER_FRONT
-    )
-    back_v_idxs = garment.flood_fill_vertices(
-        vertex_positions=modified_verts, 
-        boundary_vertices=seam_idxs_back, 
-        y_threshold=y_shirt_threshold, 
-        start_vertex=INIT_UPPER_BACK
-    )
-    for key, init_idx in sleeve_init_points.items():
-        sleeve_indices[key] = garment.flood_fill_sleeve_vertices(
+        for key, init_idx in pant_init_points.items():
+            seams, y_pant_threshold = determine_pant_seams(
+                verts=verts, 
+                pant_length=design_dict['dims']['lower'], 
+                seam_idx_dict=SEAM_IDX_DICT[f'lower_{key}'], 
+                side=key.split('_')[1]
+            )
+            pant_indices[key] = seams
+            pant_thresholds[key] = y_pant_threshold
+
+        # Modify body mesh by cutting planes.
+        modified_verts = modify_mesh_with_plane_cut(
+            vertices=verts,
+            faces=faces,
+            cutting_point=y_shirt_threshold,
+            plane_orientation='horizontal'
+        )
+        modified_verts = modify_mesh_with_plane_cut(
+            vertices=modified_verts,
+            faces=faces,
+            cutting_point=max(sleeve_thresholds['front_left'], sleeve_thresholds['back_left']),
+            plane_orientation='vertical',
+            sleeve_side='left'
+        )
+        modified_verts = modify_mesh_with_plane_cut(
+            vertices=modified_verts,
+            faces=faces,
+            cutting_point=min(sleeve_thresholds['front_right'], sleeve_thresholds['back_right']),
+            plane_orientation='vertical',
+            sleeve_side='right'
+        )
+
+        # Flood fill.
+        front_v_idxs = garment.flood_fill_vertices(
             vertex_positions=modified_verts, 
-            boundary_vertices=sleeve_indices[key], 
-            start_vertex=init_idx, 
-            x_threshold=sleeve_thresholds[key], 
-            side=key.split('_')[1]
+            boundary_vertices=seam_idxs_front, 
+            y_threshold=y_shirt_threshold, 
+            start_vertex=INIT_UPPER_FRONT
         )
-    for key, init_idx in pant_init_points.items():
-        pant_indices[key] = garment.flood_fill_vertices(
+        back_v_idxs = garment.flood_fill_vertices(
             vertex_positions=modified_verts, 
-            boundary_vertices=pant_indices[key],
-            y_threshold=pant_thresholds[key], 
-            start_vertex=init_idx
+            boundary_vertices=seam_idxs_back, 
+            y_threshold=y_shirt_threshold, 
+            start_vertex=INIT_UPPER_BACK
         )
+        for key, init_idx in sleeve_init_points.items():
+            sleeve_indices[key] = garment.flood_fill_sleeve_vertices(
+                vertex_positions=modified_verts, 
+                boundary_vertices=sleeve_indices[key], 
+                start_vertex=init_idx, 
+                x_threshold=sleeve_thresholds[key], 
+                side=key.split('_')[1]
+            )
+        for key, init_idx in pant_init_points.items():
+            pant_indices[key] = garment.flood_fill_vertices(
+                vertex_positions=modified_verts, 
+                boundary_vertices=pant_indices[key],
+                y_threshold=pant_thresholds[key], 
+                start_vertex=init_idx
+            )
 
-    modified_male_smpl_model = SMPL(os.path.join(smpl_dir, 'SMPL_MALE.pkl'), gender='male', v_template=torch.from_numpy(modified_verts))
-    modified_female_smpl_model = SMPL(os.path.join(smpl_dir, 'SMPL_FEMALE.pkl'), gender='female', v_template=torch.from_numpy(modified_verts))
+        modified_models[gender] = SMPL(os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender, v_template=torch.from_numpy(modified_verts))
 
     for offset_type in ['skintight', 'loose']:
         for set_element_idx in range(len(set_dict['poses'])):
             pose_fun = getattr(const, set_dict['poses'][set_element_idx])
             shape_fun = getattr(const, set_dict['shapes'][set_element_idx])
             gender = set_dict['genders'][set_element_idx]
-            modified_smpl_model = modified_male_smpl_model if gender == 'male' else modified_female_smpl_model
-            posed_verts = modified_smpl_model(
+            posed_verts = modified_models[gender](
                 body_pose=pose_fun(), 
                 betas=shape_fun()
             ).vertices[0].cpu().detach().numpy()
@@ -429,7 +428,7 @@ def select_original(args, smpl_dir):
                 upper_garment_mesh.export(f'{latest_set_dir}/upper_garment_{mesh_name}.ply')
                 lower_garment_mesh.export(f'{latest_set_dir}/lower_garment_{mesh_name}.ply')
 
-            original_smpl_model = male_smpl_model if gender == 'male' else female_smpl_model
+            original_smpl_model = smpl_models[gender]
             original_verts = original_smpl_model(
                 body_pose=pose_fun(), 
                 betas=shape_fun()
