@@ -23,6 +23,8 @@ if __name__ == '__main__':
 
     if os.path.exists('data/embedded/latest/'):
         rmtree('data/embedded/latest/')
+    if os.path.exists('data/seamlines/latest/debug/'):
+        rmtree('data/seamlines/latest/debug/')
 
     select_original(
         args,

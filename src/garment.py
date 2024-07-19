@@ -197,6 +197,7 @@ class Garment:
         data_dir = 'data/seamlines/'
         active_subdir_path = os.path.join(data_dir, subdir)
         latest_subdir_path = os.path.join(data_dir, 'latest')
+        os.makedirs(os.path.join(latest_subdir_path, 'debug'), exist_ok=True)
         for seam_name in self.seam_to_segment_vertex_pairs:
             save_seamline_pairs_file(
                 fpath=os.path.join(active_subdir_path, f'{seam_name}.txt'),
