@@ -95,7 +95,8 @@ PATTERN_DICT = {
 if __name__ == "__main__":
     data_dir = f'data/embedded/latest/skintight/'
 
-    for ext in ['_mid', '_final', '']:
+    #for ext in ['_pre', '_init', '_final', '_init-seams', '_final-seams', '']:
+    for ext in ['_pre', '_init', '_final', '_init-seams', '_final-seams']:
         meshes = []
         for _, dirs, _ in os.walk(data_dir):
             for subdir in dirs:

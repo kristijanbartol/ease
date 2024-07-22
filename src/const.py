@@ -414,7 +414,7 @@ def sit_pose():
 
 
 def bent_knee_45_pose():
-    pose = torch.zeros((1, 23 * 3))
+    pose = a_pose()
     pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
     pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 4, 0, 0])
@@ -422,7 +422,7 @@ def bent_knee_45_pose():
 
 
 def bent_knee_90_pose():
-    pose = torch.zeros((1, 23 * 3))
+    pose = a_pose()
     pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
     pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])

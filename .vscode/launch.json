@@ -15,7 +15,7 @@
                 "--regenerate",
                 "--file_format", "both",
                 "--os", "linux",
-                "--body_set", "set2",
+                "--body_set", "posing1",
                 "--design", "default",
                 "--standard_export"
             ]
