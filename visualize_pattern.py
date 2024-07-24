@@ -95,21 +95,24 @@ PATTERN_DICT = {
 if __name__ == "__main__":
     data_dir = f'data/embedded/latest/skintight/'
 
-    #for ext in ['_pre', '_init', '_final', '_init-seams', '_final-seams', '']:
-    for ext in ['_pre', '_init', '_final', '_init-seams', '_final-seams']:
-        meshes = []
-        for _, dirs, _ in os.walk(data_dir):
-            for subdir in dirs:
-                pattern_fpath = os.path.join(data_dir, subdir, f'optim{ext}.ply')
-                is_front = True if subdir.split('_')[1] == 'front' else False
-                meshes.append(
-                    Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front)
-                )
-        meshes.sort(key=lambda mesh: mesh.is_front)
+    meshes_dict = {}
+    for _, dirs, _ in os.walk(data_dir):
+        for subdir in dirs:
+            for fname in os.listdir(os.path.join(data_dir, subdir)):
+                if 'optim' in fname:
+                    suffix = fname.split('.')[0][5:]
+                    pattern_fpath = os.path.join(data_dir, subdir, fname)
+                    is_front = True if subdir.split('_')[1] == 'front' else False
+                    if suffix not in meshes_dict:
+                        meshes_dict[suffix] = [Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front)]
+                    else:
+                        meshes_dict[suffix].append(Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front))
+    for suffix in meshes_dict:
+        meshes_dict[suffix].sort(key=lambda mesh: mesh.is_front)
 
         canvas_size = (1200, 1200)
         img_size = (300, 300)
-        combined_image = combine_meshes(meshes, canvas_size, img_size)
+        combined_image = combine_meshes(meshes_dict[suffix], canvas_size, img_size)
 
-        output_path = os.path.join(data_dir, f'sewing_pattern{ext}.png')
+        output_path = os.path.join(data_dir, f'sewing_pattern{suffix}.png')
         save_combined_image(output_path, combined_image)
