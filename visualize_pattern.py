@@ -2,7 +2,8 @@ import open3d as o3d
 import numpy as np
 import cv2
 import os
-import argparse
+
+GLOBAL_SCALE = 400
 
 
 class Mesh:
@@ -18,9 +19,7 @@ def mesh_to_image(mesh, image_size=(800, 800)):
     min_bounds = points.min(axis=0)
     max_bounds = points.max(axis=0)
     
-    # Normalize the points to the range [0, image_size]
-    scale = min(image_size) / (max_bounds[:2] - min_bounds[:2]).max()
-    points[:, :2] = (points[:, :2] - min_bounds[:2]) * scale
+    points[:, :2] = (points[:, :2] - min_bounds[:2]) * GLOBAL_SCALE
 
     # Create an empty image with alpha channel (transparent background)
     image = np.zeros((image_size[1], image_size[0], 4), dtype=np.uint8)
@@ -80,7 +79,7 @@ def save_combined_image(output_path, combined_image):
 
 PATTERN_DICT = {
     'upper_front': [0, 0],
-    'upper_back': [0, -420],
+    'upper_back': [0, -300],
     'sleeve_front_right': [-300, -150],
     'sleeve_back_right': [-260, -200],
     'sleeve_front_left': [320, -180],
