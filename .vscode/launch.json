@@ -15,7 +15,7 @@
                 "--regenerate",
                 "--file_format", "both",
                 "--os", "linux",
-                "--body_set", "posing1",
+                "--body_set", "solo-female",
                 "--design", "default",
                 "--standard_export"
             ]

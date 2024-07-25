@@ -159,7 +159,7 @@ def extract_local_stretches(verts, faces, design_dict, garment_part, side=None) 
             min_y = np.min(verts[:, 1])
             max_y = np.max(verts[:, 1])
             base_stretch, max_stretch = design_dict[garment_part]['base_stretch_u'], design_dict[garment_part]['max_stretch']
-            stretches_u = base_stretch + ((mean_face_coords[:, 0] - max_y) / (min_y - max_y)) * (max_stretch - base_stretch)
+            stretches_u = base_stretch + ((mean_face_coords[:, 1] - max_y) / (min_y - max_y)) * (max_stretch - base_stretch)
             stretches_v = np.ones(faces.shape[0]) * design_dict[garment_part]['base_stretch_v']
 
     elif design_dict[garment_part]['type'] == 'linear_from':
