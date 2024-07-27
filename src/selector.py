@@ -49,12 +49,14 @@ def select_original(args, smpl_dir):
     smpl_models['male'] = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_MALE.pkl'), gender='male')
     smpl_models['female'] = SMPL(model_path=os.path.join(smpl_dir, 'SMPL_FEMALE.pkl'), gender='female')
 
+    seam_idx_dict = SEAM_IDX_DICT['default']
+
     modified_models = {}
     for gender in ['male', 'female']:
         verts = smpl_models[gender]().vertices[0].cpu().detach().numpy()
         faces = smpl_models[gender].faces
 
-        garment = Garment(verts, faces)
+        garment = Garment(verts, faces, skirtification_type='default')
 
         with open(f'config/designs/{args.design}.json', 'r') as json_file:
             design_dict = json.load(json_file)
@@ -84,19 +86,19 @@ def select_original(args, smpl_dir):
         seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
             verts=verts, 
             shirt_length=design_dict['dims']['upper'], 
-            seam_idx_dict=SEAM_IDX_DICT['upper_front']
+            seam_idx_dict=seam_idx_dict['upper_front']
         )
         seam_idxs_back, _ = determine_shirt_seams(
             verts=verts, 
             shirt_length=design_dict['dims']['upper'], 
-            seam_idx_dict=SEAM_IDX_DICT['upper_back']
+            seam_idx_dict=seam_idx_dict['upper_back']
         )
 
         for key, init_idx in sleeve_init_points.items():
             seams, x_sleeve_threshold = determine_sleeve_seams(
                 verts=verts, 
                 sleeve_length=design_dict['dims']['sleeve'], 
-                seam_idx_dict=SEAM_IDX_DICT[f'sleeve_{key}']
+                seam_idx_dict=seam_idx_dict[f'sleeve_{key}']
             )
             sleeve_indices[key] = seams
             sleeve_thresholds[key] = x_sleeve_threshold
@@ -105,7 +107,7 @@ def select_original(args, smpl_dir):
             seams, y_pant_threshold = determine_pant_seams(
                 verts=verts, 
                 pant_length=design_dict['dims']['lower'], 
-                seam_idx_dict=SEAM_IDX_DICT[f'lower_{key}'], 
+                seam_idx_dict=seam_idx_dict[f'lower_{key}'], 
                 side=key.split('_')[1]
             )
             pant_indices[key] = seams

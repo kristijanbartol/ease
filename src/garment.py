@@ -12,11 +12,15 @@ from src.utils import save_seamline_pairs_file
 
 
 class Garment:
-    def __init__(self, verts, faces):
+    def __init__(self, verts, faces, skirtification_type):
         self.mesh = trimesh.Trimesh(vertices=verts, faces=faces)
         self.vertex_adjacency_list = self.build_vertex_adjacency_list(faces)
         self.face_adjacency_list = self.build_face_adjacency_list(faces)
         self.seam_to_segment_vertex_pairs = {}
+        self.skirtification_type = skirtification_type
+        self.segment_to_id = SEGMENT_TO_ID[skirtification_type]
+        self.segment_to_seamlines_dict = SEGMENT_TO_SEAMLINES_DICT[skirtification_type]
+        self.seam_to_seam_idx_dict = SEAM_TO_SEAM_IDX_DICT[skirtification_type]
 
     @staticmethod
     def build_vertex_adjacency_list(F):
@@ -66,6 +70,7 @@ class Garment:
         # Initialize the set to store the selected vertices
         selected_vertices = set()
 
+        iter = 0
         while stack:
             # Pop the last vertex from the stack
             vertex_idx = stack.pop()
@@ -163,16 +168,16 @@ class Garment:
                     new_indices.append(old_to_new_index_mapping[old_index])
             return new_indices
 
-        segment_id = SEGMENT_TO_ID[segment_name]
-        seamlines_list = SEGMENT_TO_SEAMLINES_DICT[segment_id]
+        segment_id = self.segment_to_id[segment_name]
+        seamlines_list = self.segment_to_seamlines_dict[segment_id]
         for seam_name in seamlines_list:
             if seam_name not in self.seam_to_segment_vertex_pairs:
                 self.seam_to_segment_vertex_pairs[seam_name] = {
-                    segment_id: map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_name])
+                    segment_id: map_old_to_new_indices(self.seam_to_seam_idx_dict[seam_name])
                 }
             else:
                 self.seam_to_segment_vertex_pairs[seam_name][segment_id] = \
-                    map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_name])
+                    map_old_to_new_indices(self.seam_to_seam_idx_dict[seam_name])
     
     def extract_garment_mesh(self, verts, faces, garment_vertex_indices, offset=0., segment_name=None):
         # Apply offset if specified

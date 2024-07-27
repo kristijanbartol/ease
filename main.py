@@ -1,8 +1,10 @@
 import argparse
 import os
 from shutil import rmtree
+import json
 
 from src.selector import select_original
+from src.selector_dress import select_skirtified_dress
 
 
 if __name__ == '__main__':
@@ -23,10 +25,16 @@ if __name__ == '__main__':
 
     if os.path.exists('data/embedded/latest/'):
         rmtree('data/embedded/latest/')
-    if os.path.exists('data/seamlines/latest/debug/'):
-        rmtree('data/seamlines/latest/debug/')
+    if os.path.exists('data/seamlines/latest/'):
+        rmtree('data/seamlines/latest/')
 
-    select_original(
-        args,
-        smpl_dir
-    )
+    with open(f'config/designs/{args.design}.json', 'r') as json_file:
+        design_dict = json.load(json_file)
+
+    if not design_dict['flags']['skirtified']:
+        select_original(args, smpl_dir)
+    else:
+        if design_dict['flags']['type'] == 'dress':
+            select_skirtified_dress(args, smpl_dir)
+        else:
+            pass

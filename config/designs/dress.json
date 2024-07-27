@@ -1,0 +1,19 @@
+{
+    "flags": {
+        "skirtified": true,
+        "type": "dress"
+    },
+    "dims": {
+        "sleeve": 0.5,
+        "upper": 0.8
+    },
+    "stretches": {
+        "upper": {
+            "type": "uniform",
+            "base_stretch_u": 1.1,
+            "base_stretch_v": 1.0,
+            "max_stretch": 1.5,
+            "ref_y": -0.093
+        }
+    }
+}
