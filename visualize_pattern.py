@@ -25,9 +25,11 @@ def mesh_to_image(mesh, image_size=(800, 800)):
     image = np.zeros((image_size[1], image_size[0], 4), dtype=np.uint8)
 
     triangles = np.asarray(mesh.triangles)
+    edge_color = (42, 42, 165, 255)
     for tri in triangles:
         pts = points[tri][:, :2].astype(int)
         cv2.fillConvexPoly(image, pts, (0, 0, 0, 255))  # Black color for the mesh
+        cv2.polylines(image, [pts], isClosed=True, color=edge_color, thickness=1)  # Draw edges with brown color
     
     return image[::-1]
 
@@ -85,7 +87,7 @@ PATTERN_DICT = {
     'sleeve_front_left': [320, -180],
     'sleeve_back_left': [300, -220],
     'lower_front_right': [-200, 250],
-    'lower_back_right': [-170, 200],
+    'lower_back_right': [-170, 280],
     'lower_front_left': [300, 250],
     'lower_back_left': [350, 200]
 }
