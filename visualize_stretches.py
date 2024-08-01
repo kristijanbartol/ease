@@ -120,8 +120,16 @@ if __name__ == '__main__':
             patch_stretches_array, stretch_fnames = get_patch_stretches_array(patch_dir)
             patch_stretch_max = np.max(patch_stretches_array)
             patch_stretch_min = np.min(patch_stretches_array)
+
+
+            patch_stretch_max = 1.45
+            patch_stretch_min = 0.75
+
+
             patch_norm = Normalize(vmin=patch_stretch_min, vmax=patch_stretch_max)
             if 'upper_front' in patch_dir:
+                visualize_color_scale(patch_norm, COLORMAP, f'{patch_dir.split("/")[-1]}')
+            if 'sleeve_back_left' in patch_dir:
                 visualize_color_scale(patch_norm, COLORMAP, f'{patch_dir.split("/")[-1]}')
 
             colored_meshes = []
@@ -143,6 +151,9 @@ if __name__ == '__main__':
                     if 'upper_front' in patch_dir:
                         item_name = f'{patch_dir.split("/")[-1]}-{stretch_fname.split("/")[-1].split(".")[0]}'
                         relevant_item_names.append(item_name)
+                        visualize_mesh(patch_norm_mesh, item_name)
+                    if 'sleeve_back_left' in patch_dir:
+                        item_name = f'{patch_dir.split("/")[-1]}-{stretch_fname.split("/")[-1].split(".")[0]}'
                         visualize_mesh(patch_norm_mesh, item_name)
                     fidx += 1
             

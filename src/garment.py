@@ -57,7 +57,7 @@ class Garment:
         
         return adjacency_list
 
-    def flood_fill_vertices(self, vertex_positions, boundary_vertices, y_threshold, start_vertex):
+    def flood_fill_vertices(self, vertex_positions, boundary_vertices, y_threshold, start_vertex, up_pant_threshold=None):
         # Convert boundary vertices to a set for efficient lookup
         boundary_set = set(boundary_vertices)
 
@@ -76,7 +76,11 @@ class Garment:
             vertex_idx = stack.pop()
 
             # If the vertex has not been visited yet and is not on the boundary or below y_threshold, process it
-            if vertex_idx not in visited and vertex_idx not in boundary_set and vertex_positions[vertex_idx, 1] >= y_threshold:
+            if up_pant_threshold is None:
+                condition = vertex_idx not in visited and vertex_idx not in boundary_set and vertex_positions[vertex_idx, 1] >= y_threshold
+            else:
+                condition = vertex_idx not in visited and vertex_idx not in boundary_set and vertex_positions[vertex_idx, 1] >= y_threshold and vertex_positions[vertex_idx, 1] <= up_pant_threshold
+            if condition:
                 # Mark the vertex as visited and add to selected
                 visited.add(vertex_idx)
                 selected_vertices.add(vertex_idx)

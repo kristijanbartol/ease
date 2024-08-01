@@ -81,15 +81,15 @@ def save_combined_image(output_path, combined_image):
 
 PATTERN_DICT = {
     'upper_front': [0, 0],
-    'upper_back': [0, -300],
-    'sleeve_front_right': [-300, -150],
-    'sleeve_back_right': [-260, -200],
-    'sleeve_front_left': [320, -180],
-    'sleeve_back_left': [300, -220],
-    'lower_front_right': [-200, 250],
+    'upper_back': [20, -300],
+    'sleeve_front_right': [-250, -170],
+    'sleeve_back_right': [-220, -280],
+    'sleeve_front_left': [300, -170],
+    'sleeve_back_left': [280, -280],
+    'lower_front_right': [-250, 220],
     'lower_back_right': [-170, 280],
-    'lower_front_left': [300, 250],
-    'lower_back_left': [350, 200]
+    'lower_front_left': [200, 320],
+    'lower_back_left': [250, 200]
 }
 
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         meshes_dict[suffix].sort(key=lambda mesh: mesh.is_front)
 
         canvas_size = (1200, 1200)
-        img_size = (300, 300)
+        img_size = (400, 400)
         combined_image = combine_meshes(meshes_dict[suffix], canvas_size, img_size)
 
         output_path = os.path.join(data_dir, f'sewing_pattern{suffix}.png')

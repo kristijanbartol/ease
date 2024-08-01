@@ -43,10 +43,28 @@ def generate_original_meshes(smpl_dir, original_dir, set_dict):
 def load_skirtified_meshes(skirtified_dir):
     meshes = []
     for fname in os.listdir(skirtified_dir):
-        fpath = os.path.join(skirtified_dir, fname)
-        skirtified_mesh = trimesh.load(fpath)
-        meshes.append(skirtified_mesh)
+        if 'init' in fname or 'target' in fname:    # in case there are some intermediate results stored as well
+            fpath = os.path.join(skirtified_dir, fname)
+            skirtified_mesh = trimesh.load(fpath)
+            meshes.append(skirtified_mesh)
     return meshes
+
+
+def store_colored_faces(verts, faces, seam_idxs, save_path):
+    faces_to_color = []
+    for face_idx, face in enumerate(faces):
+        if any(vertex in seam_idxs for vertex in face):
+            faces_to_color.append(face_idx)
+
+    face_colors = np.full((len(faces), 3), [0.33, 0.33, 0.33])
+
+    orange_color = [1.0, 0.5, 0.0]
+    for face_idx in faces_to_color:
+        face_colors[face_idx] = orange_color
+
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+    mesh.visual.face_colors = face_colors
+    mesh.export(save_path)
 
 
 def select_skirtified_dress(args, smpl_dir):
@@ -89,6 +107,8 @@ def select_skirtified_dress(args, smpl_dir):
         seam_idx_dict=seam_idx_dict['upper_back']
     )
 
+    store_colored_faces(init_verts, faces, seam_idxs_front, os.path.join(skirtified_dir, 'boundaries.ply'))
+
     # Flood fill.
     front_v_idxs = garment.flood_fill_vertices(
         vertex_positions=init_verts, 
@@ -102,6 +122,8 @@ def select_skirtified_dress(args, smpl_dir):
         y_threshold=y_shirt_threshold, 
         start_vertex=INIT_UPPER_BACK_SKIRTIFIED
     )
+
+    store_colored_faces(init_verts, faces, front_v_idxs, os.path.join(skirtified_dir, 'patch.ply'))
 
     for offset_type in ['skintight', 'loose']:
         for set_element_idx in range(len(set_dict['poses'])):

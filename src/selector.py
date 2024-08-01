@@ -104,20 +104,33 @@ def select_original(args, smpl_dir):
             sleeve_thresholds[key] = x_sleeve_threshold
 
         for key, init_idx in pant_init_points.items():
-            seams, y_pant_threshold = determine_pant_seams(
+            seams, y_pant_threshold_low, y_pant_threshold_up = determine_pant_seams(
                 verts=verts, 
                 pant_length=design_dict['dims']['lower'], 
                 seam_idx_dict=seam_idx_dict[f'lower_{key}'], 
-                side=key.split('_')[1]
+                side=key.split('_')[1],
+                pant_offset=design_dict['dims']['lower_offset']
             )
             pant_indices[key] = seams
-            pant_thresholds[key] = y_pant_threshold
+            pant_thresholds[key] = y_pant_threshold_low
 
         # Modify body mesh by cutting planes.
         modified_verts = modify_mesh_with_plane_cut(
             vertices=verts,
             faces=faces,
             cutting_point=y_shirt_threshold,
+            plane_orientation='horizontal'
+        )
+        modified_verts = modify_mesh_with_plane_cut(
+            vertices=modified_verts,
+            faces=faces,
+            cutting_point=y_pant_threshold_low,
+            plane_orientation='horizontal'
+        )
+        modified_verts = modify_mesh_with_plane_cut(
+            vertices=modified_verts,
+            faces=faces,
+            cutting_point=y_pant_threshold_up,
             plane_orientation='horizontal'
         )
         modified_verts = modify_mesh_with_plane_cut(
@@ -161,7 +174,8 @@ def select_original(args, smpl_dir):
                 vertex_positions=modified_verts, 
                 boundary_vertices=pant_indices[key],
                 y_threshold=pant_thresholds[key], 
-                start_vertex=init_idx
+                start_vertex=init_idx,
+                up_pant_threshold=y_pant_threshold_up
             )
 
         modified_models[gender] = SMPL(os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender, v_template=torch.from_numpy(modified_verts))
