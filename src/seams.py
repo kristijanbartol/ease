@@ -18,7 +18,7 @@ def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, pant
                 first_point = verts[seam_vertex_indices[num_offset_verts]]
                 break
     else:
-        first_point = verts[seam_vertex_indices[0]]
+        first_point = None
 
     remaining_length = garment_length
     last_point = None
@@ -32,7 +32,7 @@ def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, pant
         if edge_length < remaining_length:
             remaining_length -= edge_length
             if i == len(seam_vertex_indices) - 2:   # in case we came to the end
-                return seam_vertex_indices, verts[seam_vertex_indices[-1]]
+                return seam_vertex_indices, verts[seam_vertex_indices[-1]], first_point
         else:
             # Find the point along the edge that corresponds to the remaining length
             direction = (end_vertex - start_vertex) / edge_length
@@ -66,7 +66,8 @@ def determine_pant_seams(verts, pant_length, seam_idx_dict, side, pant_offset, i
         pant_seams += inner_points + seam_idx_dict['mid_inner']
     if pant_offset is None:
         pant_seams += seam_idx_dict['waistline']    # TODO: Instead of waistline, cut the mesh and define y threshold
-    return pant_seams, last_outer_point[1], first_point[1]
+    first_point_y = first_point[1] if first_point is not None else None
+    return pant_seams, last_outer_point[1], first_point_y
 
 
 def determine_sleeve_seams(verts, sleeve_length, seam_idx_dict):

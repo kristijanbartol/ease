@@ -18,14 +18,14 @@
         },
         "upper": {
             "type": "uniform",
-            "base_stretch_u": 1.1,
+            "base_stretch_u": 1.0,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5,
             "ref_y": -0.093
         },
         "lower": {
-            "type": "uniform",
-            "base_stretch_u": 1.1,
+            "type": "linear",
+            "base_stretch_u": 0.6,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5
         }

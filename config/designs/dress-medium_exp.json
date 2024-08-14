@@ -9,8 +9,8 @@
     },
     "stretches": {
         "upper": {
-            "type": "linear_from",
-            "base_stretch_u": 0.9,
+            "type": "linear",
+            "base_stretch_u": 0.6,
             "base_stretch_v": 1.0,
             "max_stretch": 1.9,
             "ref_y": -0.093

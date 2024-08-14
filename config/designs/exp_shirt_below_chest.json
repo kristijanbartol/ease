@@ -3,8 +3,8 @@
         "skirtified": false
     },
     "dims": {
-        "sleeve": 0.5,
-        "upper": 0.5,
+        "sleeve": 0.33,
+        "upper": 0.28,
         "lower": 0.65,
         "lower_offset": -1000
     },
@@ -17,15 +17,15 @@
             "ref_x": 0.25
         },
         "upper": {
-            "type": "uniform",
-            "base_stretch_u": 1.1,
+            "type": "linear",
+            "base_stretch_u": 0.3,
             "base_stretch_v": 1.0,
-            "max_stretch": 1.5,
+            "max_stretch": 1.8,
             "ref_y": -0.093
         },
         "lower": {
             "type": "uniform",
-            "base_stretch_u": 1.1,
+            "base_stretch_u": 0.95,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5
         }

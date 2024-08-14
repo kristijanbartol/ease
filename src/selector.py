@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import os
 import json
+from time import time
 from smplx import SMPL
 
 from src.const import (
@@ -56,7 +57,9 @@ def select_original(args, smpl_dir):
         verts = smpl_models[gender]().vertices[0].cpu().detach().numpy()
         faces = smpl_models[gender].faces
 
+        start_time = time()
         garment = Garment(verts, faces, skirtification_type='default')
+        total_time = time() - start_time
 
         with open(f'config/designs/{args.design}.json', 'r') as json_file:
             design_dict = json.load(json_file)
@@ -83,6 +86,7 @@ def select_original(args, smpl_dir):
         pant_thresholds = {}
 
         # Determine seams.
+        block_start = time()
         seam_idxs_front, y_shirt_threshold = determine_shirt_seams(
             verts=verts, 
             shirt_length=design_dict['dims']['upper'], 
@@ -127,12 +131,13 @@ def select_original(args, smpl_dir):
             cutting_point=y_pant_threshold_low,
             plane_orientation='horizontal'
         )
-        modified_verts = modify_mesh_with_plane_cut(
-            vertices=modified_verts,
-            faces=faces,
-            cutting_point=y_pant_threshold_up,
-            plane_orientation='horizontal'
-        )
+        if y_pant_threshold_up is not None:
+            modified_verts = modify_mesh_with_plane_cut(
+                vertices=modified_verts,
+                faces=faces,
+                cutting_point=y_pant_threshold_up,
+                plane_orientation='horizontal'
+            )
         modified_verts = modify_mesh_with_plane_cut(
             vertices=modified_verts,
             faces=faces,
@@ -147,6 +152,7 @@ def select_original(args, smpl_dir):
             plane_orientation='vertical',
             sleeve_side='right'
         )
+        total_time += time() - block_start
 
         # Flood fill.
         front_v_idxs = garment.flood_fill_vertices(
@@ -181,6 +187,7 @@ def select_original(args, smpl_dir):
         modified_models[gender] = SMPL(os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender, v_template=torch.from_numpy(modified_verts))
 
     for offset_type in ['skintight', 'loose']:
+        block_start = time()
         for set_element_idx in range(len(set_dict['poses'])):
             pose_fun = getattr(const, set_dict['poses'][set_element_idx])
             shape_fun = getattr(const, set_dict['shapes'][set_element_idx])
@@ -453,4 +460,9 @@ def select_original(args, smpl_dir):
             export(args, original_verts, faces, f'{mesh_set_dir}/body-{set_element_idx:02d}', args.file_format, body_colors)
             export(args, original_verts, faces, f'{latest_set_dir}/body-{set_element_idx:02d}', args.file_format, body_colors)
 
+            export(args, original_verts, faces, f'data/simulated/houdini/latest/{gender}', args.file_format, body_colors)
+
             garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
+        
+        total_time += time() - block_start
+        print(total_time)
