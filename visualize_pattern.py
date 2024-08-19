@@ -80,17 +80,32 @@ def save_combined_image(output_path, combined_image):
 
 
 PATTERN_DICT = {
-    'upper_front': [0, 0],
-    'upper_back': [20, -300],
-    'sleeve_front_right': [-250, -170],
-    'sleeve_back_right': [-220, -280],
-    'sleeve_front_left': [300, -170],
-    'sleeve_back_left': [280, -280],
+    'upper_front': [-20, 50],
+    'upper_back': [0, -300],
+    'sleeve_front_right': [-250, -220],
+    'sleeve_back_right': [-220, -330],
+    'sleeve_front_left': [300, -220],
+    'sleeve_back_left': [280, -330],
     'lower_front_right': [-250, 220],
     'lower_back_right': [-170, 280],
-    'lower_front_left': [200, 320],
+    'lower_front_left': [220, 320],
     'lower_back_left': [250, 200]
 }
+
+
+PATTERN_DICT_SKIRTIFIED = {
+    'upper_front': [-150, 100],
+    'upper_back': [150, 100]
+}
+
+
+DRESS = True
+
+
+if DRESS:
+    pattern_dict = PATTERN_DICT_SKIRTIFIED
+else:
+    pattern_dict = PATTERN_DICT
 
 
 if __name__ == "__main__":
@@ -105,14 +120,14 @@ if __name__ == "__main__":
                     pattern_fpath = os.path.join(data_dir, subdir, fname)
                     is_front = True if subdir.split('_')[1] == 'front' else False
                     if suffix not in meshes_dict:
-                        meshes_dict[suffix] = [Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front)]
+                        meshes_dict[suffix] = [Mesh(pattern_fpath, pattern_dict[subdir], is_front)]
                     else:
-                        meshes_dict[suffix].append(Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front))
+                        meshes_dict[suffix].append(Mesh(pattern_fpath, pattern_dict[subdir], is_front))
     for suffix in meshes_dict:
         meshes_dict[suffix].sort(key=lambda mesh: mesh.is_front)
 
         canvas_size = (1200, 1200)
-        img_size = (400, 400)
+        img_size = (450, 450)
         combined_image = combine_meshes(meshes_dict[suffix], canvas_size, img_size)
 
         output_path = os.path.join(data_dir, f'sewing_pattern{suffix}.png')

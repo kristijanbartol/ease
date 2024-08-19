@@ -7,6 +7,7 @@ import os
 VIS_DESIGN_PIPELINE = False
 VIS_BODY = True
 VIS_DESIGNS = False
+VIS_SIM = False
 
 
 def set_mesh_color(garment_mesh, color):
@@ -32,8 +33,16 @@ if __name__ == '__main__':
         # Set the colors for the garment mesh exceptionally
         garment_mesh.visual.face_colors = np.full((len(garment_mesh.faces), 3), [1.0, 0.5, 0.0])
     if VIS_BODY:
-        body_mesh = trimesh.load('data/embedded/latest/skintight/body-01.ply')
+        body_mesh = trimesh.load('data/embedded/latest/skintight/body-05.ply')
+        #body_mesh = trimesh.load('data/skirtified/original/dress-medium-supp-2-target-2/target-02.ply')
         meshes = [body_mesh]
+
+    if VIS_SIM:
+        body_mesh = trimesh.load('data/skirtified/original/dress-medium-supp-2-target-2/init.ply')
+        garment_mesh = trimesh.load('data/simulated/houdini/latest/supp-1-sim-6.ply')
+        garment_mesh.visual.vertex_colors = np.tile([1.0, 0.5, 0.0], (garment_mesh.vertices.shape[0], 1))
+
+        meshes = [body_mesh, garment_mesh]
 
     if VIS_DESIGNS:
         mesh_dir = 'data/simulated/houdini/latest/'

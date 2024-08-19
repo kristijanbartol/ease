@@ -1,0 +1,17 @@
+{
+    "poses": [
+        "a_pose",
+        "legs_apart_pose",
+        "a_pose"
+    ],
+    "shapes": [
+        "zero_shape",
+        "zero_shape",
+        "plump_shape"
+    ],
+    "genders": [
+        "female",
+        "female",
+        "female"
+    ]
+}

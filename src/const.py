@@ -483,6 +483,13 @@ def arms_up_pose():
     return pose
 
 
+def arms_front_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
+    pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    return pose
+
+
 def sit_pose():
     pose = torch.zeros((1, 23 * 3))
     pose[0, 0*3:1*3] = torch.tensor([-np.pi / 2, 0, 0]) # left hip
@@ -491,6 +498,13 @@ def sit_pose():
     pose[0, 4*3:5*3] = torch.tensor([np.pi / 2, 0, 0])  # right knee
     #pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
     #pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    return pose
+
+
+def legs_apart_pose():
+    pose = a_pose()
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
     return pose
 
 
