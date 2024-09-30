@@ -99,7 +99,7 @@ PATTERN_DICT_SKIRTIFIED = {
 }
 
 
-DRESS = True
+DRESS = False
 
 
 if DRESS:

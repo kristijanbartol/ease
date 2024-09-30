@@ -88,7 +88,7 @@ def select_skirtified_dress(args, smpl_dir):
     init_verts = skirtified_meshes[0].vertices
     faces = skirtified_meshes[0].faces
 
-    garment = Garment(init_verts, faces, skirtification_type='dress')
+    garment = Garment(init_verts, faces, skirtification_type='dress', use_darts=args.use_darts)
 
     with open(f'config/designs/{args.design}.json', 'r') as json_file:
         design_dict = json.load(json_file)

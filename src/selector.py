@@ -58,7 +58,7 @@ def select_original(args, smpl_dir):
         faces = smpl_models[gender].faces
 
         start_time = time()
-        garment = Garment(verts, faces, skirtification_type='default')
+        garment = Garment(verts, faces, skirtification_type='default', use_darts=args.use_darts)
         total_time = time() - start_time
 
         with open(f'config/designs/{args.design}.json', 'r') as json_file:

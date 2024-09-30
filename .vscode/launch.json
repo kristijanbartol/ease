@@ -13,9 +13,10 @@
             "justMyCode": false,
             "args": [
                 "--regenerate",
+                "--use_darts",
                 "--file_format", "both",
                 "--os", "linux",
-                "--body_set", "supp-1-target-5",
+                "--body_set", "solo-female",
                 "--design", "skintight",
                 "--standard_export"
             ]

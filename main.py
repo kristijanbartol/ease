@@ -3,13 +3,15 @@ import os
 from shutil import rmtree
 import json
 
-from src.selector import select_original
+#from src.selector import select_original
+from src.selector_sonnet import select_original
 from src.selector_dress import select_skirtified_dress
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--regenerate', '-R', action='store_true', dest='regenerate')
+    parser.add_argument('--use_darts', action='store_true', dest='use_darts')
     parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply')
     parser.add_argument('--design', '-D', type=str, default='default')
     parser.add_argument('--body_set', type=str, default="set2")
@@ -21,7 +23,7 @@ if __name__ == '__main__':
     if args.os == 'macos':
         smpl_dir = '/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/'
     else:
-        smpl_dir = '/home/kristijan/data/hierprob3d/smpl/'
+        smpl_dir = '/home/kristijan/data/smpl/models/'
 
     if os.path.exists('data/embedded/latest/'):
         rmtree('data/embedded/latest/')
