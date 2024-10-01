@@ -19,7 +19,7 @@
         "upper": {
             "type": "uniform",
             "base_stretch_u": 1.5,
-            "base_stretch_v": 0.6,
+            "base_stretch_v": 1.0,
             "max_stretch": 1.5,
             "ref_y": -0.093
         },

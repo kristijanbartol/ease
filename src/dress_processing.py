@@ -138,7 +138,7 @@ def load_set_dict(args):
         return json.load(json_file)
 
 
-def initialize_garment_and_configs(args, init_mesh):
+def initialize_dress_garment_and_configs(args, init_mesh):
     garment = Garment(init_mesh.vertices, init_mesh.faces, skirtification_type='dress')
     
     with open(f'config/designs/{args.design}.json', 'r') as json_file:
