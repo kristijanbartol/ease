@@ -3,7 +3,8 @@ import os
 from shutil import rmtree
 import json
 
-from src.selector_dress import select_skirtified_dress
+#from src.selector_dress import select_skirtified_dress
+from src.selector_dress_sonnet import select_skirtified_dress
 from src.body_processing import (
     initialize_smpl_models,
     initialize_modified_smpl_models,
