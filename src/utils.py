@@ -2,7 +2,10 @@ import trimesh
 import os
 import numpy as np
 
-from src.const import COLOR_MAP
+from src.const import (
+    COLOR_MAP,
+    DISPLACEMENTS
+)
 
 
 def update_color_indices(garment_vertex_indices, color_dict):
@@ -222,3 +225,64 @@ def save_darts_files(dirpath, darts_dict):
             
             for idx1, idx2 in vertex_pairs[1:]:
                 f.write(f"{idx1} {idx2}\n")
+
+
+def export_body_mesh(args, verts, faces, set_element_idx, mesh_set_dir, latest_set_dir, gender):
+    body_colors = {'gray': list(range(len(verts)))}
+    export(args, verts, faces, os.path.join(mesh_set_dir, 'body', f'body-{set_element_idx:02d}'), args.file_format, body_colors)
+    export(args, verts, faces, os.path.join(latest_set_dir, 'body', f'body-{set_element_idx:02d}'), args.file_format, body_colors)
+    export(args, verts, faces, os.path.join('data/simulated/houdini/latest', gender), args.file_format, body_colors)
+
+
+def export_color_coded_designs(args, garment, design_dict, garment_parts, posed_verts, mesh_set_dir, latest_set_dir):
+    upper_indices = (garment_parts['upper_front'] + garment_parts['upper_back'] + 
+                     garment_parts['sleeve_front_right'] + garment_parts['sleeve_back_right'] + 
+                     garment_parts['sleeve_front_left'] + garment_parts['sleeve_back_left'])
+    lower_indices = sum([garment_parts[f'lower_{part}'] for part in ['front_right', 'front_left', 'back_right', 'back_left']], [])
+
+    upper_garment_verts, upper_garment_faces = garment.extract_garment_mesh(posed_verts, garment.mesh.faces, upper_indices, offset=DISPLACEMENTS['skintight'])
+    lower_garment_verts, lower_garment_faces = garment.extract_garment_mesh(posed_verts, garment.mesh.faces, lower_indices, offset=DISPLACEMENTS['skintight'])
+
+    upper_garment_stretch_array_u, _ = extract_local_stretches(upper_garment_verts, upper_garment_faces, design_dict['stretches'], 'upper')
+    lower_garment_stretch_array_u, _ = extract_local_stretches(lower_garment_verts, lower_garment_faces, design_dict['stretches'], 'lower')
+
+    upper_garment_mesh = color_code_stretches(upper_garment_verts, upper_garment_faces, upper_garment_stretch_array_u)
+    lower_garment_mesh = color_code_stretches(lower_garment_verts, lower_garment_faces, lower_garment_stretch_array_u)
+
+    upper_garment_mesh.export(f'{mesh_set_dir}/upper_garment_init.ply')
+    lower_garment_mesh.export(f'{mesh_set_dir}/lower_garment_init.ply')
+    upper_garment_mesh.export(f'{latest_set_dir}/upper_garment_init.ply')
+    lower_garment_mesh.export(f'{latest_set_dir}/lower_garment_init.ply')
+
+
+def create_directories(mesh_set_dir, latest_set_dir):
+    garment_part_names = [
+        'upper_front', 'upper_back',
+        'sleeve_front_right', 'sleeve_back_right',
+        'sleeve_front_left', 'sleeve_back_left',
+        'lower_front_right', 'lower_front_left',
+        'lower_back_right', 'lower_back_left'
+    ]
+
+    for part_name in garment_part_names:
+        os.makedirs(os.path.join(mesh_set_dir, part_name), exist_ok=True)
+        os.makedirs(os.path.join(latest_set_dir, part_name), exist_ok=True)
+
+    # Create directories for body meshes and color-coded designs
+    os.makedirs(os.path.join(mesh_set_dir, 'body'), exist_ok=True)
+    os.makedirs(os.path.join(latest_set_dir, 'body'), exist_ok=True)
+    os.makedirs(os.path.join('data/simulated/houdini/latest'), exist_ok=True)
+
+
+def export_stretch_arrays(design_dict, verts, faces, part_name, mesh_set_dir, latest_set_dir):
+    stretch_array_u, stretch_array_v = extract_local_stretches(
+        verts=verts,
+        faces=faces,
+        design_dict=design_dict['stretches'],
+        garment_part=part_name.split('_')[0]
+    )
+
+    np.savetxt(f'{mesh_set_dir}/{part_name}/stretches_u.txt', stretch_array_u)
+    np.savetxt(f'{mesh_set_dir}/{part_name}/stretches_v.txt', stretch_array_v)
+    np.savetxt(f'{latest_set_dir}/{part_name}/stretches_u.txt', stretch_array_u)
+    np.savetxt(f'{latest_set_dir}/{part_name}/stretches_v.txt', stretch_array_v)

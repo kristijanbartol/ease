@@ -1,5 +1,7 @@
 import numpy as np
 
+from src.const import SEAM_IDX_DICT
+
 
 def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, pant_offset=None):
     num_offset_verts = 0
@@ -75,3 +77,63 @@ def determine_sleeve_seams(verts, sleeve_length, seam_idx_dict):
     down_points, last_down_point, _ = extract_parameterized_seams(verts, sleeve_length, seam_idx_dict['down'])
     sleeve_seams = up_points + down_points + seam_idx_dict['side']
     return sleeve_seams, last_up_point[0]   # return last x axis
+
+
+def determine_all_seams(garment, design_dict):
+    verts = garment.mesh.vertices
+    seam_idx_dict = SEAM_IDX_DICT['default']
+    seams_info = {}
+
+    # Upper garment (shirt) seams
+    seams_info['upper_front'], y_upper_threshold = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['upper'], 
+        seam_idx_dict=seam_idx_dict['upper_front']
+    )
+    seams_info['upper_back'], _ = determine_shirt_seams(
+        verts=verts, 
+        shirt_length=design_dict['dims']['upper'], 
+        seam_idx_dict=seam_idx_dict['upper_back']
+    )
+
+    # Sleeve seams
+    sleeve_parts = ['front_right', 'back_right', 'front_left', 'back_left']
+    for part in sleeve_parts:
+        seams, x_sleeve_threshold = determine_sleeve_seams(
+            verts=verts, 
+            sleeve_length=design_dict['dims']['sleeve'], 
+            seam_idx_dict=seam_idx_dict[f'sleeve_{part}']
+        )
+        seams_info[f'sleeve_{part}'] = {
+            'seams': seams,
+            'threshold': x_sleeve_threshold
+        }
+
+    # Lower garment (pant) seams
+    lower_parts = ['front_right', 'front_left', 'back_right', 'back_left']
+    y_lower_threshold_low = None
+    y_lower_threshold_up = None
+    for part in lower_parts:
+        seams, y_low, y_up = determine_pant_seams(
+            verts=verts, 
+            pant_length=design_dict['dims']['lower'], 
+            seam_idx_dict=seam_idx_dict[f'lower_{part}'], 
+            side=part.split('_')[1],
+            pant_offset=design_dict['dims']['lower_offset']
+        )
+        seams_info[f'lower_{part}'] = {
+            'seams': seams,
+            'threshold_low': y_low,
+            'threshold_up': y_up
+        }
+        if y_lower_threshold_low is None or y_low < y_lower_threshold_low:
+            y_lower_threshold_low = y_low
+        if y_lower_threshold_up is None or y_up > y_lower_threshold_up:
+            y_lower_threshold_up = y_up
+
+    # Store global thresholds
+    seams_info['y_upper_threshold'] = y_upper_threshold
+    seams_info['y_lower_threshold_low'] = y_lower_threshold_low
+    seams_info['y_lower_threshold_up'] = y_lower_threshold_up
+
+    return seams_info

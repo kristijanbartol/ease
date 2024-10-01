@@ -3,9 +3,36 @@ import os
 from shutil import rmtree
 import json
 
-#from src.selector import select_original
-from src.selector_sonnet import select_original
 from src.selector_dress import select_skirtified_dress
+from src.body_processing import (
+    initialize_smpl_models,
+    initialize_modified_smpl_models,
+    modify_body_mesh
+)
+from src.garment_processing import (
+    flood_fill_all_parts,
+    initialize_garment_and_configs,
+    process_garment_set
+)
+from src.seams import (
+    determine_all_seams
+)
+
+
+def select_original(args, smpl_dir):
+    smpl_models = initialize_smpl_models(smpl_dir)
+    garment, design_dict, set_dict = initialize_garment_and_configs(args, smpl_models)
+    
+    seams_info = determine_all_seams(garment, design_dict)
+    modified_verts, updated_seams_info = modify_body_mesh(garment, seams_info)
+    modified_models = initialize_modified_smpl_models(smpl_dir, modified_verts)
+    
+    garment_parts = flood_fill_all_parts(garment, modified_verts, updated_seams_info)
+    
+    for offset_type in ['skintight', 'loose']:
+        process_garment_set(args, modified_models, garment, design_dict, set_dict, garment_parts, offset_type)
+
+    garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
 
 
 if __name__ == '__main__':
@@ -19,7 +46,6 @@ if __name__ == '__main__':
     parser.add_argument('--standard_export', action='store_true', dest='standard_export')
     args = parser.parse_args()
 
-    # TODO: Anonymize the paths before submission!!!
     if args.os == 'macos':
         smpl_dir = '/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/'
     else:
