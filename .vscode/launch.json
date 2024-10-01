@@ -17,7 +17,7 @@
                 "--file_format", "both",
                 "--os", "linux",
                 "--body_set", "solo-female",
-                "--design", "dress",
+                "--design", "skintight",
                 "--standard_export"
             ]
         },

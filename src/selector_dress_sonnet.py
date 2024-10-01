@@ -23,6 +23,7 @@ from src.body_processing import initialize_smpl_models
 def generate_original_meshes(smpl_dir, original_dir, set_dict):
     smpl_models = initialize_smpl_models(smpl_dir)
     os.makedirs(original_dir, exist_ok=True)
+    original_meshes = []
 
     for set_element_idx in range(len(set_dict['poses'])):
         pose_fun = getattr(const, set_dict['poses'][set_element_idx])
@@ -33,7 +34,11 @@ def generate_original_meshes(smpl_dir, original_dir, set_dict):
             betas=shape_fun()
         ).vertices[0].cpu().detach().numpy()
         mesh_name = 'init' if set_element_idx == 0 else f'target-{set_element_idx:02d}'
-        trimesh.Trimesh(vertices=posed_verts, faces=smpl_models[gender].faces).export(os.path.join(original_dir, f'{mesh_name}.ply'))
+        mesh = trimesh.Trimesh(vertices=posed_verts, faces=smpl_models[gender].faces)
+        mesh.export(os.path.join(original_dir, f'{mesh_name}.ply'))
+        original_meshes.append(mesh)
+
+    return original_meshes, smpl_models
 
 
 def load_skirtified_meshes(skirtified_dir):
@@ -85,7 +90,7 @@ def process_and_export_skirtified_garment_parts(args, garment, design_dict, garm
         export_stretch_arrays(design_dict, part_verts, part_faces, part, mesh_set_dir, latest_set_dir)
 
 
-def export_skirtified_body_mesh(args, verts, faces, set_element_idx, offset_type):
+def export_original_body_mesh(args, verts, faces, set_element_idx, offset_type):
     mesh_set_dir = os.path.join('data/embedded/', f'{args.design}-{args.body_set}/{offset_type}')
     latest_set_dir = os.path.join('data/embedded/latest/', offset_type)
 
@@ -178,27 +183,30 @@ def flood_fill_dress_parts(garment, seams_info):
     return garment_parts
 
 
-def process_skirtified_garment_set(args, skirtified_meshes, garment, design_dict, set_dict, garment_parts, offset_type):
+def process_skirtified_garment_set(args, skirtified_meshes, original_meshes, garment, design_dict, set_dict, garment_parts, offset_type, smpl_models):
     for set_element_idx in range(len(set_dict['poses'])):
-        posed_verts = skirtified_meshes[set_element_idx].vertices
+        skirtified_verts = skirtified_meshes[set_element_idx].vertices
+        original_verts = original_meshes[set_element_idx].vertices
         mesh_name = 'init' if set_element_idx == 0 else f'target-{set_element_idx:02d}'
         
-        process_and_export_skirtified_garment_parts(args, garment, design_dict, garment_parts, posed_verts, offset_type, set_element_idx, mesh_name)
+        process_and_export_skirtified_garment_parts(args, garment, design_dict, garment_parts, skirtified_verts, offset_type, set_element_idx, mesh_name)
         
-        export_skirtified_body_mesh(args, posed_verts, garment.mesh.faces, set_element_idx, offset_type)
+        gender = set_dict['genders'][set_element_idx]
+        export_original_body_mesh(args, original_verts, smpl_models[gender].faces, set_element_idx, offset_type)
 
         if mesh_name == 'init' and offset_type == 'skintight':
-            export_skirtified_color_coded_designs(args, garment, design_dict, garment_parts, posed_verts, offset_type)
+            export_skirtified_color_coded_designs(args, garment, design_dict, garment_parts, skirtified_verts, offset_type)
 
 
 def select_skirtified_dress(args, smpl_dir):
     original_dir, skirtified_dir = setup_directories(args)
     set_dict = load_set_dict(args)
 
+    original_meshes, smpl_models = generate_original_meshes(smpl_dir, original_dir, set_dict)
+
     if not os.path.exists(skirtified_dir):
-        generate_original_meshes(smpl_dir, original_dir, set_dict)
         print('NOTE: Skirtified meshes not yet created.')
-        print('NOTE: Generating original SMPL meshes and exiting...')
+        print('NOTE: Original SMPL meshes generated. Please create skirtified meshes and run again.')
         return
 
     skirtified_meshes = load_skirtified_meshes(skirtified_dir)
@@ -211,6 +219,6 @@ def select_skirtified_dress(args, smpl_dir):
     store_colored_faces(garment.mesh.vertices, garment.mesh.faces, garment_parts['upper_front'], os.path.join(skirtified_dir, 'patch.ply'))
 
     for offset_type in ['skintight', 'loose']:
-        process_skirtified_garment_set(args, skirtified_meshes, garment, design_dict, set_dict, garment_parts, offset_type)
+        process_skirtified_garment_set(args, skirtified_meshes, original_meshes, garment, design_dict, set_dict, garment_parts, offset_type, smpl_models)
 
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
