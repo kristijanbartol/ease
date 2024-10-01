@@ -196,29 +196,3 @@ def process_skirtified_garment_set(args, skirtified_meshes, original_meshes, gar
 
         if mesh_name == 'init' and offset_type == 'skintight':
             export_skirtified_color_coded_designs(args, garment, design_dict, garment_parts, skirtified_verts, offset_type)
-
-
-def select_skirtified_dress(args, smpl_dir):
-    original_dir, skirtified_dir = setup_directories(args)
-    set_dict = load_set_dict(args)
-
-    original_meshes, smpl_models = generate_original_meshes(smpl_dir, original_dir, set_dict)
-
-    if not os.path.exists(skirtified_dir):
-        print('NOTE: Skirtified meshes not yet created.')
-        print('NOTE: Original SMPL meshes generated. Please create skirtified meshes and run again.')
-        return
-
-    skirtified_meshes = load_skirtified_meshes(skirtified_dir)
-    garment, design_dict = initialize_garment_and_configs(args, skirtified_meshes[0])
-    
-    seams_info = determine_dress_seams(garment, design_dict)
-    garment_parts = flood_fill_dress_parts(garment, seams_info)
-    
-    store_colored_faces(garment.mesh.vertices, garment.mesh.faces, seams_info['upper_front'], os.path.join(skirtified_dir, 'boundaries.ply'))
-    store_colored_faces(garment.mesh.vertices, garment.mesh.faces, garment_parts['upper_front'], os.path.join(skirtified_dir, 'patch.ply'))
-
-    for offset_type in ['skintight', 'loose']:
-        process_skirtified_garment_set(args, skirtified_meshes, original_meshes, garment, design_dict, set_dict, garment_parts, offset_type, smpl_models)
-
-    garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
