@@ -81,3 +81,11 @@ the `config/designs/` subdirectory contains various definitions of parametric de
 
 To design dresses (and soon skirts), the skirtified body meshes should be separately prepared in Blender. The detailed procedure with images
 is specified in the `SKIRTIFIED.md`.
+
+## Known bugs and limitations
+
+1. The lower garment patches are not properly cut to get smooth edges at the bottom of the pants. Instead, only some of the values in *.json files will be smooth.
+
+2. Seamlines are not perfectly aligned and directly suitable for manufacturing.
+
+3. There are parameter values that will result in errors (when the values are smaller than the minimal "possible" value to cut).
