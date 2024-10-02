@@ -1,0 +1,3 @@
+[submodule "garment-parameterization"]
+	path = garment-parameterization
+	url = https://github.com/kristijanbartol/garment-parameterization
