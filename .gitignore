@@ -1,5 +1,6 @@
 data/
-assets/
+assets/*
+!assets/preprint-review.pdf
 __pycache__/
 *.ply
 *.obj
