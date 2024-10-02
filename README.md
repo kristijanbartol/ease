@@ -8,6 +8,10 @@ of fabric will be implemented.
 
 ## Installation
 
+### Download the necessary files
+
+
+
 ### Conda environment
 
 Create and activate conda environment:
@@ -23,54 +27,54 @@ Install requirements:
 pip install -r requirements.txt
 ```
 
-Additional dependencies:
+### Install dependency projects
+
+Install garment-parameterization project:
 
 ```
-git clone https://github.com/NVIDIA/cuda-samples.git   # in case it does not exist locally already
-git clone https://github.com/kristijanbartol/torch-mesh-isect.git
-cd torch-mesh-isect/
-pip install -r requirements.txt
-python setup.py --cuda_samples_dir <path_to_cuda_samples_dir> install
+git submodule update --init --recursive
 ```
 
-Finally, for torch-mesh-isect project, download this per-triangle part segmentation file: [smplx_parts_segm.pkl](https://smpl-x.is.tue.mpg.de/download.php).
+One minor manual change is required in the libigl library. More specifically, the import `#include <cstdint>` has to be added after the `include<Eigen/Core>` and before `namespace igl` in the `garment-parameterization/lib/libigl/include/igl/opengl/MeshGL.h` file.
 
-### Docker (not up-to-date)
+After this change, the `garment-parameterization` project can be built as:
 
-Use Docker to build an image (`docker build -t <img-name> .`) and run the container (`docker run -it -v <project-path>:/<project-name> <img-name>`).
+```
+cd garment-parameterization
+mkdir build
+cd build
+cmake ..
+make -j4 optimize_set_with_seamlines
+```
 
 ## Running
 
-Within the container, run `python main.py`. To change the parameters, for now, manually update const.py (`SHIRT_LENGTH`, `SLEEVE_LENGTH`, `PANT_LENGTH`).
+Within the container, run `main.py` as:
 
-## Roadmap
+```
+python main.py --smpl_dir <path_to_smpl_dir> --body_set solo-female --design skintight --standard_export
+```
 
-- [X] Select the corresponding SMPL area based on specified (fixed) seam indices
+To see all available command line arguments, use:
 
-- [ ] Generate a characteristic 3D grid for a specified body area
+```
+python main.py -h
+```
 
-- [ ] Calculate characteristic 2D piece(s) of fabric corresponding to the specified body area(s)
+or look directly at the `main.py` script. The `main.py` script generates embedded garment meshes, runs the parameterization algorithm implemented in C++ (`garment-parameterization` project), and visualizes the resulting, optimized sewing pattern. For more detailed description of the data flow, see `DATA.md`. 
 
-- [X] Control the sizes of 3D garment components
+### VSCode
 
-- [ ] Control the sizes of 2D garment components
+Instead of running directly through the command line, it is recommended to use the Visual Studio Code (VSCode) IDE. The `./vscode/launch.json` file is already provided in this repository.
 
-- [ ] Fit a given 2D piece of fabric to a given 3D body part
+## Design parameter control
 
-- [ ] Fit specified garments to a 3D body
+To produce different garment designs, the `*.json` files in `config/` directory should be used. There are two subdirectories. 
 
-- [ ] Control the sizes of 3D and 2D garment pieces simultaneously
+### Body sets
 
-- [ ] Transfer garments from one 3D body to another, keeping the original garment sizes
+The `config/body_sets` subdirectory contains various definitions of body pose and shape sets. For simplicity, `solo-female.json` can always be used, specifying a single, average female body shape in A-pose.
 
-- [ ] Define and create a markup file implementing DSL for TailorLang
+### Designs
 
-- [ ] Support adding darts
-
-- [ ] Automatically find a perfect fit using characteristic garments and darts
-
-- [ ] Transfer garments from one 3D body to another, keeping the garment sizes and dart locations
-
-## Contributing
-
-Please reach out to one of my email addresses kristijan.bartol@gmail.com or kristijan.bartol@tu-dresden.de.
+the `config/designs/` subdirectory contains various definitions of parametric designs. For starters, `skintight.json` can be used and edited. 
