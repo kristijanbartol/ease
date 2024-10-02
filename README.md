@@ -6,7 +6,9 @@ TailorLang is the root project based on the "Locally-Scaled Embedded Garment Mes
 
 ### Download the necessary files
 
-
+Go to the [SMPL website](https://smpl.is.tue.mpg.de/) -> Downloads (login required) and then download the file specified as
+"Download version 1.0.0 for Python 2.7 (female/male. 10 shape PCs)". Unzip the contents in the selected location (this location will be used
+as a command line argument for the `main.py`).
 
 ### Conda environment
 
@@ -74,3 +76,8 @@ The `config/body_sets` subdirectory contains various definitions of body pose an
 ### Designs
 
 the `config/designs/` subdirectory contains various definitions of parametric designs. For starters, `skintight.json` can be used and edited. 
+
+### "Skirtified" designs and bodies
+
+To design dresses (and soon skirts), the skirtified body meshes should be separately prepared in Blender. The detailed procedure with images
+is specified in the `SKIRTIFIED.md`.
