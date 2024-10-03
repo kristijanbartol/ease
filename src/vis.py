@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import os
-import open3d as o3d
+import trimesh
 
 
 PATTERN_DICT = {
@@ -99,7 +99,7 @@ def visualize_verts(verts, vertex_indices, color):
 
 class Mesh:
     def __init__(self, ply_path, offset, is_front):
-        self.mesh = o3d.io.read_triangle_mesh(ply_path)
+        self.mesh = trimesh.load(ply_path)
         self.offset = offset
         self.is_front = is_front
 
@@ -115,7 +115,7 @@ def mesh_to_image(mesh, image_size=(800, 800)):
     # Create an empty image with alpha channel (transparent background)
     image = np.zeros((image_size[1], image_size[0], 4), dtype=np.uint8)
 
-    triangles = np.asarray(mesh.triangles)
+    triangles = np.asarray(mesh.faces)
     edge_color = (42, 42, 165, 255)
     for tri in triangles:
         pts = points[tri][:, :2].astype(int)

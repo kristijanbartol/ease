@@ -73,13 +73,14 @@ def select_default(args):
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
 
 
-def run_parameterization(is_skirtified, use_darts):
+def run_parameterization(project_path, is_skirtified, use_darts):
     cpp_program_path = "./garment-parameterization/build/optimize_set_with_seamlines"
 
+    root_project_path_arg = os.path.abspath(project_path)
     optim_dress_arg = "1" if is_skirtified else "0"
     use_darts_arg = "1" if use_darts else "0"
 
-    command = [cpp_program_path, optim_dress_arg, use_darts_arg]
+    command = [cpp_program_path, root_project_path_arg, optim_dress_arg, use_darts_arg]
     try:
         subprocess.run(command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
@@ -91,10 +92,14 @@ def run_parameterization(is_skirtified, use_darts):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_darts', action='store_true', dest='use_darts')
-    parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply')
+    parser.add_argument('--use_darts', action='store_true', dest='use_darts',
+                        help='whether to use darts in the design and parameterization algorithm')
+    parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply',
+                        help='')
     parser.add_argument('--design', '-D', type=str, default='default')
     parser.add_argument('--body_set', type=str, default="set2")
+    parser.add_argument('--project_dir', type=str, default='/home/kristijan/TailorLang/', 
+                        help='an absolute path to this project')
     parser.add_argument('--smpl_dir', type=str, default="/home/kristijan/data/smpl/models/")
     parser.add_argument('--standard_export', action='store_true', dest='standard_export')
     args = parser.parse_args()
@@ -120,7 +125,7 @@ if __name__ == '__main__':
             print('If the skirtified flag is selected, the garment type should be (dress).')
 
     print('#2 Running parameterization...')
-    run_parameterization(is_skirtified, args.use_darts)
+    run_parameterization(args.project_dir, is_skirtified, args.use_darts)
 
     print('#3 Visualize the optimized pattern...')
     visualize_pattern(is_skirtified)

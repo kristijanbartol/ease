@@ -1,6 +1,7 @@
 data/
 assets/*
 !assets/preprint-review.pdf
+.vscode/settings.json
 __pycache__/
 *.ply
 *.obj
