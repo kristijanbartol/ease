@@ -1,5 +1,6 @@
 tripy
-numpy
+chumpy
+numpy==1.23.1
 matplotlib
 seaborn
 opencv-python
