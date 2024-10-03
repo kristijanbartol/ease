@@ -10,6 +10,8 @@ Go to the [SMPL website](https://smpl.is.tue.mpg.de/) -> Downloads (login requir
 "Download version 1.0.0 for Python 2.7 (female/male. 10 shape PCs)". Unzip the contents in the selected location (this location will be used
 as a command line argument for the `main.py`).
 
+Then, rename the files from `basicModel_f_lbs_10_207_0_v1.0.0.pkl` to `SMPL_FEMALE.pkl` and from `basicmodel_m_lbs_10_207_0_v1.0.0.pkl` to `SMPL_MALE.pkl`.
+
 ### Conda environment
 
 Create and activate conda environment:
