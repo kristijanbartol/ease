@@ -5,7 +5,7 @@
     "dims": {
         "sleeve": 0.33,
         "upper": 0.25,
-        "lower": 0.7,
+        "lower": 0.65,
         "lower_offset": -100000
     },
     "stretches": {
@@ -18,7 +18,7 @@
         },
         "upper": {
             "type": "uniform",
-            "base_stretch_u": 1.5,
+            "base_stretch_u": 1.0,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5,
             "ref_y": -0.093

@@ -2,6 +2,7 @@ import argparse
 import os
 from shutil import rmtree
 import json
+import subprocess
 
 from src.dress_processing import (
     setup_directories,
@@ -27,13 +28,14 @@ from src.garment_processing import (
 from src.seams import (
     determine_all_seams
 )
+from src.vis import visualize_pattern
 
 
-def select_skirtified(args, smpl_dir):
+def select_skirtified(args):
     original_dir, skirtified_dir = setup_directories(args)
     set_dict = load_set_dict(args)
 
-    original_meshes, smpl_models = generate_original_meshes(smpl_dir, original_dir, set_dict)
+    original_meshes, smpl_models = generate_original_meshes(args.smpl_dir, original_dir, set_dict)
 
     if not os.path.exists(skirtified_dir):
         print('NOTE: Skirtified meshes not yet created.')
@@ -55,13 +57,13 @@ def select_skirtified(args, smpl_dir):
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
 
 
-def select_default(args, smpl_dir):
-    smpl_models = initialize_smpl_models(smpl_dir)
+def select_default(args):
+    smpl_models = initialize_smpl_models(args.smpl_dir)
     garment, design_dict, set_dict = initialize_garment_and_configs(args, smpl_models)
     
     seams_info = determine_all_seams(garment, design_dict)
     modified_verts, updated_seams_info = modify_body_mesh(garment, seams_info)
-    modified_models = initialize_modified_smpl_models(smpl_dir, modified_verts)
+    modified_models = initialize_modified_smpl_models(args.smpl_dir, modified_verts)
     
     garment_parts = flood_fill_all_parts(garment, modified_verts, updated_seams_info)
     
@@ -71,21 +73,31 @@ def select_default(args, smpl_dir):
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
 
 
+def run_parameterization(is_skirtified, use_darts):
+    cpp_program_path = "./garment-parameterization/build/optimize_set_with_seamlines"
+
+    optim_dress_arg = "1" if is_skirtified else "0"
+    use_darts_arg = "1" if use_darts else "0"
+
+    command = [cpp_program_path, optim_dress_arg, use_darts_arg]
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred while running the C++ program: {e}")
+        print(f"Error output: {e.stderr}")
+    except FileNotFoundError:
+        print(f"The C++ program was not found at {cpp_program_path}")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--regenerate', '-R', action='store_true', dest='regenerate')
     parser.add_argument('--use_darts', action='store_true', dest='use_darts')
     parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply')
     parser.add_argument('--design', '-D', type=str, default='default')
     parser.add_argument('--body_set', type=str, default="set2")
-    parser.add_argument('--os', type=str, default="linux")
+    parser.add_argument('--smpl_dir', type=str, default="/home/kristijan/data/smpl/models/")
     parser.add_argument('--standard_export', action='store_true', dest='standard_export')
     args = parser.parse_args()
-
-    if args.os == 'macos':
-        smpl_dir = '/Users/kristijanbartol/Documents/data/hood_data/aux_data/smpl/'
-    else:
-        smpl_dir = '/home/kristijan/data/smpl/models/'
 
     if os.path.exists('data/embedded/latest/'):
         rmtree('data/embedded/latest/')
@@ -95,10 +107,21 @@ if __name__ == '__main__':
     with open(f'config/designs/{args.design}.json', 'r') as json_file:
         design_dict = json.load(json_file)
 
+    is_skirtified = False
+
+    print('#1 Generating specified embedded design...')
     if not design_dict['flags']['skirtified']:
-        select_default(args, smpl_dir)
+        select_default(args)
     else:
         if design_dict['flags']['type'] == 'dress':
-            select_skirtified(args, smpl_dir)
+            select_skirtified(args)
+            is_skirtified = True
         else:
-            pass
+            print('If the skirtified flag is selected, the garment type should be (dress).')
+
+    print('#2 Running parameterization...')
+    run_parameterization(is_skirtified, args.use_darts)
+
+    print('#3 Visualize the optimized pattern...')
+    visualize_pattern(is_skirtified)
+    
