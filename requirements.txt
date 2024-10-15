@@ -12,3 +12,4 @@ trimesh
 rtree
 torch
 torchvision
+pytest

@@ -1,12 +1,15 @@
 import numpy as np
 import trimesh
 import os
+from collections import defaultdict
 
 from src.geometry import apply_offset_to_verts
 from src.const import (
     SEGMENT_TO_SEAMLINES_DICT,
     SEGMENT_TO_ID,
     SEAM_TO_SEAM_IDX_DICT,
+    LEFT_ARMPIT_DARTS,
+    RIGHT_ARMPIT_DARTS,
     LEFT_ARMPIT_DARTS_LOCAL,
     RIGHT_ARMPIT_DARTS_LOCAL,
     LEFT_ARMPIT_DART_FACES_LOCAL,
@@ -16,6 +19,78 @@ from src.utils import (
     save_seamline_pairs_file,
     save_darts_files
 )
+
+
+def point_side(p, edge, dart_orient):
+    return dart_orient * np.cross(edge[1] - edge[0], p - edge[0])[1]  # Assuming Y is up
+
+
+def map_vertex_idx_to_face_idxs(faces):
+    # Create a map of vertex to faces for quick lookup
+    vertex_idx_to_face_idxs = defaultdict(list)
+    for i, face in enumerate(faces):
+        for v in face:
+            vertex_idx_to_face_idxs[v].append(i)
+    return vertex_idx_to_face_idxs
+
+
+def get_adjacent_faces(face1, face2):
+    return set(face1) & set(face2)
+
+
+def update_face(face, v_idx_to_update, new_v_idx):
+    # To update the vertex in the face, iterate through the triangle.
+    for idx, v_idx in enumerate(face):
+        if v_idx == v_idx_to_update:
+            face[idx] = new_v_idx
+    return face
+
+
+def create_dart(vertices, faces, selected_vidxs, dart_orient, debug=False):
+    # New vertex idx map contains the map (orig_selected_idx->new_vertex_idx).
+    new_vertex_idx_map = {v_idx: len(vertices) + idx for idx, v_idx in enumerate(selected_vidxs)}
+    # Fast lookup of the corresponding face idxs, given vertex idx.
+    vertex_idx_to_face_idxs = map_vertex_idx_to_face_idxs(faces)
+    updated_faces = faces.copy()
+    
+    # Do not process the last edge, containing the dart tip.
+    for idx, _ in enumerate(selected_vidxs[:-2]):
+        v1_idx, v2_idx = selected_vidxs[idx], selected_vidxs[idx+1]
+        edge = vertices[v1_idx], vertices[v2_idx]
+        adjacent_face_idxs = [f for f in vertex_idx_to_face_idxs[v1_idx]]
+        
+        for face_idx in adjacent_face_idxs:
+            face = faces[face_idx]
+            center = vertices[face].mean(axis=0)
+            side = point_side(center, edge, dart_orient)
+
+            # For faces "above" the dart, replace the old with new, added vertex idxs.
+            if side > 0:
+                updated_face = face.copy()
+                # Iterate through vertex indices of the face and update if selected.
+                for v_idx in face:
+                    if v_idx in new_vertex_idx_map:
+                        # Update face the number of times v_idx is in the selected set.
+                        updated_face = update_face(
+                            face=updated_face, 
+                            v_idx_to_update=v_idx, 
+                            new_v_idx=new_vertex_idx_map[v_idx]
+                        )
+                # Finally, replace the original face with the updated face. 
+                updated_faces[face_idx] = updated_face
+           
+    # Add new vertices (all dart vertices except the tip (last vertex)). 
+    new_vertices = vertices[selected_vidxs[:-1]]
+    if debug:
+        new_vertices[:, 1] += 0.01
+    updated_vertices = np.vstack((vertices, new_vertices))
+    
+    # Create a dart vertex pair strategy relevant for further processing (parameterization).
+    dart_pairs = [selected_vidxs[-1]]
+    for i in range(len(selected_vidxs) - 1, 0, -1):
+        dart_pairs.append((selected_vidxs[i-1], new_vertex_idx_map[selected_vidxs[i]]))
+
+    return updated_vertices, updated_faces, dart_pairs
 
 
 class Garment:
@@ -197,6 +272,7 @@ class Garment:
 
         vertex_pairs_list = []
 
+        # Local indices mean that
         for cut_vertices, bottom_faces in [(LEFT_ARMPIT_DARTS_LOCAL, LEFT_ARMPIT_DART_FACES_LOCAL), (RIGHT_ARMPIT_DARTS_LOCAL, RIGHT_ARMPIT_DART_FACES_LOCAL)]:
             vertex_pairs = [cut_vertices[-1]]
             # Step 1: Create a mapping from cut vertices to their duplicates
@@ -253,9 +329,24 @@ class Garment:
             # NOTE: Need the selected bottom faces as well (temporary)
             if self.use_darts:
                 if segment_name == 'upper_front':
-                    init_verts_idxs = list(range(len(garment_vertex_indices)))
-                    verts_idxs, garment_faces = self.include_darts(init_verts_idxs, garment_faces)
-                    garment_verts = garment_verts[verts_idxs]
+                    new_left_darts_verts_idxs = [old_to_new_index_mapping[v] for v in LEFT_ARMPIT_DARTS]
+                    new_right_darts_verts_idxs = [old_to_new_index_mapping[v] for v in RIGHT_ARMPIT_DARTS]
+                    garment_verts, garment_faces, left_dart_vertex_pairs = create_dart(
+                        garment_verts, 
+                        garment_faces, 
+                        new_left_darts_verts_idxs,
+                        dart_orient=1
+                    )
+                    garment_verts, garment_faces, right_dart_vertex_pairs = create_dart(
+                        garment_verts, 
+                        garment_faces, 
+                        new_right_darts_verts_idxs,
+                        dart_orient=-1
+                    )
+                    self.dart_dict = {
+                        'left_armpit': left_dart_vertex_pairs,
+                        'right_armpit': right_dart_vertex_pairs
+                    }
             self.update_seamline_vertex_pairs(old_to_new_index_mapping, segment_name)
 
         return garment_verts, garment_faces
