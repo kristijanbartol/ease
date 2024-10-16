@@ -46,7 +46,7 @@ def update_face(face, v_idx_to_update, new_v_idx):
     return face
 
 
-def create_dart(vertices, faces, selected_vidxs, dart_orient, debug=False):
+def create_dart(vertices, faces, selected_vidxs, dart_orient):
     # New vertex idx map contains the map (orig_selected_idx->new_vertex_idx).
     new_vertex_idx_map = {v_idx: len(vertices) + idx for idx, v_idx in enumerate(selected_vidxs)}
     # Fast lookup of the corresponding face idxs, given vertex idx.
@@ -81,8 +81,7 @@ def create_dart(vertices, faces, selected_vidxs, dart_orient, debug=False):
            
     # Add new vertices (all dart vertices except the tip (last vertex)). 
     new_vertices = vertices[selected_vidxs[:-1]]
-    if debug:
-        new_vertices[:, 1] += 0.01
+    new_vertices[:, 1] += 0.00001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
     updated_vertices = np.vstack((vertices, new_vertices))
     
     # Create a dart vertex pair strategy relevant for further processing (parameterization).

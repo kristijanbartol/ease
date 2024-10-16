@@ -12,7 +12,7 @@ class TestMeshCuttingFunctions(unittest.TestCase):
         self.vertices = np.array([
             [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
             [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]
-        ])
+        ], dtype=np.float64)
         self.faces = np.array([
             [0, 1, 2], [1, 3, 2],  # Bottom face
             [4, 5, 6], [5, 7, 6],  # Top face
@@ -80,7 +80,7 @@ class TestMeshCuttingFunctions(unittest.TestCase):
         new_vertex_start = len(self.vertices)
         for i, v_idx in enumerate(selected_vidxs[:-1]):
             new_v_idx = new_vertex_start + i
-            self.assertTrue(np.allclose(self.vertices[v_idx], updated_vertices[new_v_idx]))
+            self.assertTrue(np.allclose(self.vertices[v_idx], updated_vertices[new_v_idx], atol=0.00001))
         
         # Analyze face changes
         face_differences = np.setdiff1d(updated_faces, original_faces)
