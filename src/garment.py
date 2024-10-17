@@ -8,12 +8,8 @@ from src.const import (
     SEGMENT_TO_SEAMLINES_DICT,
     SEGMENT_TO_ID,
     SEAM_TO_SEAM_IDX_DICT,
-    LEFT_ARMPIT_DARTS,
-    RIGHT_ARMPIT_DARTS,
-    LEFT_ARMPIT_DARTS_LOCAL,
-    RIGHT_ARMPIT_DARTS_LOCAL,
-    LEFT_ARMPIT_DART_FACES_LOCAL,
-    RIGHT_ARMPIT_DART_FACES_LOCAL
+    SEGMENT_TO_DARTS,
+    DART_ORIENTS
 )
 from src.utils import (
     save_seamline_pairs_file,
@@ -48,7 +44,7 @@ def update_face(face, v_idx_to_update, new_v_idx):
 
 def create_dart(vertices, faces, selected_vidxs, dart_orient):
     # New vertex idx map contains the map (orig_selected_idx->new_vertex_idx).
-    new_vertex_idx_map = {v_idx: len(vertices) + idx for idx, v_idx in enumerate(selected_vidxs)}
+    new_vertex_idx_map = {v_idx: len(vertices) + idx for idx, v_idx in enumerate(selected_vidxs[:-1])}
     # Fast lookup of the corresponding face idxs, given vertex idx.
     vertex_idx_to_face_idxs = map_vertex_idx_to_face_idxs(faces)
     updated_faces = faces.copy()
@@ -86,7 +82,7 @@ def create_dart(vertices, faces, selected_vidxs, dart_orient):
     
     # Create a dart vertex pair strategy relevant for further processing (parameterization).
     dart_pairs = [selected_vidxs[-1]]
-    for i in range(len(selected_vidxs) - 1, 0, -1):
+    for i in range(len(selected_vidxs) - 2, 0, -1):
         dart_pairs.append((selected_vidxs[i-1], new_vertex_idx_map[selected_vidxs[i]]))
 
     return updated_vertices, updated_faces, dart_pairs
@@ -103,6 +99,7 @@ class Garment:
         self.segment_to_seamlines_dict = SEGMENT_TO_SEAMLINES_DICT[skirtification_type]
         self.seam_to_seam_idx_dict = SEAM_TO_SEAM_IDX_DICT[skirtification_type]
         self.use_darts = use_darts
+        self.dart_dict = {}
 
     @staticmethod
     def build_vertex_adjacency_list(F):
@@ -264,51 +261,20 @@ class Garment:
             else:
                 self.seam_to_segment_vertex_pairs[seam_name][segment_id] = \
                     map_old_to_new_indices(self.seam_to_seam_idx_dict[seam_name])
-                
-    def include_darts(self, segment_verts, segment_faces):
-        new_vertices = segment_verts.copy()  # Start with the original vertices
-        new_faces = segment_faces.copy()  # Start with the original faces
-
-        vertex_pairs_list = []
-
-        # Local indices mean that
-        for cut_vertices, bottom_faces in [(LEFT_ARMPIT_DARTS_LOCAL, LEFT_ARMPIT_DART_FACES_LOCAL), (RIGHT_ARMPIT_DARTS_LOCAL, RIGHT_ARMPIT_DART_FACES_LOCAL)]:
-            vertex_pairs = [cut_vertices[-1]]
-            # Step 1: Create a mapping from cut vertices to their duplicates
-            cut_to_new_vertex_map = {}
-
-            for v in cut_vertices[:-1]:
-                # Duplicate the vertex and add it to the new vertices list
-                new_vertex_index = len(new_vertices)
-                cut_to_new_vertex_map[v] = new_vertex_index
-                new_vertices.append(segment_verts[v])
-                vertex_pairs.append((v, new_vertex_index))
-
-            # Step 2: Update the faces to use the new vertices for the bottom side of the cut
-            updated_faces = []
-            for face_index, face in enumerate(new_faces):
-                updated_face = []
-                for v in face:
-                    # If the vertex is part of the cut, decide which copy to use based on the face's side
-                    if v in cut_to_new_vertex_map:
-                        if face_index in bottom_faces:  # Use new vertices for bottom faces
-                            updated_face.append(cut_to_new_vertex_map[v])
-                        else:  # Use original vertices for top faces
-                            updated_face.append(v)
-                    else:
-                        updated_face.append(v)
-                updated_faces.append(updated_face)
-            
-            # Update the faces list to reflect the changes for this cut
-            new_faces = updated_faces
-            vertex_pairs_list.append(vertex_pairs)
-
-        self.dart_dict = {
-            'left_armpit': vertex_pairs_list[0],
-            'right_armpit': vertex_pairs_list[1]
-        }
-
-        return np.array(new_vertices), np.array(new_faces)
+                    
+    def process_darts_for_segment(self, segment_name, old_to_new_index_mapping, garment_verts, garment_faces):
+        self.dart_dict[segment_name] = {}
+        for dart_name in SEGMENT_TO_DARTS[segment_name]:
+            dart_vertices = SEGMENT_TO_DARTS[segment_name][dart_name]
+            new_darts_verts_idxs = [old_to_new_index_mapping[v] for v in dart_vertices]
+            garment_verts, garment_faces, dart_vertex_pairs = create_dart(
+                garment_verts, 
+                garment_faces, 
+                new_darts_verts_idxs,
+                dart_orient=DART_ORIENTS[dart_name]
+            )
+            self.dart_dict[segment_name][dart_name] = dart_vertex_pairs
+        return garment_verts, garment_faces
         
     def extract_garment_mesh(self, verts, faces, garment_vertex_indices, offset=0., segment_name=None):
         # Apply offset if specified
@@ -325,27 +291,13 @@ class Garment:
         garment_faces = np.array([[old_to_new_index_mapping[v] for v in face] for face in garment_faces])
 
         if segment_name is not None:
-            # NOTE: Need the selected bottom faces as well (temporary)
             if self.use_darts:
-                if segment_name == 'upper_front':
-                    new_left_darts_verts_idxs = [old_to_new_index_mapping[v] for v in LEFT_ARMPIT_DARTS]
-                    new_right_darts_verts_idxs = [old_to_new_index_mapping[v] for v in RIGHT_ARMPIT_DARTS]
-                    garment_verts, garment_faces, left_dart_vertex_pairs = create_dart(
-                        garment_verts, 
-                        garment_faces, 
-                        new_left_darts_verts_idxs,
-                        dart_orient=1
-                    )
-                    garment_verts, garment_faces, right_dart_vertex_pairs = create_dart(
-                        garment_verts, 
-                        garment_faces, 
-                        new_right_darts_verts_idxs,
-                        dart_orient=-1
-                    )
-                    self.dart_dict = {
-                        'left_armpit': left_dart_vertex_pairs,
-                        'right_armpit': right_dart_vertex_pairs
-                    }
+                garment_verts, garment_faces = self.process_darts_for_segment(
+                    segment_name, 
+                    old_to_new_index_mapping, 
+                    garment_verts, 
+                    garment_faces
+                )
             self.update_seamline_vertex_pairs(old_to_new_index_mapping, segment_name)
 
         return garment_verts, garment_faces
@@ -365,9 +317,10 @@ class Garment:
                 seamline_pair_dict=self.seam_to_segment_vertex_pairs[seam_name]
             )
         if self.use_darts:
-            darts_dir = 'data/darts/latest/'
-            os.makedirs(os.path.join(darts_dir), exist_ok=True)
-            save_darts_files(darts_dir, self.dart_dict)
+            for segment_name in self.dart_dict:
+                darts_dir = f'data/darts/latest/{segment_name}/'
+                os.makedirs(os.path.join(darts_dir), exist_ok=True)
+                save_darts_files(darts_dir, self.dart_dict[segment_name])
         
     @staticmethod
     def extract_garment_verts(verts, faces, garment_vertex_indices, offset=0.):

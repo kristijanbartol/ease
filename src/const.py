@@ -389,15 +389,16 @@ INIT_IDXS = {
     'lower_back_left': 897
 }
 
-##### DARTS #######
-RIGHT_ARMPIT_DARTS = [4135, 4134, 5223, 4680, 4681]
-RIGHT_ARMPIT_DARTS_LOCAL = [161, 33, 482, 200, 201]
-LEFT_ARMPIT_DARTS = [647, 646, 1756, 1194, 1195]
-LEFT_ARMPIT_DARTS_LOCAL = [506, 260, 627, 497, 498]
+SEGMENT_TO_DARTS = {x: {} for x in SEGMENT_SETS['default']}
+SEGMENT_TO_DARTS['upper_front'] = {
+    'right_armpit': [4135, 4134, 5223, 4680, 4681],
+    'left_armpit': [647, 646, 1756, 1194, 1195]
+}
 
-RIGHT_ARMPIT_DART_FACES_LOCAL = [648, 649, 821, 820, 830, 831, 720, 721]
-LEFT_ARMPIT_DART_FACES_LOCAL = [29, 28, 200, 201, 210, 211, 100, 101]
-###################
+DART_ORIENTS = {
+    'left_armpit': 1,
+    'right_armpit': -1
+}
 
 DISPLACEMENTS = {
     'skintight': 0.0025,

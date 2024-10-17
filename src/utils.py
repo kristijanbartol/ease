@@ -217,10 +217,10 @@ def save_seamline_pairs_file(fpath, seamline_pair_dict):
             f.write(f"{idx1} {idx2}\n")
 
 
-def save_darts_files(dirpath, darts_dict):
-    for key in darts_dict:
-        vertex_pairs = darts_dict[key]
-        with open(os.path.join(dirpath, f'{key}.txt'), 'w') as f:
+def save_darts_files(dirpath, darts_dict_for_segment):
+    for dart_name in darts_dict_for_segment:
+        vertex_pairs = darts_dict_for_segment[dart_name]
+        with open(os.path.join(dirpath, f'{dart_name}.txt'), 'w') as f:
             f.write(f"{vertex_pairs[0]}\n")
             
             for idx1, idx2 in vertex_pairs[1:]:
