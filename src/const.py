@@ -140,6 +140,31 @@ SEGMENT_SETS = {
     ]
 }
 
+SEGMENT_NAMES = {
+    'default': {
+        'upper': [
+            'upper_front',
+            'upper_back',
+            'sleeve_front_right',
+            'sleeve_front_left',
+            'sleeve_back_right',
+            'sleeve_back_left'
+        ],
+        'lower': [
+            'lower_front_right',
+            'lower_back_right',
+            'lower_front_left',
+            'lower_back_left'
+        ]
+    },
+    'skirtified': {
+        'upper': [
+            'upper_front',
+            'upper_back'
+        ]   
+    }
+}
+
 THRESH_TO_SEAMS_DICT = {
     'upper': 'left_armpit',
     'lower': 'left_outer',

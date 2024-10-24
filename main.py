@@ -28,6 +28,7 @@ from src.garment_processing import (
 from src.seams import (
     determine_all_seams
 )
+from src.utils import export_edge_lengths
 from src.vis import visualize_pattern
 
 
@@ -55,6 +56,8 @@ def select_skirtified(args):
         process_skirtified_garment_set(args, skirtified_meshes, original_meshes, garment, design_dict, set_dict, garment_parts, offset_type, smpl_models)
 
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
+    
+    return garment
 
 
 def select_default(args):
@@ -71,7 +74,9 @@ def select_default(args):
         process_garment_set(args, modified_models, garment, design_dict, set_dict, garment_parts, offset_type)
 
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
-
+    
+    return garment
+    
 
 def run_parameterization(project_path, is_skirtified, use_darts):
     cpp_program_path = "./garment-parameterization/build/optimize_set_with_seamlines"
@@ -113,13 +118,14 @@ if __name__ == '__main__':
         design_dict = json.load(json_file)
 
     is_skirtified = False
+    garment = None
 
     print('#1 Generating specified embedded design...')
     if not design_dict['flags']['skirtified']:
-        select_default(args)
+        garment = select_default(args)
     else:
         if design_dict['flags']['type'] == 'dress':
-            select_skirtified(args)
+            garment = select_skirtified(args)
             is_skirtified = True
         else:
             print('If the skirtified flag is selected, the garment type should be (dress).')
@@ -129,4 +135,7 @@ if __name__ == '__main__':
 
     print('#3 Visualize the optimized pattern...')
     visualize_pattern(is_skirtified)
+    
+    print("#4 Export the resulting optimized edge lengths")
+    export_edge_lengths(garment)
     

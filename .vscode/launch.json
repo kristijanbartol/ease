@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "--use_darts",
+                //"--use_darts",
                 "--file_format", "both",
                 "--project_dir", "/Users/kristijanbartol/TailorLang/",
                 "--smpl_dir", "/Users/kristijanbartol/data/smpl/models/",

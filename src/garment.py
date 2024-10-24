@@ -1,3 +1,4 @@
+from typing import Dict, Tuple
 import numpy as np
 import trimesh
 import os
@@ -82,8 +83,8 @@ def create_dart(vertices, faces, selected_vidxs, dart_orient):
     
     # Create a dart vertex pair strategy relevant for further processing (parameterization).
     dart_pairs = [selected_vidxs[-1]]
-    for i in range(len(selected_vidxs) - 2, 0, -1):
-        dart_pairs.append((selected_vidxs[i-1], new_vertex_idx_map[selected_vidxs[i]]))
+    for i in range(len(selected_vidxs) - 2, -1, -1):
+        dart_pairs.append((selected_vidxs[i], new_vertex_idx_map[selected_vidxs[i]]))
 
     return updated_vertices, updated_faces, dart_pairs
 
@@ -98,6 +99,7 @@ class Garment:
         self.segment_to_id = SEGMENT_TO_ID[skirtification_type]
         self.segment_to_seamlines_dict = SEGMENT_TO_SEAMLINES_DICT[skirtification_type]
         self.seam_to_seam_idx_dict = SEAM_TO_SEAM_IDX_DICT[skirtification_type]
+        self.segment_to_edges_map = {}
         self.use_darts = use_darts
         self.dart_dict = {}
 
@@ -275,6 +277,48 @@ class Garment:
             )
             self.dart_dict[segment_name][dart_name] = dart_vertex_pairs
         return garment_verts, garment_faces
+    
+    def update_edge_mapping(self, segment_name, faces, vertex_mapping):
+        """
+        Create a mapping between old and new edge vertex indices.
+        
+        Parameters:
+        faces (np.ndarray): Array of face vertex indices (N x 3)
+        vertex_mapping (dict): Dictionary mapping old vertex indices to new vertex indices
+        
+        Result:
+        self.segment_to_edges_map[segment_name]: Dictionary mapping old edge tuples to new edge tuples
+            Format: {segment_name: {(old_v1, old_v2): (new_v1, new_v2)}}
+        """
+        # Create a set to store unique edges using new vertex indices
+        edges = set()
+        
+        # Extract edges from faces
+        for face in faces:
+            # Get three edges from triangular face
+            # Always store edges with smaller vertex index first for consistency
+            v1, v2, v3 = sorted(face)
+            edges.add((v1, v2))
+            edges.add((v2, v3))
+            edges.add((v1, v3))
+        
+        # Create reverse mapping (new to old vertex indices)
+        reverse_mapping = {new: old for old, new in vertex_mapping.items()}
+        
+        # Create edge mapping dictionary
+        edge_mapping = {}
+        for new_v1, new_v2 in edges:
+            # Get corresponding old vertex indices
+            old_v1 = reverse_mapping[new_v1]
+            old_v2 = reverse_mapping[new_v2]
+            
+            # Store with consistent ordering (smaller index first)
+            old_edge = tuple(sorted([old_v1, old_v2]))
+            new_edge = (new_v1, new_v2)  # Already sorted from earlier
+            
+            edge_mapping[old_edge] = new_edge
+        
+        self.segment_to_edges_map[segment_name] = edge_mapping
         
     def extract_garment_mesh(self, verts, faces, garment_vertex_indices, offset=0., segment_name=None):
         # Apply offset if specified
@@ -291,6 +335,11 @@ class Garment:
         garment_faces = np.array([[old_to_new_index_mapping[v] for v in face] for face in garment_faces])
 
         if segment_name is not None:
+            self.update_edge_mapping(
+                segment_name=segment_name,
+                faces=garment_faces,
+                vertex_mapping=old_to_new_index_mapping
+            )
             if self.use_darts:
                 garment_verts, garment_faces = self.process_darts_for_segment(
                     segment_name, 
@@ -301,6 +350,22 @@ class Garment:
             self.update_seamline_vertex_pairs(old_to_new_index_mapping, segment_name)
 
         return garment_verts, garment_faces
+    
+    def measure_optimized_edge_lengths(self, segment_to_mesh_dict: Dict[str, trimesh.Trimesh]) -> Dict[Tuple[int, int], float]:
+        global_edge_dict = {}
+        for segment_name in segment_to_mesh_dict:
+            mesh = segment_to_mesh_dict[segment_name]
+            for global_edge_pair in self.segment_to_edges_map[segment_name]:
+                if global_edge_pair in global_edge_dict:
+                    continue
+                patch_verts = mesh.vertices
+                local_edge_pair = self.segment_to_edges_map[segment_name][global_edge_pair]
+                
+                v1, v2 = patch_verts[local_edge_pair[0]], patch_verts[local_edge_pair[1]]
+                edge_length = np.linalg.norm(v1 - v2)
+                
+                global_edge_dict[global_edge_pair] = edge_length
+        return global_edge_dict
     
     def store_seamline_vertex_pairs(self, subdir):
         data_dir = 'data/seamlines/'

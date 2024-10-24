@@ -1,10 +1,12 @@
+from typing import List
 import trimesh
 import os
 import numpy as np
 
 from src.const import (
     COLOR_MAP,
-    DISPLACEMENTS
+    DISPLACEMENTS,
+    SEGMENT_NAMES
 )
 
 
@@ -286,3 +288,34 @@ def export_stretch_arrays(design_dict, verts, faces, part_name, mesh_set_dir, la
     np.savetxt(f'{mesh_set_dir}/{part_name}/stretches_v.txt', stretch_array_v)
     np.savetxt(f'{latest_set_dir}/{part_name}/stretches_u.txt', stretch_array_u)
     np.savetxt(f'{latest_set_dir}/{part_name}/stretches_v.txt', stretch_array_v)
+
+
+def export_edge_lengths(garment, skirtified=False):
+    
+    def process_garment_part(segment_names: List, garment):
+        mesh_dict = {}
+        for segment_name in segment_names:
+            subdir_path = os.path.join(result_dir, segment_name)
+            result_mesh_path = os.path.join(subdir_path, 'optim_final-seams.ply')
+            optimized_mesh = trimesh.load(result_mesh_path)
+            mesh_dict[segment_name] = optimized_mesh
+            
+        return garment.measure_optimized_edge_lengths(mesh_dict)
+    
+    def save_edge_map(root_dir, part_name, edge_lengths_map):
+        file_path = os.path.join(root_dir, f'{part_name}_optim_edge_lengths.txt')
+        with open(file_path, 'w') as f:
+            for (int1, int2), value in edge_lengths_map.items():
+                f.write(f"{int1} {int2} {value:.6f}\n")
+    
+    segment_names_dict = {}
+    if not skirtified:
+        segment_names_dict['upper'] = SEGMENT_NAMES['default']['upper']
+        segment_names_dict['lower'] = SEGMENT_NAMES['default']['lower']
+    else:
+        raise NotImplementedError()
+    
+    result_dir = 'data/embedded/latest/skintight/'
+    for part_name in ['upper', 'lower']:
+        edge_lengths_map = process_garment_part(segment_names_dict[part_name], garment)
+        save_edge_map(result_dir, part_name, edge_lengths_map)
