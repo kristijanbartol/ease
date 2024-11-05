@@ -1,3 +1,6 @@
 [submodule "garment-parameterization"]
 	path = garment-parameterization
 	url = https://github.com/kristijanbartol/garment-parameterization
+[submodule "isotropic-remeshing"]
+	path = isotropic-remeshing
+	url = https://github.com/kristijanbartol/isotropic-remeshing.git
