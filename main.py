@@ -2,65 +2,81 @@ import argparse
 import os
 from shutil import rmtree
 import json
-import subprocess
+import numpy as np
+from smplx import SMPL
 
-from src.dress_processing import (
-    setup_directories,
-    load_set_dict,
-    generate_original_meshes,
-    initialize_dress_garment_and_configs,
-    load_skirtified_meshes,
-    determine_dress_seams,
-    flood_fill_dress_parts,
-    store_colored_faces,
-    process_skirtified_garment_set
-)
-from src.body_processing import (
+from tailorlang.body_processing import (
     initialize_smpl_models,
     initialize_modified_smpl_models,
     modify_body_mesh
 )
-from src.garment_processing import (
+from tailorlang.garment_processing import (
+    apply_all_cuts,
+    apply_masks,
+    apply_length_params,
+    apply_pre_seams,
+    collect_vert_idxs_of_full_garments,
     flood_fill_all_parts,
+    init_garment_for_preselect,
+    init_static,
     initialize_garment_and_configs,
     process_garment_set
 )
-from src.seams import (
+from tailorlang.pybind import apply_remesh
+from tailorlang.seams import (
     determine_all_seams
 )
-from src.utils import export_edge_lengths
-from src.vis import visualize_pattern
+from tailorlang.submodules import run_parameterization
+from tailorlang.utils import (
+    export,
+    export_edge_lengths,
+    export_stretch_arrays,
+    load_preselected,
+    store_preselected
+)
+from tailorlang.vis import visualize_pattern
 
 
-def select_skirtified(args):
-    original_dir, skirtified_dir = setup_directories(args)
-    set_dict = load_set_dict(args)
+def preselect(_unused_set_dict):
+    # NOTE: Only the default (zero female) shape is now supported as initial.
+    TEMPLATE_DIR_NAME = 'female-zero_shape'
+    template_dir_path = f'templates/{TEMPLATE_DIR_NAME}/'
+    if not os.path.exists(template_dir_path):
+        print(f'(generating new template - {TEMPLATE_DIR_NAME}...)')
+        os.makedirs(template_dir_path)
+        design_dict, female_model, canonical_verts = init_static(args)
+        modified_verts, threshold_dict = apply_length_params(design_dict, canonical_verts, female_model)
+        
+        patch_idxs_dict = apply_pre_seams(modified_verts, threshold_dict)
+        patch_idxs_dict = collect_vert_idxs_of_full_garments(patch_idxs_dict)
+        
+        store_preselected(template_dir_path, patch_idxs_dict, modified_verts)
+    else:
+        print(f'(pre-loading existing template - {TEMPLATE_DIR_NAME}...)')
+        patch_idxs_dict, modified_verts = load_preselected(template_dir_path)
+        
+    return patch_idxs_dict, modified_verts
 
-    original_meshes, smpl_models = generate_original_meshes(args.smpl_dir, original_dir, set_dict)
 
-    if not os.path.exists(skirtified_dir):
-        print('NOTE: Skirtified meshes not yet created.')
-        print('NOTE: Original SMPL meshes generated. Please create skirtified meshes and run again.')
-        return
-
-    skirtified_meshes = load_skirtified_meshes(skirtified_dir)
-    garment, design_dict = initialize_dress_garment_and_configs(args, skirtified_meshes[0])
+def prepare(args):
+    design_dict, set_dict, smpl_model, canonical_verts = init_static(args)
+    patch_idxs_dict, modified_verts = preselect(set_dict)
     
-    seams_info = determine_dress_seams(garment, design_dict)
-    garment_parts = flood_fill_dress_parts(garment, seams_info)
+    modified_verts, threshold_dict = apply_length_params(design_dict, canonical_verts, smpl_model)
+    patch_idxs_dict = apply_masks(patch_idxs_dict, modified_verts, threshold_dict)
     
-    store_colored_faces(garment.mesh.vertices, garment.mesh.faces, seams_info['upper_front'], os.path.join(skirtified_dir, 'boundaries.ply'))
-    store_colored_faces(garment.mesh.vertices, garment.mesh.faces, garment_parts['upper_front'], os.path.join(skirtified_dir, 'patch.ply'))
-
-    for offset_type in ['skintight', 'loose']:
-        process_skirtified_garment_set(args, skirtified_meshes, original_meshes, garment, design_dict, set_dict, garment_parts, offset_type, smpl_models)
-
-    garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
+    if args.apply_remesh:
+        patch_dict, seams_dict = apply_remesh(patch_dict, seams_dict)
+    # TODO: Construct seams dict even if the remesh is not applied.
+    # NOTE: To simplify, use only (begin, end) keypoints for each border and extract individual seamline vertices.
+        
+    stretch_arrays = construct_stretch_arrays(patch_dict, design_dict)
+    seam_pairs_dict = construct_seam_pairs(seams_dict)
     
-    return garment
+    return patch_dict, seam_pairs_dict, stretch_arrays
 
 
-def select_default(args):
+def select(args):
     smpl_models = initialize_smpl_models(args.smpl_dir)
     garment, design_dict, set_dict = initialize_garment_and_configs(args, smpl_models)
     
@@ -70,29 +86,13 @@ def select_default(args):
     
     garment_parts = flood_fill_all_parts(garment, modified_verts, updated_seams_info)
     
-    for offset_type in ['skintight', 'loose']:
-        process_garment_set(args, modified_models, garment, design_dict, set_dict, garment_parts, offset_type)
+    process_garment_set(args, modified_models, garment, design_dict, set_dict, garment_parts)
+    
+    export_stretch_arrays(design_dict, part_verts, part_faces, part_name, mesh_set_dir, latest_set_dir)
 
     garment.store_seamline_vertex_pairs(subdir=f'{args.design}-{args.body_set}')
     
     return garment
-    
-
-def run_parameterization(project_path, is_skirtified, use_darts):
-    cpp_program_path = "./garment-parameterization/build/optimize_set_with_seamlines"
-
-    root_project_path_arg = os.path.abspath(project_path)
-    optim_dress_arg = "1" if is_skirtified else "0"
-    use_darts_arg = "1" if use_darts else "0"
-
-    command = [cpp_program_path, root_project_path_arg, optim_dress_arg, use_darts_arg]
-    try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred while running the C++ program: {e}")
-        print(f"Error output: {e.stderr}")
-    except FileNotFoundError:
-        print(f"The C++ program was not found at {cpp_program_path}")
 
 
 if __name__ == '__main__':
@@ -116,25 +116,23 @@ if __name__ == '__main__':
 
     with open(f'config/designs/{args.design}.json', 'r') as json_file:
         design_dict = json.load(json_file)
+        
+    with open(f'config/body_sets/{args.body_set}.json', 'r') as json_file:
+        set_dict = json.load(json_file)
 
-    is_skirtified = False
     garment = None
+    
+    print('#0 Pre-selecting the garment meshes...')
+    upper_idxs, lower_idxs, modified_verts = preselect_full_garments(set_dict)
 
     print('#1 Generating specified embedded design...')
-    if not design_dict['flags']['skirtified']:
-        garment = select_default(args)
-    else:
-        if design_dict['flags']['type'] == 'dress':
-            garment = select_skirtified(args)
-            is_skirtified = True
-        else:
-            print('If the skirtified flag is selected, the garment type should be (dress).')
+    garment = select(args)
 
     print('#2 Running parameterization...')
-    run_parameterization(args.project_dir, is_skirtified, args.use_darts)
+    run_parameterization(args.project_dir, args.use_darts)
 
     print('#3 Visualize the optimized pattern...')
-    visualize_pattern(is_skirtified)
+    visualize_pattern()
     
     print("#4 Export the resulting optimized edge lengths")
     export_edge_lengths(garment)

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.const import SEAM_IDX_DICT
+from tailorlang.const import SEAM_IDX_DICT
 
 
 def extract_parameterized_seams(verts, garment_length, seam_vertex_indices, pant_offset=None):

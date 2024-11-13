@@ -2,7 +2,7 @@ import os
 import torch
 from smplx import SMPL
 
-from src.geometry import modify_mesh_with_plane_cut
+from tailorlang.geometry import modify_mesh_with_plane_cut
 
 
 def initialize_smpl_models(smpl_dir):

@@ -4,15 +4,15 @@ import trimesh
 import os
 from collections import defaultdict
 
-from src.geometry import apply_offset_to_verts
-from src.const import (
+from tailorlang.geometry import apply_offset_to_verts
+from tailorlang.const import (
     SEGMENT_TO_SEAMLINES_DICT,
     SEGMENT_TO_ID,
     SEAM_TO_SEAM_IDX_DICT,
     SEGMENT_TO_DARTS,
     DART_ORIENTS
 )
-from src.utils import (
+from tailorlang.utils import (
     save_seamline_pairs_file,
     save_darts_files
 )
@@ -90,15 +90,13 @@ def create_dart(vertices, faces, selected_vidxs, dart_orient):
 
 
 class Garment:
-    def __init__(self, verts, faces, skirtification_type, use_darts=False):
+    def __init__(self, verts, faces, use_darts=False):
         self.mesh = trimesh.Trimesh(vertices=verts, faces=faces)
         self.vertex_adjacency_list = self.build_vertex_adjacency_list(faces)
-        self.face_adjacency_list = self.build_face_adjacency_list(faces)
         self.seam_to_segment_vertex_pairs = {}
-        self.skirtification_type = skirtification_type
-        self.segment_to_id = SEGMENT_TO_ID[skirtification_type]
-        self.segment_to_seamlines_dict = SEGMENT_TO_SEAMLINES_DICT[skirtification_type]
-        self.seam_to_seam_idx_dict = SEAM_TO_SEAM_IDX_DICT[skirtification_type]
+        self.segment_to_id = SEGMENT_TO_ID
+        self.segment_to_seamlines_dict = SEGMENT_TO_SEAMLINES_DICT
+        self.seam_to_seam_idx_dict = SEAM_TO_SEAM_IDX_DICT
         self.segment_to_edges_map = {}
         self.use_darts = use_darts
         self.dart_dict = {}
@@ -113,29 +111,6 @@ class Garment:
                 # Add the neighboring vertices
                 adjacency_list[vertex].update(triangle)
                 adjacency_list[vertex].remove(vertex)  # A vertex is not a neighbor to itself
-        return adjacency_list
-
-    @staticmethod
-    def build_face_adjacency_list(faces):
-        # Initialize the adjacency list
-        adjacency_list = {i: set() for i in range(len(faces))}
-        
-        # Initialize a vertex-to-face map
-        vertex_to_face = {}
-        for i, face in enumerate(faces):
-            for vertex in face:
-                if vertex not in vertex_to_face:
-                    vertex_to_face[vertex] = set()
-                vertex_to_face[vertex].add(i)
-        
-        # Build the adjacency list
-        for face_index, face in enumerate(faces):
-            for vertex in face:
-                adjacent_faces = vertex_to_face[vertex]
-                for adj_face_index in adjacent_faces:
-                    if adj_face_index != face_index:
-                        adjacency_list[face_index].add(adj_face_index)
-        
         return adjacency_list
 
     def flood_fill_vertices(self, vertex_positions, boundary_vertices, y_threshold, start_vertex, up_pant_threshold=None):
@@ -256,6 +231,11 @@ class Garment:
         segment_id = self.segment_to_id[segment_name]
         seamlines_list = self.segment_to_seamlines_dict[segment_id]
         for seam_name in seamlines_list:
+            # The seam-to-segment-vertex-pairs dict is of structure:
+            # { seam_name: {
+            #     segment_id_1: new_verts1,
+            #     segment_id_2: new_verts2   
+            # }}
             if seam_name not in self.seam_to_segment_vertex_pairs:
                 self.seam_to_segment_vertex_pairs[seam_name] = {
                     segment_id: map_old_to_new_indices(self.seam_to_seam_idx_dict[seam_name])
@@ -366,6 +346,9 @@ class Garment:
                 
                 global_edge_dict[global_edge_pair] = edge_length
         return global_edge_dict
+    
+    def store_seamline_keypoints(self, subdir):
+        pass
     
     def store_seamline_vertex_pairs(self, subdir):
         data_dir = 'data/seamlines/'

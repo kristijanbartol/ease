@@ -18,12 +18,6 @@ PATTERN_DICT = {
     'lower_back_left': [250, 200]
 }
 
-
-PATTERN_DICT_SKIRTIFIED = {
-    'upper_front': [-150, 100],
-    'upper_back': [150, 100]
-}
-
 GLOBAL_SCALE = 400
 
 
@@ -169,9 +163,8 @@ def save_combined_image(output_path, combined_image):
     cv2.imwrite(output_path, combined_image)
 
 
-def visualize_pattern(is_skirtified):
+def visualize_pattern():
     data_dir = f'data/embedded/latest/skintight/'
-    pattern_dict = PATTERN_DICT_SKIRTIFIED if is_skirtified else PATTERN_DICT
 
     meshes_dict = {}
     for _, dirs, _ in os.walk(data_dir):
@@ -182,9 +175,9 @@ def visualize_pattern(is_skirtified):
                     pattern_fpath = os.path.join(data_dir, subdir, fname)
                     is_front = True if subdir.split('_')[1] == 'front' else False
                     if suffix not in meshes_dict:
-                        meshes_dict[suffix] = [Mesh(pattern_fpath, pattern_dict[subdir], is_front)]
+                        meshes_dict[suffix] = [Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front)]
                     else:
-                        meshes_dict[suffix].append(Mesh(pattern_fpath, pattern_dict[subdir], is_front))
+                        meshes_dict[suffix].append(Mesh(pattern_fpath, PATTERN_DICT[subdir], is_front))
     for suffix in meshes_dict:
         meshes_dict[suffix].sort(key=lambda mesh: mesh.is_front)
 

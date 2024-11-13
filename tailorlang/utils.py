@@ -3,9 +3,10 @@ import trimesh
 import os
 import numpy as np
 
-from src.const import (
+from tailorlang.const import (
     COLOR_MAP,
     DISPLACEMENTS,
+    PATCH_LIST,
     SEGMENT_NAMES
 )
 
@@ -290,7 +291,7 @@ def export_stretch_arrays(design_dict, verts, faces, part_name, mesh_set_dir, la
     np.savetxt(f'{latest_set_dir}/{part_name}/stretches_v.txt', stretch_array_v)
 
 
-def export_edge_lengths(garment, skirtified=False):
+def export_edge_lengths(garment):
     
     def process_garment_part(segment_names: List, garment):
         mesh_dict = {}
@@ -309,13 +310,25 @@ def export_edge_lengths(garment, skirtified=False):
                 f.write(f"{int1} {int2} {value:.6f}\n")
     
     segment_names_dict = {}
-    if not skirtified:
-        segment_names_dict['upper'] = SEGMENT_NAMES['default']['upper']
-        segment_names_dict['lower'] = SEGMENT_NAMES['default']['lower']
-    else:
-        raise NotImplementedError()
+    segment_names_dict['upper'] = SEGMENT_NAMES['default']['upper']
+    segment_names_dict['lower'] = SEGMENT_NAMES['default']['lower']
     
     result_dir = 'data/embedded/latest/skintight/'
     for part_name in ['upper', 'lower']:
         edge_lengths_map = process_garment_part(segment_names_dict[part_name], garment)
         save_edge_map(result_dir, part_name, edge_lengths_map)
+
+
+def store_preselected(template_dir_path, patch_idxs_dict, modified_verts):
+    for patch_label in patch_idxs_dict:
+        np.save(os.path.join(template_dir_path, f'{patch_label}_idxs.npy'), np.array(patch_idxs_dict[patch_label], dtype=np.int32))    
+    np.save(os.path.join(template_dir_path, 'modified_verts.npy'), modified_verts)
+
+
+def load_preselected(template_dir_path):
+    patch_idxs_dict = {}
+    for patch_label in PATCH_LIST:
+        patch_idxs_dict[patch_label] = np.load(os.path.join(template_dir_path, f'{patch_label}.npy'))
+    modified_verts = np.load(os.path.join(template_dir_path, 'modified_verts.npy'))
+
+    return patch_idxs_dict, modified_verts

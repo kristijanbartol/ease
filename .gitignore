@@ -6,3 +6,6 @@ assets/*
 __pycache__/
 *.ply
 *.obj
+anisotropic-parameterization/build/
+tailorlang/lib/*.so
+tailorlang/lib/*.pyd
