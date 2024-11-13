@@ -1,6 +1,3 @@
 [submodule "anisotropic-parameterization"]
 	path = anisotropic-parameterization
 	url = https://github.com/kristijanbartol/anisotropic-parameterization.git
-[submodule "isotropic-remeshing"]
-	path = isotropic-remeshing
-	url = https://github.com/kristijanbartol/isotropic-remeshing.git
