@@ -6,7 +6,6 @@ import random
 
 from tailorlang.const import (
     PLANE_ORIENT_DICT,
-    SEAM_IDX_DICT,
     THRESH_TO_SEAMS_DICT,
     THRESH_TO_SEGMENT_DICT
 )
@@ -193,7 +192,31 @@ def modify_mesh_with_plane_cut(vertices, faces, cutting_point, plane_orientation
         t = d1 / (d1 - d2)
         return v1 + t * (v2 - v1)
 
-    def move_to_nearest_edge(vertex, polygon_edges):
+    def compute_barycentric_coordinates(point, triangle):
+        # Convert to numpy arrays for vector operations
+        v0, v1, v2 = triangle
+        
+        # Compute vectors
+        v0v1 = v1 - v0
+        v0v2 = v2 - v0
+        v0p = point - v0
+        
+        # Compute dot products
+        d00 = np.dot(v0v1, v0v1)
+        d01 = np.dot(v0v1, v0v2)
+        d11 = np.dot(v0v2, v0v2)
+        d20 = np.dot(v0p, v0v1)
+        d21 = np.dot(v0p, v0v2)
+        
+        # Compute barycentric coordinates
+        denom = d00 * d11 - d01 * d01
+        v = (d11 * d20 - d01 * d21) / denom
+        w = (d00 * d21 - d01 * d20) / denom
+        u = 1.0 - v - w
+        
+        return np.array([u, v, w])
+
+    def move_to_nearest_edge(vertex, polygon_edges, original_triangle):
         min_dist = float('inf')
         nearest_point = vertex
         for edge in polygon_edges:
@@ -206,10 +229,14 @@ def modify_mesh_with_plane_cut(vertices, faces, cutting_point, plane_orientation
             if dist < min_dist:
                 min_dist = dist
                 nearest_point = projection
-        return nearest_point
+        
+        # Compute barycentric coordinates for the nearest point
+        barycentric = compute_barycentric_coordinates(nearest_point, original_triangle)
+        return nearest_point, barycentric
 
     intersected_triangles = []
     intersection_points = []
+    barycentric_coords = {}  # Dictionary to store barycentric coordinates
 
     for face in faces:
         v1, v2, v3 = vertices[face]
@@ -226,20 +253,23 @@ def modify_mesh_with_plane_cut(vertices, faces, cutting_point, plane_orientation
             intersected_triangles.append(face)
 
     if not intersection_points:
-        return vertices, faces
+        return vertices, faces, {}
 
     intersection_points = np.array(intersection_points)
     polygon_edges = [(intersection_points[i], intersection_points[i + 1]) for i in range(0, len(intersection_points) - 1, 2)]
 
     new_vertices = vertices.copy()
     for face in intersected_triangles:
+        triangle = vertices[face]  # Original triangle vertices
         for i in range(3):
             v_idx = face[i]
             vertex = vertices[v_idx]
             if point_plane_distance(vertex) > 0:
-                new_vertices[v_idx] = move_to_nearest_edge(vertex, polygon_edges)
+                new_vertex, bary_coords = move_to_nearest_edge(vertex, polygon_edges, triangle)
+                new_vertices[v_idx] = new_vertex
+                barycentric_coords[v_idx] = bary_coords
 
-    return new_vertices
+    return new_vertices, barycentric_coords
 
 
 def cut_seamlines(design_dict, verts, faces):
@@ -262,3 +292,15 @@ def cut_seamlines(design_dict, verts, faces):
             plane_orientation=PLANE_ORIENT_DICT[threshold_label]
         )
     return verts, threshold_dict
+
+
+def point_side(p, edge, dart_orient):
+    return dart_orient * np.cross(edge[1] - edge[0], p - edge[0])[1]  # Assuming Y is up
+
+
+def update_face(face, v_idx_to_update, new_v_idx):
+    # To update the vertex in the face, iterate through the triangle.
+    for idx, v_idx in enumerate(face):
+        if v_idx == v_idx_to_update:
+            face[idx] = new_v_idx
+    return face

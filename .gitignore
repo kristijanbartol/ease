@@ -1,4 +1,5 @@
 build/
+view*/
 data/
 assets/*
 !assets/preprint-review.pdf

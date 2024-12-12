@@ -2,15 +2,11 @@ import argparse
 import os
 from shutil import rmtree
 import json
-import numpy as np
-from smplx import SMPL
 
-from tailorlang.body_processing import (
+from tailorlang.mesh_processing import (
     initialize_smpl_models,
     initialize_modified_smpl_models,
-    modify_body_mesh
-)
-from tailorlang.garment_processing import (
+    modify_body_mesh,
     apply_all_cuts,
     apply_masks,
     apply_length_params,
@@ -20,14 +16,15 @@ from tailorlang.garment_processing import (
     init_garment_for_preselect,
     init_static,
     initialize_garment_and_configs,
-    process_garment_set
+    process_garment_set,
+    preselect
 )
 from tailorlang.pybind import apply_remesh
 from tailorlang.seams import (
     determine_all_seams
 )
 from tailorlang.submodules import run_parameterization
-from tailorlang.utils import (
+from tailorlang.io import (
     export,
     export_edge_lengths,
     export_stretch_arrays,
@@ -37,32 +34,12 @@ from tailorlang.utils import (
 from tailorlang.vis import visualize_pattern
 
 
-def preselect(_unused_set_dict):
-    # NOTE: Only the default (zero female) shape is now supported as initial.
-    TEMPLATE_DIR_NAME = 'female-zero_shape'
-    template_dir_path = f'templates/{TEMPLATE_DIR_NAME}/'
-    if not os.path.exists(template_dir_path):
-        print(f'(generating new template - {TEMPLATE_DIR_NAME}...)')
-        os.makedirs(template_dir_path)
-        design_dict, female_model, canonical_verts = init_static(args)
-        modified_verts, threshold_dict = apply_length_params(design_dict, canonical_verts, female_model)
-        
-        patch_idxs_dict = apply_pre_seams(modified_verts, threshold_dict)
-        patch_idxs_dict = collect_vert_idxs_of_full_garments(patch_idxs_dict)
-        
-        store_preselected(template_dir_path, patch_idxs_dict, modified_verts)
-    else:
-        print(f'(pre-loading existing template - {TEMPLATE_DIR_NAME}...)')
-        patch_idxs_dict, modified_verts = load_preselected(template_dir_path)
-        
-    return patch_idxs_dict, modified_verts
-
-
 def prepare(args):
-    design_dict, set_dict, smpl_model, canonical_verts = init_static(args)
-    patch_idxs_dict, modified_verts = preselect(set_dict)
+    #design_dict, set_dict, smpl_model, canonical_verts = init_static(args)
+    patch_idxs_dict, modified_verts, smpl_model = preselect(args, set_dict)
+    garment_params = get_garment_params(args)
     
-    modified_verts, threshold_dict = apply_length_params(design_dict, canonical_verts, smpl_model)
+    modified_verts, threshold_dict = apply_length_params(garment_params, smpl_model)
     patch_idxs_dict = apply_masks(patch_idxs_dict, modified_verts, threshold_dict)
     
     if args.apply_remesh:

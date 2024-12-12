@@ -13,3 +13,8 @@ rtree
 torch
 torchvision
 pytest
+# ui
+PyQt6
+pyqtgraph
+PyOpenGL
+PyOpenGL_accelerate

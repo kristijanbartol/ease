@@ -30,6 +30,19 @@
             "justMyCode": false,
             "args": [
             ]
+        },
+        {
+            "name": "(relative)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tailorlang/geo/path_finder.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": []
         }
     ]
 }

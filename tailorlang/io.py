@@ -84,30 +84,14 @@ def export_to_ply(args, verts, faces, vertex_indices_by_color, path):
         write_ply_file(ply_filename, verts, updated_faces, vertex_colors)
 
 
-def export_to_obj(args, verts, faces, vertex_indices_by_color, path):
-    obj_filename = f"{path}.obj"
-    if args.standard_export:
-        trimesh.Trimesh(vertices=verts, faces=faces).export(obj_filename)
-    else:
-        # Make sure faces are referring to the correct vertex indices
-        used_vertex_indices = set(idx for indices in vertex_indices_by_color.values() for idx in indices)
-        verts = verts[list(used_vertex_indices)]
-        
-        # Update the face indices
-        index_mapping = {old_index: new_index for new_index, old_index in enumerate(sorted(used_vertex_indices))}
-        updated_faces = [[index_mapping[idx] for idx in face] for face in faces if set(face).issubset(used_vertex_indices)]
-
-        write_obj_file(obj_filename, verts, updated_faces)
-
-
-def export(args, verts, faces, path, format='ply', vertex_indices_by_color=None):
+def export(verts, faces, path, format='both'):
     if format == 'ply':
-        export_to_ply(args, verts, faces, vertex_indices_by_color, path)
+        trimesh.Trimesh(vertices=verts, faces=faces).export(f"{path}.ply")
     elif format == 'obj':
-        export_to_obj(args, verts, faces, vertex_indices_by_color, path)
+        trimesh.Trimesh(vertices=verts, faces=faces).export(f"{path}.obj")
     else:
-        export_to_ply(args, verts, faces, vertex_indices_by_color, path)
-        export_to_obj(args, verts, faces, vertex_indices_by_color, path)
+        trimesh.Trimesh(vertices=verts, faces=faces).export(f"{path}.ply")
+        trimesh.Trimesh(vertices=verts, faces=faces).export(f"{path}.obj")
 
 
 def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stretch=1.3):
@@ -332,3 +316,4 @@ def load_preselected(template_dir_path):
     modified_verts = np.load(os.path.join(template_dir_path, 'modified_verts.npy'))
 
     return patch_idxs_dict, modified_verts
+ # type: ignore

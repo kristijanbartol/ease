@@ -3,13 +3,7 @@ from pathlib import Path
 import numpy as np
 
 # Import the C++ module
-try:
-    from .lib.remesh_module import apply_remesh_and_trace
-except ImportError as e:
-    raise ImportError(
-        "Could not import remesh_module. Make sure the C++ project "
-        "was built successfully during installation."
-    ) from e
+from .lib.remesh_module import apply_remesh_and_trace
 
 def apply_remesh(vertices, faces, seamline_pairs, reduction_factor=1.0):
     """
@@ -21,4 +15,6 @@ def apply_remesh(vertices, faces, seamline_pairs, reduction_factor=1.0):
     seamline_pairs = np.ascontiguousarray(seamline_pairs, dtype=np.int32)
     
     # Call C++ function
-    return apply_remesh_and_trace(vertices, faces, seamline_pairs, reduction_factor)
+    new_verts, new_faces, new_seamline_pairs = apply_remesh_and_trace(vertices, faces, seamline_pairs, reduction_factor)
+    
+    return new_verts, new_faces, new_seamline_pairs

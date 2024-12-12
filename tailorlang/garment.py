@@ -4,18 +4,80 @@ import trimesh
 import os
 from collections import defaultdict
 
-from tailorlang.geometry import apply_offset_to_verts
+from tailorlang.geometry import (
+    apply_offset_to_verts,
+    modify_mesh_with_plane_cut
+)
 from tailorlang.const import (
-    SEGMENT_TO_SEAMLINES_DICT,
+    COMPONENT_SIGN_DICT,
+    FIXED_POINTS_DICT,
+    PLANE_ORIENT_DICT,
     SEGMENT_TO_ID,
     SEAM_TO_SEAM_IDX_DICT,
-    SEGMENT_TO_DARTS,
     DART_ORIENTS
 )
-from tailorlang.utils import (
+from tailorlang.io import (
     save_seamline_pairs_file,
     save_darts_files
 )
+
+
+class DesignParameters:
+    def __init__(self, design_dict=None):
+        self.shirt_looseness = 1.0
+        self.sleeve_looseness = 1.0
+        self.pant_looseness = 1.0
+        
+        if design_dict is None:
+            # Initialize with default values
+            self.shirt_length = 0.3
+            self.sleeve_length = 0.3
+            self.pant_length = 0.3
+        else:
+            self.shirt_length = design_dict['dims']['upper']
+            self.sleeve_length = design_dict['dims']['sleeve']
+            self.pant_length = design_dict['dims']['lower']
+        
+    def update_parameter(self, param_name, value):
+        if hasattr(self, param_name):
+            setattr(self, param_name, value)
+            return True
+        return False
+    
+
+class BodySet:
+    def __init__(self, set_dict=None):
+        if set_dict is None:
+            self.ref = {
+                'pose': 't_pose',
+                'shape': 'zero_shape',
+                'gender': 'female'
+            }
+            self.target = {
+                'poses': [],
+                'shapes': [],
+                'genders': []
+            }
+            self.num_targets = 0
+        else:
+            self.ref = {
+                'pose': set_dict['poses'][0],
+                'shape': set_dict['shapes'][0],
+                'gender': set_dict['genders'][0]
+            }
+            self.target = {
+                'poses': set_dict['poses'][1:],
+                'shapes': set_dict['shapes'][1:],
+                'genders': set_dict['genders'][1:]
+            }
+            self.num_targets = len(set_dict['poses']) - 1
+        
+        self.ref_gender = self.ref['gender']
+        self.target_genders_differ_from_ref = False
+        for target_gender in self.target['genders']:
+            # If any of the target genders differ from the reference gender, will use both SMPL models
+            if target_gender != self.ref_gender:
+                self.target_genders_differ_from_ref = True
 
 
 def point_side(p, edge, dart_orient):

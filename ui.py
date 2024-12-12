@@ -1,34 +1,34 @@
 import sys
 import os
+import argparse
 import numpy as np
 from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSlider, QLabel, QPushButton, QFrame)
-from PyQt6.QtCore import Qt, QPoint, pyqtSignal
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtCore import Qt
 import pyqtgraph.opengl as gl
 import pyqtgraph as pg
+from smplx import SMPL
+import json
 
-class GarmentParameters:
-    def __init__(self):
-        # Initialize with default values
-        self.shirt_length = 0.3
-        self.sleeve_length = 0.3
-        self.pant_length = 0.3
-        self.shirt_looseness = 0.8
-        self.sleeve_looseness = 0.8
-        self.pant_looseness = 0.8
-        
-    def update_parameter(self, param_name, value):
-        if hasattr(self, param_name):
-            setattr(self, param_name, value)
-            return True
-        return False
+from tailorlang.mesh_processing import (
+    load_canonical_mesh,
+    load_garments,
+    MeshState
+)
+from tailorlang.garment import DesignParameters
+
 
 class Mesh3DView(gl.GLViewWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.mesh_items = []
         self.setup_view()
+        
+        # Camera control states
+        self.last_pos = None
+        self.moving = False
+        self.panning = False
         
     def setup_view(self):
         # Add grid for reference
@@ -41,19 +41,151 @@ class Mesh3DView(gl.GLViewWidget):
         self.opts['diffuse'] = 0.8
         
         # Setup camera
-        self.setCameraPosition(distance=2.5)
+        self.setCameraPosition(distance=2.5, elevation=30, azimuth=45)
         self.opts['fov'] = 60
         
-    def update_mesh(self, vertices, faces, colors=None):
-        # Clear existing mesh items
-        for item in self.items:
-            if isinstance(item, gl.GLMeshItem):
-                self.removeItem(item)
+    def mousePressEvent(self, event):
+        """Handle mouse press events for rotation and panning"""
+        self.last_pos = event.pos()
+        if event.button() == Qt.MouseButton.LeftButton:
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self.panning = True
+            else:
+                self.moving = True
+                
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release events"""
+        self.moving = False
+        self.panning = False
+        self.last_pos = None
         
-        # Create and add new mesh
-        mesh = gl.GLMeshItem(vertexes=vertices, faces=faces, smooth=True,
-                            drawEdges=False, color=colors if colors is not None else (0.7, 0.7, 0.7, 1))
-        self.addItem(mesh)
+    def mouseMoveEvent(self, event):
+        """Handle mouse movement for rotation and panning"""
+        if self.last_pos is None:
+            self.last_pos = event.pos()
+            return
+            
+        diff = event.pos() - self.last_pos
+        self.last_pos = event.pos()
+        
+        if self.moving:  # Rotation
+            dx = diff.x()
+            dy = diff.y()
+            
+            # Update camera angles
+            self.opts['elevation'] = min(max(self.opts['elevation'] - dy/2, -90), 90)
+            self.opts['azimuth'] = (self.opts['azimuth'] + dx/2) % 360
+            
+            self.update()
+            
+        elif self.panning:  # Panning
+            dx = diff.x() / 100.0
+            dy = diff.y() / 100.0
+            
+            # Get camera vectors
+            cameraPosition = np.array(self.cameraPosition())
+            center = np.array(self.opts['center'])
+            up = np.array(self.opts['up'])
+            
+            # Calculate right vector
+            forward = center - cameraPosition
+            right = np.cross(forward, up)
+            right = right / np.linalg.norm(right)
+            
+            # Update camera position and center
+            translation = right * dx - up * dy
+            self.opts['center'] = center + translation
+            self.update()
+            
+    def wheelEvent(self, event):
+        """Handle mouse wheel for zooming"""
+        delta = event.angleDelta().y()
+        
+        # Adjust zoom speed
+        factor = 0.001
+        
+        if self.opts['distance'] * (1 - delta * factor) > 0.1:  # Prevent zoom too close
+            self.opts['distance'] *= (1 - delta * factor)
+            self.update()
+        
+    def update_meshes(self, mesh_state):
+        # Clear existing mesh items
+        for item in self.mesh_items:
+            self.removeItem(item)
+        self.mesh_items.clear()
+        
+        # Add canonical mesh (body)
+        if mesh_state.canonical_mesh['vertices'] is not None:
+            body = gl.GLMeshItem(
+                vertexes=mesh_state.canonical_mesh['vertices'],
+                faces=mesh_state.canonical_mesh['faces'],
+                smooth=True,
+                drawEdges=False,
+                color=mesh_state.canonical_mesh['color']
+            )
+            self.addItem(body)
+            self.mesh_items.append(body)
+        
+        # TODO: Show either active or canonical mesh
+        if not np.array_equal(mesh_state.active_mesh['vertices'], 
+                            mesh_state.canonical_mesh['vertices']):
+            active = gl.GLMeshItem(
+                vertexes=mesh_state.active_mesh['vertices'],
+                faces=mesh_state.canonical_mesh['faces'],  # faces should be the same
+                smooth=True,
+                drawEdges=False,
+                color=(0.8, 0.8, 0.8, 0.5)  # semi-transparent gray
+            )
+            self.addItem(active)
+            self.mesh_items.append(active)
+        
+        if len(mesh_state.masked_patch_idxs_dict) != 0:
+            for garment_label in ['upper', 'lower']:
+                garment_vert_idxs = mesh_state.masked_patch_idxs_dict[garment_label]
+                garment_verts = mesh_state.active_mesh['vertices'][garment_vert_idxs]
+                garment = gl.GLScatterPlotItem(
+                    pos=garment_verts,
+                    color=(0.0, 0.5, 0.0, 1.0),
+                    size=5
+                )
+                self.addItem(garment)
+                self.mesh_items.append(garment)
+            
+        # TODO: Add patches to view 2 or add a switch of views in view1.
+        '''
+        # Add garment patches
+        if hasattr(mesh_state, 'masked_patch_idxs_dict'):
+            for patch_label, patch_vert_idxs in mesh_state.masked_patch_idxs_dict.items():
+                if patch_vert_idxs is not None:
+                    # Determine color based on garment type
+                    color = (0.6, 0.8, 1.0, 1.0)  # default light blue
+                    if 'upper' in patch_label:
+                        color = (0.6, 0.8, 1.0, 1.0)  # light blue for upper
+                    elif 'lower' in patch_label:
+                        color = (0.0, 0.5, 0.0, 1.0)  # dark green for lower
+                    
+                    patch_verts = mesh_state.active_mesh['vertices'][patch_vert_idxs]
+                    patch = gl.GLScatterPlotItem(
+                        pos=patch_verts,
+                        color=color,
+                        size=5
+                    )
+                    self.addItem(patch)
+                    self.mesh_items.append(patch)
+        '''
+        
+        # Add seamlines if they exist
+        # TODO: Verify this!
+        if hasattr(mesh_state, 'masked_seamlines_dict'):
+            for seamline_label, seamline_verts in mesh_state.masked_seamlines_dict.items():
+                if seamline_verts is not None:
+                    seamline = gl.GLLinePlotItem(
+                        pos=seamline_verts,
+                        color=(1.0, 0.0, 0.0, 1.0),  # red
+                        width=2
+                    )
+                    self.addItem(seamline)
+                    self.mesh_items.append(seamline)
 
 class PatternView(pg.ImageView):
     def __init__(self, parent=None):
@@ -66,10 +198,12 @@ class PatternView(pg.ImageView):
         self.setImage(pattern_array)
 
 class GarmentDesignerUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, args):
         super().__init__()
-        self.parameters = GarmentParameters()
+        self.args = args
         self.setup_ui()
+        self.mesh_state = MeshState(self.args.smpl_dir, self.args.gender)
+        self.update_skintight_view()
         
     def setup_ui(self):
         self.setWindowTitle("Garment Designer")
@@ -103,6 +237,27 @@ class GarmentDesignerUI(QMainWindow):
         layout.addLayout(left_column)
         layout.addLayout(right_column)
         
+    def update_parameter(self, param_name, value):
+        self.mesh_state.update_parameter(param_name, value)
+        # TODO: Consider not automatically updating whole garments for efficiency.
+        self.update_garments()
+        self.update_views()
+            
+    def update_garments(self):
+        try:
+            self.mesh_state.update_garment_meshes()
+            self.update_skintight_view()
+            
+        except Exception as e:
+            print(f"Error updating garments: {e}")
+            
+    def update_skintight_view(self):
+        """Update the skintight mesh view with current mesh state"""
+        if isinstance(self.skintight_view, QFrame):
+            view = self.skintight_view.findChild(Mesh3DView)
+            if view:
+                view.update_meshes(self.mesh_state)
+        
     def create_3d_view(self, title):
         frame = QFrame()
         frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -125,16 +280,28 @@ class GarmentDesignerUI(QMainWindow):
         button_layout.addWidget(save_button)
         layout.addLayout(button_layout)
         
-        # Connect save button
+        # Connect save button with special handling for view 1
         view_number = {
             "Skintight Mesh": 1,
             "Colored Mesh": 2,
             "Simulation": 4
         }.get(title)
-        if view_number:
+        
+        if view_number == 1:
+            save_button.clicked.connect(lambda: self.handle_view1_save(view))
+        elif view_number:
             save_button.clicked.connect(lambda: self.save_view(view_number, view))
         
         return frame
+    
+    def handle_view1_save(self, view):
+        # Call finalize method
+        self.mesh_state.finalize()
+        
+        self.mesh_state.optimize()
+        
+        # Save the view after finalization
+        self.save_view(1, view)
         
     def create_pattern_view(self, title):
         frame = QFrame()
@@ -170,9 +337,9 @@ class GarmentDesignerUI(QMainWindow):
         
         # Create sliders for lengths
         length_params = {
-            "shirt_length": ("Shirt Length", 0.3, 0.9),
-            "sleeve_length": ("Sleeve Length", 0.3, 0.9),
-            "pant_length": ("Pant Length", 0.3, 0.9)
+            "shirt_length": ("Shirt Length", 0.1, 0.5),
+            "sleeve_length": ("Sleeve Length", 0.1, 0.5),
+            "pant_length": ("Pant Length", 0.25, 0.9)
         }
         
         for param_name, (label_text, min_val, max_val) in length_params.items():
@@ -210,14 +377,10 @@ class GarmentDesignerUI(QMainWindow):
         menu.show()
         return menu
     
-    def update_parameter(self, param_name, value):
-        if self.parameters.update_parameter(param_name, value):
-            self.update_views()
-    
     def update_views(self):
         # This method will be connected to your backend
         # For now it's a placeholder for the backend integration
-        pass
+        self.update_garments()
     
     def save_view(self, view_number, view):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -246,7 +409,21 @@ class GarmentDesignerUI(QMainWindow):
         self.simulation_view.update_mesh(vertices, faces)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_darts', action='store_true', dest='use_darts',
+                        help='whether to use darts in the design and parameterization algorithm')
+    parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply',
+                        help='')
+    parser.add_argument('--design', '-D', type=str, default='default')
+    parser.add_argument('--body_set', type=str, default="set2")
+    parser.add_argument('--project_dir', type=str, default='/home/kristijan/TailorLang/', 
+                        help='an absolute path to this project')
+    parser.add_argument('--smpl_dir', type=str, default="/home/kristijan/data/smpl/models/")
+    parser.add_argument('--gender', type=str, default="female")
+    parser.add_argument('--standard_export', action='store_true', dest='standard_export')
+    args = parser.parse_args()
+    
     app = QApplication(sys.argv)
-    window = GarmentDesignerUI()
+    window = GarmentDesignerUI(args)
     window.show()
     sys.exit(app.exec())
