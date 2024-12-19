@@ -163,7 +163,8 @@ class MeshProcessor:
             
         # Add new vertices (all dart vertices except the tip (last vertex)). 
         new_vertices = vertices[selected_vidxs[:-1]]
-        new_vertices[:, 1] += 0.00001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
+        #new_vertices[:, 1] += 0.00001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
+        new_vertices[:, 1] += 0.001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
         updated_vertices = np.vstack((vertices, new_vertices))
         
         # Create a dart vertex pair strategy relevant for further processing (parameterization).
@@ -341,7 +342,10 @@ def transfer_remesh_to_target(source_vertices, source_faces, target_vertices_lis
 
 class MeshState:
     
-    def __init__(self, body_set='solo-female'):
+    def __init__(self, body_set='solo-female', use_darts=False, apply_remesh=False):
+        self.use_darts = use_darts
+        self.apply_remesh = apply_remesh
+        
         # Patch-threshold dictionaries
         self.threshold_dict = {}
         
@@ -351,9 +355,6 @@ class MeshState:
         
         self._init_static(body_set)
         self._prepare_init()
-        
-        # Initialize masked patches and seamlines with the reference (initial) ones
-        #self.masked_seamlines_dict = self.ref_seamlines_dict.copy()
         
         # Data structures for the finalization
         # TODO: Have one reference body and a set of target bodies (not necessarily including the reference body)
@@ -402,9 +403,6 @@ class MeshState:
             vertex_idxs = PRE_SEAMS_DICT[seamline_label]
             verts = [self.canonical_mesh['vertices'][idx] for idx in vertex_idxs]
             self.ref_seamlines_dict[seamline_label] = np.array(verts)
-            
-        self.apply_remesh = False
-        self.use_darts = False
         
     def _prepare_init(self):
         # TODO: Preload these for efficiency (for each already-prepared reference body)
@@ -412,71 +410,7 @@ class MeshState:
         self.apply_pre_seams()
         self.apply_masks()
     
-    '''
-    def flood_fill(self, body_verts, boundary_vertices, start_vertex, patch_type, threshold, **kwargs):
-        """
-        Unified flood fill function that automatically handles different garment types.
-        
-        Parameters:
-        - body_verts: Array of all vertex positions
-        - boundary_vertices: List of boundary vertex indices
-        - start_vertex: Starting vertex index for flood fill
-        - patch_type: String indicating garment type ('upper', 'lower', or 'sleeve')
-        - threshold: Main threshold value (interpreted based on garment_label)
-        - **kwargs: Additional arguments:
-            - upper_threshold: Optional upper bound for Y threshold (for upper/lower garments)
-            - side: 'left' or 'right' for sleeves
-        
-        Returns:
-        - List of selected vertex indices
-        """
-        def threshold_check(pos, idx):
-            if patch_type == 'sleeve':
-                side = kwargs.get('side', 'right')
-                return pos[idx, 0] > threshold if side == 'right' else pos[idx, 0] < threshold
-            else:
-                # For upper and lower garments, use Y threshold
-                condition = pos[idx, 1] >= threshold
-                #upper_threshold = kwargs.get('upper_threshold')
-                #if upper_threshold is not None:
-                condition = condition and pos[idx, 1] <= upper_threshold
-                return condition
-
-        # Convert boundary vertices to a set for efficient lookup
-        boundary_set = set(boundary_vertices)
-        
-        # Initialize stack, visited set, and selected vertices set
-        stack = [start_vertex]
-        visited = set()
-        selected_vertices = set()
-        
-        # Main flood fill loop
-        while stack:
-            vertex_idx = stack.pop()
-            
-            # Check if vertex should be processed
-            if (vertex_idx not in visited and 
-                vertex_idx not in boundary_set and 
-                threshold_check(body_verts, vertex_idx)):
-                
-                # Mark vertex as visited and selected
-                visited.add(vertex_idx)
-                selected_vertices.add(vertex_idx)
-                
-                # Add unvisited neighbors to stack
-                for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
-                    if neighbor_idx not in visited:
-                        stack.append(neighbor_idx)
-        
-        # Add qualifying boundary vertices
-        thresh_boundaries = [idx for idx in boundary_vertices 
-                            if threshold_check(body_verts, idx)]
-        selected_vertices.update(thresh_boundaries)
-        
-        return list(selected_vertices)
-    '''
-    
-    def flood_fill(self, vertex_positions, boundary_vertices, start_vertex, threshold_params, patch_label=None):
+    def flood_fill(self, vertex_positions, boundary_vertices, start_vertex, threshold_params):
         """
         Unified flood fill function that can handle both vertical (pants) and horizontal (sleeve) filling.
         
@@ -522,10 +456,6 @@ class MeshState:
                 for neighbor_idx in self.vertex_adjacency_list[vertex_idx]:
                     if neighbor_idx not in visited:
                         stack.append(neighbor_idx)
-                        
-                if patch_label is not None and 'lower' in patch_label and len(visited) % 50 == 0:
-                    cloud = trimesh.PointCloud(vertex_positions[list(selected_vertices)])
-                    cloud.export(f'debug/{patch_label}-{len(visited):02d}.ply', file_type='ply')
 
         # Add boundary vertices that meet threshold conditions
         thresh_boundaries = [index for index in boundary_vertices if check_threshold(index)]
@@ -592,8 +522,7 @@ class MeshState:
                 vertex_positions=self.active_mesh['vertices'],
                 boundary_vertices=sum(PATCH_TO_PRE_SEAMS_DICT[patch_label].values(), []),
                 start_vertex=INIT_IDXS[patch_label],
-                threshold_params=params,
-                patch_label=patch_label
+                threshold_params=params
             )
             self.full_patch_idxs_dict[patch_label] = np.array(patch_vert_idxs, dtype=np.int16)
             
@@ -729,7 +658,7 @@ class MeshState:
             self.old_to_new_idx_dict[patch_label] = self._extract_old_to_new_vert_idxs_map(patch_vert_idxs)
             
             # Extract reference mesh patches
-            self.ref_patch_verts_dict[patch_label] = self.active_mesh['vertices'][self.masked_patch_idxs_dict[patch_label]]
+            self.ref_patch_verts_dict[patch_label] = self.active_mesh['vertices'][patch_vert_idxs]
             self.ref_patch_faces_dict[patch_label] = self._map_old_to_new_faces(patch_label, patch_faces)
             
             trimesh.Trimesh(vertices=self.ref_patch_verts_dict[patch_label], faces=self.ref_patch_faces_dict[patch_label]).export(f'{patch_label}.ply')
@@ -752,12 +681,12 @@ class MeshState:
         The `map_old_to_new_indices` function selects only the vertex indices that are previously
         selected for that patch.
         '''
-        def map_old_to_new_indices(old_indices):
+        def map_old_to_new_indices(patch_label, old_indices):
             new_indices = []
             for old_index in old_indices:
                 # NOTE (crucial): Some old indices might not be in the old-to-new dictionary since they are boundary vertices below the garment length threshold
-                if old_index in self.old_to_new_idx_dict:
-                    new_indices.append(self.old_to_new_idx_dict[old_index])
+                if old_index in self.old_to_new_idx_dict[patch_label]:
+                    new_indices.append(self.old_to_new_idx_dict[patch_label][old_index])
             return new_indices
 
         for patch_label in PATCH_LIST:
@@ -765,26 +694,26 @@ class MeshState:
             for seam_label in SEGMENT_TO_SEAMLINES_DICT[patch_id]:
                 if seam_label not in self.seam_to_segment_vertex_pairs:
                     self.seam_to_segment_vertex_pairs[seam_label] = {
-                        patch_id: map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        patch_id: map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
                     }
                 else:
                     self.seam_to_segment_vertex_pairs[seam_label][patch_id] = \
-                        map_old_to_new_indices(SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
                         
     def _update_darts(self):
         for patch_label in PATCH_LIST:
             self.dart_dict[patch_label] = {}
             for dart_name in SEGMENT_TO_DARTS[patch_label]:
                 dart_vertices = SEGMENT_TO_DARTS[patch_label][dart_name]
-                new_darts_verts_idxs = [self.old_to_new_idx_dict[v] for v in dart_vertices]
-                garment_verts, garment_faces, dart_vertex_pairs = MeshProcessor.create_dart(
-                    garment_verts, 
-                    garment_faces, 
-                    new_darts_verts_idxs,
+                new_darts_verts_idxs = [self.old_to_new_idx_dict[patch_label][v] for v in dart_vertices]
+                self.ref_patch_verts_dict[patch_label], self.ref_patch_faces_dict[patch_label], dart_vertex_pairs = MeshProcessor.create_dart(
+                    vertices=self.ref_patch_verts_dict[patch_label], 
+                    faces=self.ref_patch_faces_dict[patch_label], 
+                    selected_vidxs=new_darts_verts_idxs,
                     dart_orient=DART_ORIENTS[dart_name]
                 )
                 self.dart_dict[patch_label][dart_name] = dart_vertex_pairs
-            return garment_verts, garment_faces
+            # TODO: Transfer darts to target meshes.
         
     def _get_seam_to_seam_endpoint_dict(self, patch_label):
         patch_id = SEGMENT_TO_ID[patch_label]
@@ -837,10 +766,15 @@ class MeshState:
                 fpath=os.path.join(seamline_dir, f'{seam_name}.txt'),
                 seamline_pair_dict=self.seam_to_segment_vertex_pairs[seam_name]
             )
-        darts_dir = f'data/darts/{mode}/'
-        os.makedirs(os.path.join(darts_dir), exist_ok=True)
         for patch_label in self.dart_dict:
-            save_darts_files(os.path.join(darts_dir, f'{patch_label}.txt'), self.dart_dict[patch_label])
+            darts_dir = f'data/darts/{mode}/{patch_label}'
+            os.makedirs(os.path.join(darts_dir), exist_ok=True)
+            save_darts_files(darts_dir, self.dart_dict[patch_label])
+        
+    @staticmethod
+    def check_unique_with_tolerance(vertices, tolerance=1e-4):
+        rounded = np.round(vertices / tolerance) * tolerance
+        return len(np.unique(rounded, axis=0)) == len(vertices)
         
     def _export_prepared_data(self):
         mesh_dir = 'data/embedded/ui/'

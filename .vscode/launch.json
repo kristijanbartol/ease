@@ -12,13 +12,23 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                //"--use_darts",
-                "--file_format", "both",
                 "--project_dir", "/Users/kristijanbartol/TailorLang/",
                 "--smpl_dir", "/Users/kristijanbartol/data/smpl/models/",
-                "--body_set", "solo-female",
-                "--design", "skintight",
-                "--standard_export"
+                "--setup_config", "default",
+                //"--body_set", "solo-female",
+                //"--design", "skintight",
+                //"--optim_dress",
+                //"--apply_remesh",
+                //"--use_darts",
+                //"--equalize_seamline_lengths",
+                //"--matching_mode", "strict",
+                //"--seamline_strategy", "bezier",
+                //"--num_seam_iters", "5",
+                //"--max_stretch", "0.05",
+                //"--stretch_coef", "2.0",
+                //"--edges_coef", "1.0",
+                //"--seams_coef", "100.0",
+                //"--dart_coef", "50.0"
             ]
         },
         {
@@ -35,7 +45,7 @@
             "name": "(relative)",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tailorlang/geo/path_finder.py",
+            "program": "${file}",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false,

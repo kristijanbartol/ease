@@ -1,0 +1,18 @@
+{
+    "project_dir": "/Users/kristijanbartol/TailorLang/",
+    "smpl_dir": "/Users/kristijanbartol/data/smpl/models/",
+    "body_set": "solo-female",
+    "design": "skintight",
+    "optim_dress": false,
+    "apply_remesh": false,
+    "use_darts": true,
+    "equalize_seamline_lengths": false,
+    "matching_mode": "strict",
+    "seamline_strategy": "bezier",
+    "num_seam_iters": 5,
+    "max_stretch": 0.05,
+    "stretch_coef": 2.0,
+    "edges_coef": 1.0,
+    "seams_coef": 50.0,
+    "dart_coef": 50.0
+}

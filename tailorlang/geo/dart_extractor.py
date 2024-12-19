@@ -1,310 +1,356 @@
 import numpy as np
 import trimesh
+from copy import deepcopy
+from scipy.sparse.csgraph import shortest_path
+from scipy.sparse import csr_matrix
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict, Set
 
-@dataclass
-class Point:
-    x: float
-    y: float
-    z: float
-    
-    def distance_to(self, other: 'Point') -> float:
-        return np.sqrt((self.x - other.x)**2 + 
-                      (self.y - other.y)**2 + 
-                      (self.z - other.z)**2)
-    
-    def to_array(self) -> np.ndarray:
-        return np.array([self.x, self.y, self.z])
+from tailorlang.vis.stretches import color_code_stretches
 
-@dataclass
-class Edge:
-    v1_idx: int
-    v2_idx: int
-    
-    def __hash__(self):
-        # Order-independent hash
-        return hash(tuple(sorted([self.v1_idx, self.v2_idx])))
-    
-    def __eq__(self, other):
-        return (self.v1_idx == other.v1_idx and self.v2_idx == other.v2_idx) or \
-               (self.v1_idx == other.v2_idx and self.v2_idx == other.v1_idx)
-               
-@dataclass
-class Triangle:
-    p1: Point
-    p2: Point
-    p3: Point
-    
-    def calculate_area(self) -> float:
-        # Calculate area using cross product
-        v1 = np.array([self.p2.x - self.p1.x, self.p2.y - self.p1.y, self.p2.z - self.p1.z])
-        v2 = np.array([self.p3.x - self.p1.x, self.p3.y - self.p1.y, self.p3.z - self.p1.z])
-        cross = np.cross(v1, v2)
-        return 0.5 * np.sqrt(np.sum(cross**2))
-    
-    def contains_point(self, point: Point) -> float:
-        """
-        Returns the barycentric coordinates if point is in triangle.
-        The returned value can be used to determine partial containment.
-        """
-        def compute_barycentric(p: Point) -> Tuple[float, float, float]:
-            v0 = np.array([self.p2.x - self.p1.x, self.p2.y - self.p1.y, self.p2.z - self.p1.z])
-            v1 = np.array([self.p3.x - self.p1.x, self.p3.y - self.p1.y, self.p3.z - self.p1.z])
-            v2 = np.array([p.x - self.p1.x, p.y - self.p1.y, p.z - self.p1.z])
-            
-            d00 = np.dot(v0, v0)
-            d01 = np.dot(v0, v1)
-            d11 = np.dot(v1, v1)
-            d20 = np.dot(v2, v0)
-            d21 = np.dot(v2, v1)
-            
-            denom = d00 * d11 - d01 * d01
-            v = (d11 * d20 - d01 * d21) / denom
-            w = (d00 * d21 - d01 * d20) / denom
-            u = 1.0 - v - w
-            
-            return u, v, w
-            
-        u, v, w = compute_barycentric(point)
-        if 0 <= u <= 1 and 0 <= v <= 1 and 0 <= w <= 1:
-            return u + v + w  # Should be approximately 1 if point is in triangle
-        return 0.0
 
-class DartRegion:
-    def __init__(self, inner_triangle: Triangle, outer_triangle: Triangle):
-        self.inner_triangle = inner_triangle
-        self.outer_triangle = outer_triangle
-        self.inner_area = inner_triangle.calculate_area()
-        self.outer_area = outer_triangle.calculate_area()
-        
-    def get_containment_factor(self, face_triangle: Triangle) -> Tuple[float, float]:
-        """
-        Returns (inner_containment, outer_containment) factors for a face.
-        Values between 0 and 1 indicate partial containment.
-        """
-        # Sample points from the face triangle to determine containment
-        sample_points = self._generate_sample_points(face_triangle)
-        
-        inner_count = 0
-        outer_count = 0
-        total_points = len(sample_points)
-        
-        for point in sample_points:
-            inner_containment = self.inner_triangle.contains_point(point)
-            if inner_containment > 0:
-                inner_count += 1
-            
-            outer_containment = self.outer_triangle.contains_point(point)
-            if outer_containment > 0:
-                outer_count += 1
-        
-        return (inner_count / total_points, outer_count / total_points)
+def extract_submesh(vertices, faces, face_fractions_dict):
+    """
+    Extract a submesh given the original mesh and a list of face indices.
     
-    def _generate_sample_points(self, triangle: Triangle, num_samples: int = 10) -> List[Point]:
-        """Generate sample points within the triangle for containment testing"""
-        points = []
-        for i in range(num_samples):
-            for j in range(num_samples - i):
-                # Barycentric coordinates
-                a = i / num_samples
-                b = j / num_samples
-                c = 1 - a - b
+    Parameters:
+    vertices: np.array of shape (N, 3) containing vertex coordinates
+    faces: np.array of shape (M, 3) containing face vertex indices
+    face_fractions_dict: dict of {face index: fraction included} to extract
+    
+    Returns:
+    new_vertices: np.array of vertices in the submesh
+    new_faces: np.array of faces with updated vertex indices
+    vertex_map: mapping from original vertex indices to new ones
+    """
+    # Get selected faces
+    selected_faces = faces[list(face_fractions_dict.keys())]
+    
+    # Get unique vertices used in selected faces
+    unique_vertices = np.unique(selected_faces.flatten())
+    
+    # Create vertex mapping from old to new indices
+    vertex_map = {old: new for new, old in enumerate(unique_vertices)}
+    
+    # Create new vertex array
+    new_vertices = vertices[unique_vertices]
+    
+    # Update face indices to use new vertex indices
+    new_faces = np.array([[vertex_map[idx] for idx in face] 
+                         for face in selected_faces])
+    
+    return new_vertices, new_faces, vertex_map
+
+
+def find_edge_points(vertices, faces, center_vertex_idx, distance):
+    """
+    Find two points on the mesh edge by traversing in both directions until reaching
+    or exceeding the specified distance.
+    
+    Parameters:
+    vertices: np.ndarray (V, 3) - Mesh vertices
+    faces: np.ndarray (F, 3) - Mesh faces (indices)
+    center_vertex_idx: int - Index of the center vertex on the edge
+    distance: float - Desired geodesic distance from center to each point
+    
+    Returns:
+    tuple: (left_point_idx, right_point_idx)
+    """
+    # Build vertex adjacency for edge vertices
+    V = len(vertices)
+    vertex_face_count = np.zeros(V)
+    vertex_neighbors = {i: set() for i in range(V)}
+    
+    # Count faces per vertex and build adjacency
+    for face in faces:
+        for i in range(3):
+            v1, v2 = face[i], face[(i + 1) % 3]
+            vertex_face_count[v1] += 1
+            vertex_neighbors[v1].add(v2)
+            vertex_neighbors[v2].add(v1)
+    
+    # Identify edge vertices (vertices with fewer faces)
+    edge_vertices = set(np.where(vertex_face_count < 6)[0])
+    
+    def get_edge_neighbors(vertex_idx):
+        """Get neighbors of a vertex that are also on the edge"""
+        return [n for n in vertex_neighbors[vertex_idx] if n in edge_vertices]
+    
+    def traverse_edge(start_vertex, neighbor):
+        """
+        Traverse edge from start_vertex through initial_neighbor until reaching
+        specified distance or end of edge
+        """
+        current = neighbor
+        prev = start_vertex
+        accumulated_distance = np.linalg.norm(vertices[current] - vertices[start_vertex])
+        path = [start_vertex, current]
+        
+        while accumulated_distance < distance:
+            # Get edge neighbors excluding the one we came from
+            next_vertices = [v for v in get_edge_neighbors(current) if v != prev]
+            
+            if not next_vertices:  # Reached end of edge
+                break
                 
-                x = a * triangle.p1.x + b * triangle.p2.x + c * triangle.p3.x
-                y = a * triangle.p1.y + b * triangle.p2.y + c * triangle.p3.y
-                z = a * triangle.p1.z + b * triangle.p2.z + c * triangle.p3.z
+            # Choose the neighbor that makes the path most straight
+            # (closest to current direction)
+            if len(next_vertices) > 1:
+                current_dir = vertices[current] - vertices[prev]
+                current_dir = current_dir / np.linalg.norm(current_dir)
                 
-                points.append(Point(x, y, z))
-        return points
-
-class DartMesh:
-    def __init__(self, vertices: np.ndarray, faces: np.ndarray, stretch_values: np.ndarray):
-        self.vertices = vertices
-        self.faces = faces
-        self.stretch_values = stretch_values
-        self.edges = self._build_edge_structure()
-        self.vertex_faces = self._build_vertex_face_map()
-        
-    def _build_edge_structure(self) -> Dict[Edge, Set[int]]:
-        """Build edge to face mapping"""
-        edge_to_faces = {}
-        for face_idx, face in enumerate(self.faces):
-            edges = [
-                Edge(face[0], face[1]),
-                Edge(face[1], face[2]),
-                Edge(face[2], face[0])
-            ]
-            for edge in edges:
-                if edge not in edge_to_faces:
-                    edge_to_faces[edge] = set()
-                edge_to_faces[edge].add(face_idx)
-        return edge_to_faces
-    
-    def _build_vertex_face_map(self) -> Dict[int, Set[int]]:
-        """Build vertex to face mapping"""
-        vertex_faces = {i: set() for i in range(len(self.vertices))}
-        for face_idx, face in enumerate(self.faces):
-            for vertex_idx in face:
-                vertex_faces[vertex_idx].add(face_idx)
-        return vertex_faces
-
-    def _calculate_edge_direction(self, point: Point, edge_vertex_idx: int) -> Optional[np.ndarray]:
-        """Calculate edge direction at the given point"""
-        # Find the edge that contains this vertex
-        connected_edges = [edge for edge in self.edges.keys() 
-                         if edge_vertex_idx in (edge.v1_idx, edge.v2_idx)]
-        
-        if not connected_edges:
-            return None
-        
-        # Get the direction of each edge
-        edge_directions = []
-        for edge in connected_edges:
-            v1 = self.vertices[edge.v1_idx]
-            v2 = self.vertices[edge.v2_idx]
-            direction = v2 - v1
-            direction = direction / np.linalg.norm(direction)
-            edge_directions.append(direction)
-        
-        # Average the directions (for vertices with multiple connected edges)
-        avg_direction = np.mean(edge_directions, axis=0)
-        return avg_direction / np.linalg.norm(avg_direction)
-    
-    def _calculate_surface_normal(self, point: Point, edge_vertex_idx: int) -> np.ndarray:
-        """Calculate surface normal at the given point using adjacent faces"""
-        # Get all faces connected to this vertex
-        adjacent_faces = self.vertex_faces[edge_vertex_idx]
-        
-        # Calculate weighted normal
-        normal = np.zeros(3)
-        for face_idx in adjacent_faces:
-            face = self.faces[face_idx]
-            v1 = self.vertices[face[0]]
-            v2 = self.vertices[face[1]]
-            v3 = self.vertices[face[2]]
-            
-            # Calculate face normal
-            edge1 = v2 - v1
-            edge2 = v3 - v1
-            face_normal = np.cross(edge1, edge2)
-            
-            # Weight by face area
-            area = np.linalg.norm(face_normal) / 2
-            normal += face_normal * area
-        
-        return normal / np.linalg.norm(normal)
-    
-    def update_stretch_values(self, dart_region: DartRegion):
-        """Update stretch values based on dart region containment"""
-        # Calculate the average stretch value for the outer region
-        total_outer_value = 0
-        total_outer_weight = 0
-        
-        for face_idx, face in enumerate(self.faces):
-            face_triangle = Triangle(
-                Point(*self.vertices[face[0]]),
-                Point(*self.vertices[face[1]]),
-                Point(*self.vertices[face[2]])
-            )
-            
-            inner_factor, outer_factor = dart_region.get_containment_factor(face_triangle)
-            
-            if outer_factor > 0:
-                # Face is at least partially in outer triangle
-                original_value = self.stretch_values[face_idx]
-                if inner_factor > 0:
-                    # Face is partially in inner triangle
-                    weight = outer_factor * (1 - inner_factor)
-                else:
-                    weight = outer_factor
+                max_alignment = -1
+                best_next = next_vertices[0]
+                
+                for next_v in next_vertices:
+                    next_dir = vertices[next_v] - vertices[current]
+                    next_dir = next_dir / np.linalg.norm(next_dir)
+                    alignment = np.dot(current_dir, next_dir)
                     
-                total_outer_value += original_value * weight
-                total_outer_weight += weight
-        
-        if total_outer_weight > 0:
-            average_outer_value = total_outer_value / total_outer_weight
+                    if alignment > max_alignment:
+                        max_alignment = alignment
+                        best_next = next_v
+                
+                next_vertex = best_next
+            else:
+                next_vertex = next_vertices[0]
             
-            # Apply the updates
-            for face_idx, face in enumerate(self.faces):
-                face_triangle = Triangle(
-                    Point(*self.vertices[face[0]]),
-                    Point(*self.vertices[face[1]]),
-                    Point(*self.vertices[face[2]])
-                )
-                
-                inner_factor, outer_factor = dart_region.get_containment_factor(face_triangle)
-                
-                if outer_factor > 0:
-                    if inner_factor > 0:
-                        # Face is partially in both regions
-                        self.stretch_values[face_idx] = (
-                            average_outer_value * (1 - inner_factor) +
-                            0 * inner_factor
-                        )
-                    else:
-                        # Face is only in outer region
-                        self.stretch_values[face_idx] = (
-                            average_outer_value * outer_factor +
-                            self.stretch_values[face_idx] * (1 - outer_factor)
-                        )
-
-    def create_dart(self, edge_vertex_idx: int, inner_point: Point, 
-                   inner_distance: float, outer_distance: float) -> Optional[DartRegion]:
-        """Create a dart starting from edge vertex towards inner point"""
-        edge_point = Point(*self.vertices[edge_vertex_idx])
+            prev = current
+            current = next_vertex
+            accumulated_distance += np.linalg.norm(vertices[current] - vertices[prev])
+            path.append(current)
         
-        # Calculate edge direction
-        edge_direction = self._calculate_edge_direction(edge_point, edge_vertex_idx)
-        if edge_direction is None:
-            return None
-        
-        # Calculate surface normal
-        surface_normal = self._calculate_surface_normal(edge_point, edge_vertex_idx)
-        
-        # Calculate perpendicular direction in the surface plane
-        perpendicular = np.cross(edge_direction, surface_normal)
-        perpendicular = perpendicular / np.linalg.norm(perpendicular)
-        
-        # Generate points for inner and outer triangles
-        inner_points = self._generate_edge_points(edge_point, perpendicular, inner_distance)
-        outer_points = self._generate_edge_points(edge_point, perpendicular, outer_distance)
-        
-        # Create triangles
-        inner_triangle = Triangle(inner_points[0], inner_points[1], inner_point)
-        outer_triangle = Triangle(outer_points[0], outer_points[1], inner_point)
-        
-        return DartRegion(inner_triangle, outer_triangle)
+        return current, accumulated_distance, path
     
-    def _generate_edge_points(self, start_point: Point, 
-                            perpendicular: np.ndarray, 
-                            distance: float) -> Tuple[Point, Point]:
-        """Generate two points at specified distance perpendicular to the edge"""
-        p1 = Point(
-            start_point.x + distance * perpendicular[0],
-            start_point.y + distance * perpendicular[1],
-            start_point.z + distance * perpendicular[2]
-        )
+    # Get initial edge neighbors for center vertex
+    edge_neighbors = get_edge_neighbors(center_vertex_idx)
+    
+    if len(edge_neighbors) != 2:
+        raise ValueError(f"Center vertex should have exactly 2 edge neighbors, found {len(edge_neighbors)}")
+    
+    # Traverse in both directions
+    left_point, left_dist, left_path = traverse_edge(center_vertex_idx, edge_neighbors[0])
+    right_point, right_dist, right_path = traverse_edge(center_vertex_idx, edge_neighbors[1])
+    
+    return left_point, right_point
+
+
+def triangle_area(A, B, C):
+    # Convert points to numpy arrays for easier calculation
+    A = np.array(A)
+    B = np.array(B)
+    C = np.array(C)
+    
+    # Calculate two vectors from the three points
+    v = B - A  # Vector from A to B
+    w = C - A  # Vector from A to C
+    
+    # Calculate cross product
+    cross_product = np.cross(v, w)
+    
+    # Calculate magnitude of cross product
+    area = 0.5 * np.linalg.norm(cross_product)
+    
+    return area
+
+
+def select_faces_in_dart(vertices, faces, edge_vertex_idx, inner_vertex_idx, dart_size, max_distance_from_plane):
+    """
+    Select faces within a dart-shaped region on a mesh and calculate overlap fractions.
+    Excludes faces that are too far from the reference plane.
+    
+    Parameters:
+    vertices: np.ndarray (V, 3) - Mesh vertices
+    faces: np.ndarray (F, 3) - Mesh faces (indices)
+    edge_vertex_idx: int - Index of the vertex on the edge
+    inner_vertex_idx: int - Index of the inner vertex
+    dart_size: float - Size of the dart (geodesic distance between edge points)
+    max_distance_from_plane: float - Maximum allowed distance from the reference plane
+    
+    Returns:
+    dict: Dictionary mapping face indices to their overlap fractions (relative to face area)
+    """
+    # Step 1: Find edge vertices (same as before)
+    left_point_idx, right_point_idx = find_edge_points(
+        vertices, faces, edge_vertex_idx, dart_size/2
+    )
         
-        p2 = Point(
-            start_point.x - distance * perpendicular[0],
-            start_point.y - distance * perpendicular[1],
-            start_point.z - distance * perpendicular[2]
-        )
+    #left_point_idx = left_idx_tmp
+    #right_point_idx = right_idx_tmp
+    
+    # Step 2: Create reference plane and define distance checking
+    p1 = vertices[left_point_idx]
+    p2 = vertices[right_point_idx]
+    p3 = vertices[inner_vertex_idx]
+    
+    # Define plane using three points
+    v1 = p2 - p1
+    v2 = p3 - p1
+    normal = np.cross(v1, v2)
+    normal = normal / np.linalg.norm(normal)
+    
+    # Point-plane distance function
+    def distance_to_plane(point):
+        """Calculate signed distance from a point to the reference plane"""
+        return abs(np.dot(point - p1, normal))
+    
+    def is_face_near_plane(face_vertices):
+        """Check if face is within threshold distance of the reference plane"""
+        face_distances = [distance_to_plane(v) for v in face_vertices]
+        return max(face_distances) <= max_distance_from_plane
+    
+    def project_point(point):
+        v = point - p1
+        dist = np.dot(v, normal)
+        return point - dist * normal
+    
+    proj_p1 = project_point(p1)
+    proj_p2 = project_point(p2)
+    proj_p3 = project_point(p3)
+    
+    def polygon_intersection_area(poly1_vertices, poly2_vertices):
+        """
+        Calculate approximate intersection area using Monte Carlo sampling.
+        Returns the ratio of intersection area to poly1 area.
+        """
+        min_x = min(min(v[0] for v in poly1_vertices), min(v[0] for v in poly2_vertices))
+        max_x = max(max(v[0] for v in poly1_vertices), max(v[0] for v in poly2_vertices))
+        min_y = min(min(v[1] for v in poly1_vertices), min(v[1] for v in poly2_vertices))
+        max_y = max(max(v[1] for v in poly1_vertices), max(v[1] for v in poly2_vertices))
         
-        return (p1, p2)
+        def point_in_polygon(point, vertices):
+            x, y = point
+            inside = False
+            j = len(vertices) - 1
+            for i in range(len(vertices)):
+                if ((vertices[i][1] > y) != (vertices[j][1] > y) and
+                    x < (vertices[j][0] - vertices[i][0]) * (y - vertices[i][1]) /
+                    (vertices[j][1] - vertices[i][1]) + vertices[i][0]):
+                    inside = not inside
+                j = i
+            return inside
+        
+        num_samples = 1000
+        points_in_intersection = 0
+        points_in_poly1 = 0
+        
+        for _ in range(num_samples):
+            x = min_x + (max_x - min_x) * np.random.random()
+            y = min_y + (max_y - min_y) * np.random.random()
+            point = (x, y)
+            
+            in_poly1 = point_in_polygon(point, poly1_vertices)
+            if in_poly1:
+                points_in_poly1 += 1
+                if point_in_polygon(point, poly2_vertices):
+                    points_in_intersection += 1
+        
+        if points_in_poly1 == 0:
+            return 0.0
+            
+        return points_in_intersection / points_in_poly1
+    
+    # Step 3: Select faces and calculate overlap fractions
+    face_fractions = {}
+    dart_vertices = [proj_p1[:2], proj_p2[:2], proj_p3[:2]]
+    
+    for face_idx, face in enumerate(faces):
+        # Get face vertices
+        face_vertices = [vertices[v_idx] for v_idx in face]
+        
+        # First check if face is near enough to the plane
+        if not is_face_near_plane(face_vertices):
+            continue
+            
+        # If face is near enough, proceed with projection and intersection test
+        proj_face_vertices = [project_point(v)[:2] for v in face_vertices]
+        
+        # Calculate intersection fraction relative to face area
+        overlap_fraction = polygon_intersection_area(proj_face_vertices, dart_vertices)
+        
+        if overlap_fraction > 0:
+            face_fractions[face_idx] = overlap_fraction
+    
+    return face_fractions, triangle_area(p1, p2, p3)
+
+
+# TODO: Probably put this function directly in mesh_processing.py
+def apply_dart_to_stretches():
+    # NOTE: For now, not using the fractions, only the "full" faces
+    inner_face_fractions_dict, inner_triangle_area = select_faces_in_dart(
+        vertices=upper_front_mesh.vertices, 
+        faces=upper_front_mesh.faces, 
+        edge_vertex_idx=181, 
+        inner_vertex_idx=226, 
+        dart_size=0.05,
+        max_distance_from_plane=0.1
+    )
+    print(inner_face_fractions_dict)
+    inner_subverts, inner_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=inner_face_fractions_dict)
+    trimesh.Trimesh(vertices=inner_subverts, faces=inner_subfaces).export('inner_submesh.ply')
+    
+    # NOTE: For now, not using the fractions, only the "full" faces
+    outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
+        vertices=upper_front_mesh.vertices, 
+        faces=upper_front_mesh.faces, 
+        edge_vertex_idx=181, 
+        inner_vertex_idx=226, 
+        dart_size=0.1,
+        max_distance_from_plane=0.1
+    )
+    print(outer_face_fractions_dict)
+    outer_subverts, outer_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=outer_face_fractions_dict)
+    trimesh.Trimesh(vertices=outer_subverts, faces=outer_subfaces).export('outer_submesh.ply')
+    
+    # NOTE: The new coefficient is simply a ratio between the difference between the larger and smaller triangle divided by the larger times original coefficient
+    # TODO: Later, perhaps, use face fractions to more precisely update the coefficients
+    new_coef = ((outer_triangle_area - inner_triangle_area) / outer_triangle_area) * orig_uniform_coef
+    for face_idx in outer_face_fractions_dict:
+        stretch_values[face_idx] = new_coef
 
 
 if __name__ == '__main__':
-    upper_front_mesh = trimesh.load_mesh('data/embedded/latest/upper_front/init.ply')
-    mesh = DartMesh(upper_front_mesh.vertices, upper_front_mesh.faces, stretch_values)
-    inner_point = Point(x, y, z)  # Point on the surface where the dart should point
-    dart_region = mesh.create_dart(
-        edge_vertex_idx=vertex_id,  # Index of the vertex on the edge
-        inner_point=inner_point,
-        inner_distance=2.0,  # 2cm
-        outer_distance=5.0   # 5cm
+    upper_front_mesh = trimesh.load_mesh('data/embedded/ui/upper_front/ref.ply')
+    orig_uniform_coef = 1.1
+    stretch_values = np.array([orig_uniform_coef] * upper_front_mesh.faces.shape[0], dtype=np.float32)
+    
+    # NOTE: For now, not using the fractions, only the "full" faces
+    inner_face_fractions_dict, inner_triangle_area = select_faces_in_dart(
+        vertices=upper_front_mesh.vertices, 
+        faces=upper_front_mesh.faces, 
+        edge_vertex_idx=181, 
+        inner_vertex_idx=226, 
+        dart_size=0.05,
+        max_distance_from_plane=0.1
     )
-
-    if dart_region:
-        mesh.update_stretch_values(dart_region)
+    print(inner_face_fractions_dict)
+    inner_subverts, inner_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=inner_face_fractions_dict)
+    trimesh.Trimesh(vertices=inner_subverts, faces=inner_subfaces).export('inner_submesh.ply')
+    
+    # NOTE: For now, not using the fractions, only the "full" faces
+    outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
+        vertices=upper_front_mesh.vertices, 
+        faces=upper_front_mesh.faces, 
+        edge_vertex_idx=181, 
+        inner_vertex_idx=226, 
+        dart_size=0.1,
+        max_distance_from_plane=0.1
+    )
+    print(outer_face_fractions_dict)
+    outer_subverts, outer_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=outer_face_fractions_dict)
+    trimesh.Trimesh(vertices=outer_subverts, faces=outer_subfaces).export('outer_submesh.ply')
+    
+    # NOTE: The new coefficient is simply a ratio between the difference between the larger and smaller triangle divided by the larger times original coefficient
+    # TODO: Later, perhaps, use face fractions to more precisely update the coefficients
+    new_coef = ((outer_triangle_area - inner_triangle_area) / outer_triangle_area) * orig_uniform_coef
+    for face_idx in outer_face_fractions_dict:
+        stretch_values[face_idx] = new_coef
+        
+    colored_upper_front_mesh = color_code_stretches(
+        verts=upper_front_mesh.vertices,
+        faces=upper_front_mesh.faces,
+        stretch_array=stretch_values,
+        min_stretch=stretch_values.min(),
+        max_stretch=stretch_values.max()
+    )
+    colored_upper_front_mesh.export('dart_stretches.ply')

@@ -12,8 +12,6 @@ from smplx import SMPL
 import json
 
 from tailorlang.mesh_processing import (
-    load_canonical_mesh,
-    load_garments,
     MeshState
 )
 from tailorlang.garment import DesignParameters
@@ -202,7 +200,11 @@ class GarmentDesignerUI(QMainWindow):
         super().__init__()
         self.args = args
         self.setup_ui()
-        self.mesh_state = MeshState(self.args.smpl_dir, self.args.gender)
+        self.mesh_state = MeshState(
+            self.args.body_set, 
+            self.args.use_darts, 
+            self.args.apply_remesh
+        )
         self.update_skintight_view()
         
     def setup_ui(self):
@@ -412,6 +414,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_darts', action='store_true', dest='use_darts',
                         help='whether to use darts in the design and parameterization algorithm')
+    parser.add_argument('--apply_remesh', action='store_true', dest='apply_remesh',
+                        help='apply remesh to the patches (possibly improve seamline alignment and patch quality)')
     parser.add_argument('--file_format', '-F', type=str, choices=['ply', 'obj', 'both'], default='ply',
                         help='')
     parser.add_argument('--design', '-D', type=str, default='default')

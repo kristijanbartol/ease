@@ -18,3 +18,5 @@ PyQt6
 pyqtgraph
 PyOpenGL
 PyOpenGL_accelerate
+# patch export
+ezdxf

@@ -5,7 +5,7 @@ import subprocess
 def run_parameterization(project_path, use_darts):
     # Get absolute paths
     current_dir = os.getcwd()
-    cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/build/optimize_set_with_seamlines")
+    cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/cmake-build-debug/optimize_set_with_seamlines")
     root_project_path_arg = os.path.abspath(project_path)
     
     # Ensure the executable exists
@@ -23,10 +23,7 @@ def run_parameterization(project_path, use_darts):
         if not os.path.exists(dir_path):
             print(f"Required directory not found: {dir_path}")
     
-    optim_dress_arg = "0"
-    use_darts_arg = "1" if use_darts else "0"
-    
-    command = [cpp_program_path, root_project_path_arg, optim_dress_arg, use_darts_arg]
+    command = [cpp_program_path, "--config", "anisotropic-parameterization/configs/default.json"]
     print(f"Running command: {' '.join(command)}")
     
     try:
