@@ -42,7 +42,7 @@ def extract_submesh(vertices, faces, face_fractions_dict):
     return new_vertices, new_faces, vertex_map
 
 
-def find_edge_points(vertices, faces, center_vertex_idx, distance):
+def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, distance):
     """
     Find two points on the mesh edge by traversing in both directions until reaching
     or exceeding the specified distance.
@@ -123,14 +123,12 @@ def find_edge_points(vertices, faces, center_vertex_idx, distance):
         return current, accumulated_distance, path
     
     # Get initial edge neighbors for center vertex
-    edge_neighbors = get_edge_neighbors(center_vertex_idx)
-    
-    if len(edge_neighbors) != 2:
-        raise ValueError(f"Center vertex should have exactly 2 edge neighbors, found {len(edge_neighbors)}")
+    left_edge_neighbors = get_edge_neighbors(left_dart_cut_idx)
+    right_edge_neighbors = get_edge_neighbors(right_dart_cut_idx)
     
     # Traverse in both directions
-    left_point, left_dist, left_path = traverse_edge(center_vertex_idx, edge_neighbors[0])
-    right_point, right_dist, right_path = traverse_edge(center_vertex_idx, edge_neighbors[1])
+    left_point, left_dist, left_path = traverse_edge(left_dart_cut_idx, left_edge_neighbors[1])
+    right_point, right_dist, right_path = traverse_edge(right_dart_cut_idx, right_edge_neighbors[1])
     
     return left_point, right_point
 
@@ -154,7 +152,7 @@ def triangle_area(A, B, C):
     return area
 
 
-def select_faces_in_dart(vertices, faces, edge_vertex_idx, inner_vertex_idx, dart_size, max_distance_from_plane):
+def select_faces_in_dart(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_tip_idx, dart_size, max_distance_from_plane):
     """
     Select faces within a dart-shaped region on a mesh and calculate overlap fractions.
     Excludes faces that are too far from the reference plane.
@@ -171,17 +169,14 @@ def select_faces_in_dart(vertices, faces, edge_vertex_idx, inner_vertex_idx, dar
     dict: Dictionary mapping face indices to their overlap fractions (relative to face area)
     """
     # Step 1: Find edge vertices (same as before)
-    left_point_idx, right_point_idx = find_edge_points(
-        vertices, faces, edge_vertex_idx, dart_size/2
+    left_triangle_idx, right_triangle_idx = find_edge_points(
+        vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_size/2
     )
-        
-    #left_point_idx = left_idx_tmp
-    #right_point_idx = right_idx_tmp
     
     # Step 2: Create reference plane and define distance checking
-    p1 = vertices[left_point_idx]
-    p2 = vertices[right_point_idx]
-    p3 = vertices[inner_vertex_idx]
+    p1 = vertices[left_triangle_idx]
+    p2 = vertices[right_triangle_idx]
+    p3 = vertices[dart_tip_idx]
     
     # Define plane using three points
     v1 = p2 - p1
@@ -274,41 +269,6 @@ def select_faces_in_dart(vertices, faces, edge_vertex_idx, inner_vertex_idx, dar
     return face_fractions, triangle_area(p1, p2, p3)
 
 
-# TODO: Probably put this function directly in mesh_processing.py
-def apply_dart_to_stretches():
-    # NOTE: For now, not using the fractions, only the "full" faces
-    inner_face_fractions_dict, inner_triangle_area = select_faces_in_dart(
-        vertices=upper_front_mesh.vertices, 
-        faces=upper_front_mesh.faces, 
-        edge_vertex_idx=181, 
-        inner_vertex_idx=226, 
-        dart_size=0.05,
-        max_distance_from_plane=0.1
-    )
-    print(inner_face_fractions_dict)
-    inner_subverts, inner_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=inner_face_fractions_dict)
-    trimesh.Trimesh(vertices=inner_subverts, faces=inner_subfaces).export('inner_submesh.ply')
-    
-    # NOTE: For now, not using the fractions, only the "full" faces
-    outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
-        vertices=upper_front_mesh.vertices, 
-        faces=upper_front_mesh.faces, 
-        edge_vertex_idx=181, 
-        inner_vertex_idx=226, 
-        dart_size=0.1,
-        max_distance_from_plane=0.1
-    )
-    print(outer_face_fractions_dict)
-    outer_subverts, outer_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=outer_face_fractions_dict)
-    trimesh.Trimesh(vertices=outer_subverts, faces=outer_subfaces).export('outer_submesh.ply')
-    
-    # NOTE: The new coefficient is simply a ratio between the difference between the larger and smaller triangle divided by the larger times original coefficient
-    # TODO: Later, perhaps, use face fractions to more precisely update the coefficients
-    new_coef = ((outer_triangle_area - inner_triangle_area) / outer_triangle_area) * orig_uniform_coef
-    for face_idx in outer_face_fractions_dict:
-        stretch_values[face_idx] = new_coef
-
-
 if __name__ == '__main__':
     upper_front_mesh = trimesh.load_mesh('data/embedded/ui/upper_front/ref.ply')
     orig_uniform_coef = 1.1
@@ -318,8 +278,9 @@ if __name__ == '__main__':
     inner_face_fractions_dict, inner_triangle_area = select_faces_in_dart(
         vertices=upper_front_mesh.vertices, 
         faces=upper_front_mesh.faces, 
-        edge_vertex_idx=181, 
-        inner_vertex_idx=226, 
+        left_dart_cut_idx=745,
+        right_dart_cut_idx=181, 
+        dart_tip_idx=226, 
         dart_size=0.05,
         max_distance_from_plane=0.1
     )
@@ -331,8 +292,9 @@ if __name__ == '__main__':
     outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
         vertices=upper_front_mesh.vertices, 
         faces=upper_front_mesh.faces, 
-        edge_vertex_idx=181, 
-        inner_vertex_idx=226, 
+        left_dart_cut_idx=745,
+        right_dart_cut_idx=181, 
+        dart_tip_idx=226,
         dart_size=0.1,
         max_distance_from_plane=0.1
     )

@@ -56,6 +56,7 @@ from tailorlang.io import (
 )
 from tailorlang.pybind import apply_remesh
 from tailorlang.submodules import run_parameterization
+from tailorlang.geo.dart_extractor import select_faces_in_dart
 
 
 class MeshProcessor:
@@ -128,22 +129,22 @@ class MeshProcessor:
         return new_verts
     
     @staticmethod
-    def create_dart(vertices, faces, selected_vidxs, dart_orient):
+    def create_dart(patch_verts, patch_faces, selected_vidxs, dart_orient):
         # New vertex idx map contains the map (orig_selected_idx->new_vertex_idx).
-        new_vertex_idx_map = {v_idx: len(vertices) + idx for idx, v_idx in enumerate(selected_vidxs[:-1])}
+        new_vertex_idx_map = {v_idx: len(patch_verts) + idx for idx, v_idx in enumerate(selected_vidxs[:-1])}
         # Fast lookup of the corresponding face idxs, given vertex idx.
-        vertex_idx_to_face_idxs = MeshProcessor._map_vertex_idx_to_face_idxs(faces)
-        updated_faces = faces.copy()
+        vertex_idx_to_face_idxs = MeshProcessor._map_vertex_idx_to_face_idxs(patch_faces)
+        updated_faces = patch_faces.copy()
         
         # Do not process the last edge, containing the dart tip.
         for idx, _ in enumerate(selected_vidxs[:-2]):
             v1_idx, v2_idx = selected_vidxs[idx], selected_vidxs[idx+1]
-            edge = vertices[v1_idx], vertices[v2_idx]
+            edge = patch_verts[v1_idx], patch_verts[v2_idx]
             adjacent_face_idxs = [f for f in vertex_idx_to_face_idxs[v1_idx]]
             
             for face_idx in adjacent_face_idxs:
-                face = faces[face_idx]
-                center = vertices[face].mean(axis=0)
+                face = patch_faces[face_idx]
+                center = patch_verts[face].mean(axis=0)
                 side = point_side(center, edge, dart_orient)
 
                 # For faces "above" the dart, replace the old with new, added vertex idxs.
@@ -162,10 +163,10 @@ class MeshProcessor:
                     updated_faces[face_idx] = updated_face
             
         # Add new vertices (all dart vertices except the tip (last vertex)). 
-        new_vertices = vertices[selected_vidxs[:-1]]
+        new_vertices = patch_verts[selected_vidxs[:-1]]
         #new_vertices[:, 1] += 0.00001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
         new_vertices[:, 1] += 0.001   # add tiny displacement so that trimesh doesn't skip "duplicate" vertices
-        updated_vertices = np.vstack((vertices, new_vertices))
+        updated_vertices = np.vstack((patch_verts, new_vertices))
         
         # Create a dart vertex pair strategy relevant for further processing (parameterization).
         dart_pairs = [selected_vidxs[-1]]
@@ -586,13 +587,16 @@ class MeshState:
         self._extract_patch_meshes()
         self._update_seamlines()
         if self.use_darts:
-            self._update_darts()
+            self._create_darts()
         
         if self.apply_remesh:
             self._apply_remesh()
         
         self._extract_uv_unit_directions()
         self._extract_reference_local_stretches()
+        
+        if self.use_darts:
+            self._update_darts()
         
         self._export_prepared_data()    # TODO: Later, directly pass data as arguments to the C++ via PyBind
         
@@ -700,15 +704,15 @@ class MeshState:
                     self.seam_to_segment_vertex_pairs[seam_label][patch_id] = \
                         map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
                         
-    def _update_darts(self):
+    def _create_darts(self):
         for patch_label in PATCH_LIST:
             self.dart_dict[patch_label] = {}
             for dart_name in SEGMENT_TO_DARTS[patch_label]:
                 dart_vertices = SEGMENT_TO_DARTS[patch_label][dart_name]
                 new_darts_verts_idxs = [self.old_to_new_idx_dict[patch_label][v] for v in dart_vertices]
                 self.ref_patch_verts_dict[patch_label], self.ref_patch_faces_dict[patch_label], dart_vertex_pairs = MeshProcessor.create_dart(
-                    vertices=self.ref_patch_verts_dict[patch_label], 
-                    faces=self.ref_patch_faces_dict[patch_label], 
+                    patch_verts=self.ref_patch_verts_dict[patch_label], 
+                    patch_faces=self.ref_patch_faces_dict[patch_label], 
                     selected_vidxs=new_darts_verts_idxs,
                     dart_orient=DART_ORIENTS[dart_name]
                 )
@@ -757,6 +761,37 @@ class MeshState:
                 design_params=self.design_params,
                 patch_label=patch_label
             )
+            
+    def _update_darts(self):
+        for patch_label in PATCH_LIST:
+            for dart_name in self.dart_dict[patch_label]:
+                dart_vert_pairs = self.dart_dict[patch_label][dart_name]
+                _, inner_triangle_area = select_faces_in_dart(
+                    vertices=self.ref_patch_verts_dict[patch_label], 
+                    faces=self.ref_patch_faces_dict[patch_label], 
+                    left_dart_cut_idx=dart_vert_pairs[-1][1],    # (right, left) dart vertex pairs
+                    right_dart_cut_idx=dart_vert_pairs[-1][0], 
+                    dart_tip_idx=dart_vert_pairs[0], 
+                    dart_size=0.05,
+                    max_distance_from_plane=0.1
+                )
+                # NOTE: For now, not using the fractions, only the "full" faces
+                outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
+                    vertices=self.ref_patch_verts_dict[patch_label], 
+                    faces=self.ref_patch_faces_dict[patch_label], 
+                    left_dart_cut_idx=dart_vert_pairs[-1][1], 
+                    right_dart_cut_idx=dart_vert_pairs[-1][0], 
+                    dart_tip_idx=dart_vert_pairs[0], 
+                    dart_size=0.1,
+                    max_distance_from_plane=0.1
+                )
+                # NOTE: The new coefficient is simply a ratio between the difference between the larger and smaller triangle divided by the larger times original coefficient
+                # TODO: Later, perhaps, use face fractions to more precisely update the coefficients
+                outer_inner_area_ratio = ((outer_triangle_area - inner_triangle_area) / outer_triangle_area)
+                for face_idx in outer_face_fractions_dict:
+                    # TODO: Do not use fixed 'v' direction
+                    # Instead, determine the direction based on 1) dart orientation, 2) sleeve/not-sleeve
+                    self.local_stretches_dict[patch_label]['v'][face_idx] *= outer_inner_area_ratio
             
     def _export_seamline_vertex_pairs(self, mode='ui'):
         seamline_dir = f'data/seamlines/{mode}'

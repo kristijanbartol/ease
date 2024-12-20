@@ -109,7 +109,7 @@ def prepare_configuration() -> SimpleNamespace:
 if __name__ == "__main__":
     config = prepare_configuration()
     print_configuration(config)
-    #config.use_darts = True
+    config.use_darts = True
 
     mesh_state = MeshState(
         body_set=config.body_set,
