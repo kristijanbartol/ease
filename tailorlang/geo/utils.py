@@ -1,5 +1,6 @@
 # Misc geometric utils (geometry.py).
 
+'''
 import numpy as np
 from typing import Tuple, List
 
@@ -16,7 +17,7 @@ def compute_triangle_directions(vertices: np.ndarray, faces: np.ndarray) -> Tupl
         - List of barycentric coordinates for C_x points
         - List of barycentric coordinates for C_y points
     """
-    UNIT_DISTANCE = 0.005
+    UNIT_DISTANCE = 1.0
     c_x_coords = []
     c_y_coords = []
     
@@ -77,3 +78,5 @@ def compute_triangle_directions(vertices: np.ndarray, faces: np.ndarray) -> Tupl
         c_y_coords.append(compute_barycentric(c_y, v1, v2, v3))
     
     return c_x_coords, c_y_coords
+
+'''

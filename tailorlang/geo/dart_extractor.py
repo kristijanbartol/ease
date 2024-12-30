@@ -1,12 +1,7 @@
 import numpy as np
 import trimesh
-from copy import deepcopy
-from scipy.sparse.csgraph import shortest_path
-from scipy.sparse import csr_matrix
-from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict, Set
 
-from tailorlang.vis.stretches import color_code_stretches
+from tailorlang.eval.stretch_utils import color_code_stretches
 
 
 def extract_submesh(vertices, faces, face_fractions_dict):
@@ -42,7 +37,7 @@ def extract_submesh(vertices, faces, face_fractions_dict):
     return new_vertices, new_faces, vertex_map
 
 
-def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, distance):
+def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, distance, dart_side):
     """
     Find two points on the mesh edge by traversing in both directions until reaching
     or exceeding the specified distance.
@@ -72,7 +67,7 @@ def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dis
     # Identify edge vertices (vertices with fewer faces)
     edge_vertices = set(np.where(vertex_face_count < 6)[0])
     
-    def get_edge_neighbors(vertex_idx):
+    def get_edge_directions(vertex_idx):
         """Get neighbors of a vertex that are also on the edge"""
         return [n for n in vertex_neighbors[vertex_idx] if n in edge_vertices]
     
@@ -88,7 +83,7 @@ def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dis
         
         while accumulated_distance < distance:
             # Get edge neighbors excluding the one we came from
-            next_vertices = [v for v in get_edge_neighbors(current) if v != prev]
+            next_vertices = [v for v in get_edge_directions(current) if v != prev]
             
             if not next_vertices:  # Reached end of edge
                 break
@@ -123,12 +118,16 @@ def find_edge_points(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dis
         return current, accumulated_distance, path
     
     # Get initial edge neighbors for center vertex
-    left_edge_neighbors = get_edge_neighbors(left_dart_cut_idx)
-    right_edge_neighbors = get_edge_neighbors(right_dart_cut_idx)
+    left_edge_directions = get_edge_directions(left_dart_cut_idx)
+    right_edge_directions = get_edge_directions(right_dart_cut_idx)
     
     # Traverse in both directions
-    left_point, left_dist, left_path = traverse_edge(left_dart_cut_idx, left_edge_neighbors[1])
-    right_point, right_dist, right_path = traverse_edge(right_dart_cut_idx, right_edge_neighbors[1])
+    if dart_side == 'right':
+        left_point, left_dist, left_path = traverse_edge(left_dart_cut_idx, left_edge_directions[1])
+        right_point, right_dist, right_path = traverse_edge(right_dart_cut_idx, right_edge_directions[1])
+    else:
+        left_point, left_dist, left_path = traverse_edge(left_dart_cut_idx, left_edge_directions[1])
+        right_point, right_dist, right_path = traverse_edge(right_dart_cut_idx, right_edge_directions[0])
     
     return left_point, right_point
 
@@ -152,7 +151,7 @@ def triangle_area(A, B, C):
     return area
 
 
-def select_faces_in_dart(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_tip_idx, dart_size, max_distance_from_plane):
+def select_faces_in_dart(vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_tip_idx, dart_size, max_distance_from_plane, dart_side):
     """
     Select faces within a dart-shaped region on a mesh and calculate overlap fractions.
     Excludes faces that are too far from the reference plane.
@@ -170,7 +169,7 @@ def select_faces_in_dart(vertices, faces, left_dart_cut_idx, right_dart_cut_idx,
     """
     # Step 1: Find edge vertices (same as before)
     left_triangle_idx, right_triangle_idx = find_edge_points(
-        vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_size/2
+        vertices, faces, left_dart_cut_idx, right_dart_cut_idx, dart_size/2, dart_side
     )
     
     # Step 2: Create reference plane and define distance checking
@@ -278,11 +277,12 @@ if __name__ == '__main__':
     inner_face_fractions_dict, inner_triangle_area = select_faces_in_dart(
         vertices=upper_front_mesh.vertices, 
         faces=upper_front_mesh.faces, 
-        left_dart_cut_idx=745,
-        right_dart_cut_idx=181, 
-        dart_tip_idx=226, 
+        left_dart_cut_idx=561,
+        right_dart_cut_idx=749, 
+        dart_tip_idx=752, 
         dart_size=0.05,
-        max_distance_from_plane=0.1
+        max_distance_from_plane=0.1,
+        dart_side='left'
     )
     print(inner_face_fractions_dict)
     inner_subverts, inner_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=inner_face_fractions_dict)
@@ -292,11 +292,12 @@ if __name__ == '__main__':
     outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
         vertices=upper_front_mesh.vertices, 
         faces=upper_front_mesh.faces, 
-        left_dart_cut_idx=745,
-        right_dart_cut_idx=181, 
-        dart_tip_idx=226,
+        left_dart_cut_idx=561,
+        right_dart_cut_idx=749, 
+        dart_tip_idx=752,
         dart_size=0.1,
-        max_distance_from_plane=0.1
+        max_distance_from_plane=0.1,
+        dart_side='left'
     )
     print(outer_face_fractions_dict)
     outer_subverts, outer_subfaces, _ = extract_submesh(vertices=upper_front_mesh.vertices, faces=upper_front_mesh.faces, face_fractions_dict=outer_face_fractions_dict)

@@ -1,11 +1,8 @@
-import ezdxf
 from typing import List, Dict, Tuple
-import matplotlib.pyplot as plt
-from copy import deepcopy
+import trimesh
+import ezdxf
 import numpy as np
 import cv2
-import os
-import trimesh
 
 
 IMG_OFFSETS_DICT = {
@@ -34,84 +31,6 @@ MESH_OFFSETS_DICT = {
     'lower_front_left': [0.40, -0.80],
     'lower_back_left': [1.15, -0.30]
 }
-
-
-def visualize_all_verts(
-        verts, 
-        front_vertex_indices, 
-        back_vertex_indices, 
-        right_sleeve_indices, 
-        left_sleeve_indices,
-        pant_front_right_indices,
-        pant_front_left_indices,
-        pant_back_right_indices,
-        pant_back_left_indices
-    ):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Initialize all vertices as gray
-    vertex_colors = ['gray'] * len(verts)
-
-    # Color the front vertices red, the back vertices blue, the right sleeve dark green, and the left sleeve light green
-    for i in front_vertex_indices:
-        vertex_colors[i] = 'red'
-    for i in back_vertex_indices:
-        vertex_colors[i] = 'blue'
-    for i in right_sleeve_indices:
-        vertex_colors[i] = 'darkgreen'
-    for i in left_sleeve_indices:
-        vertex_colors[i] = 'lightgreen'
-    for i in pant_front_right_indices:
-        vertex_colors[i] = 'darkblue'
-    for i in pant_front_left_indices:
-        vertex_colors[i] = 'lightblue'
-    for i in pant_back_right_indices:
-        vertex_colors[i] = 'orange'
-    for i in pant_back_left_indices:
-        vertex_colors[i] = 'brown'
-
-    # Scatter plot for vertices
-    ax.scatter(verts[:, 0], verts[:, 1], verts[:, 2], c=vertex_colors)
-
-    # Set the labels for the axes
-    ax.set_xlabel('X axis')
-    ax.set_ylabel('Y axis')
-    ax.set_zlabel('Z axis')
-
-    # Show the plot to the screen
-    plt.show(block=True)
-
-
-def visualize_verts(verts, vertex_indices, color):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Initialize all vertices as gray
-    vertex_colors = ['gray'] * len(verts)
-
-    # Color the selected vertices with the given color
-    for i in vertex_indices:
-        vertex_colors[i] = color
-
-    # Scatter plot for vertices
-    ax.scatter(verts[:, 0], verts[:, 1], verts[:, 2], c=vertex_colors)
-
-    # Set the labels for the axes
-    ax.set_xlabel('X axis')
-    ax.set_ylabel('Y axis')
-    ax.set_zlabel('Z axis')
-
-    # Show the plot to the screen
-    plt.show(block=True)
-
-
-class Mesh:
-    def __init__(self, ply_path, offset, subdir, is_front):
-        self.mesh = trimesh.load(ply_path)
-        self.offset = offset
-        self.subdir = subdir
-        self.is_front = is_front
 
 
 def mesh_to_image(mesh, image_size=(800, 800)):
@@ -175,11 +94,15 @@ def combine_meshes_on_canvas(meshes, canvas_size, img_size, front_color=(0, 255,
     return canvas
 
 
-def save_combined_image(output_path, combined_image):
-    cv2.imwrite(output_path, combined_image)
-    
+class Mesh:
+    def __init__(self, ply_path, offset, subdir, is_front):
+        self.mesh = trimesh.load(ply_path)
+        self.offset = offset
+        self.subdir = subdir
+        self.is_front = is_front
 
-class GarmentMeshProcessor:
+
+class PatchProcessor:
     def __init__(self, patches: List[Mesh], offsets: Dict[str, Tuple[float, float]]):
         """
         Initialize the processor with garment patches and their corresponding offsets.
@@ -254,69 +177,4 @@ class GarmentMeshProcessor:
                 # Add to DXF
                 msp.add_lwpolyline(points_2d)
                 
-        doc.saveas(filepath)    
-
-    
-def process_2d_meshes(
-        patches: List[Mesh], 
-        offsets: Dict[str, Tuple[float, float]],
-        output_dir: str,
-        method: str
-    ):
-    """
-    Process garment meshes and export to multiple formats.
-    
-    Args:
-        patches: List of GarmentPatch objects
-        offsets: Dictionary of offsets for each patch
-        output_dir: Directory for output files
-        pdf_page_size: Page size for PDF export ('A0' or 'A1')
-    """
-    processor = GarmentMeshProcessor(patches, offsets)
-    
-    # Process meshes
-    processor.apply_offsets()
-    processor.combine_meshes()
-    
-    # Export to different formats
-    processor.export_ply(f"{output_dir}/pattern_{method}.ply")
-    processor.export_dxf(f"{output_dir}/pattern_{method}.dxf")
-        
-
-def visualize_pattern(method):
-    meshes_dict = {}
-    data_dir = 'data/embedded/ui/'
-    output_dir = f'data/patterns/ui/{method}/'
-    for _, dirs, _ in os.walk(data_dir):
-        for subdir in dirs:
-            for fname in os.listdir(os.path.join(data_dir, subdir)):
-                if 'optim' in fname and 'ply' in fname:
-                    suffix = fname.split('.')[0][6:]
-                    pattern_fpath = os.path.join(data_dir, subdir, fname)
-                    is_front = True if subdir.split('_')[1] == 'front' else False
-                    if suffix not in meshes_dict:
-                        meshes_dict[suffix] = [
-                            Mesh(pattern_fpath, IMG_OFFSETS_DICT[subdir], subdir, is_front)]
-                    else:
-                        meshes_dict[suffix].append(
-                            Mesh(pattern_fpath, IMG_OFFSETS_DICT[subdir], subdir, is_front))
-    
-    os.makedirs(output_dir, exist_ok=True)     
-    final_meshes = deepcopy(meshes_dict['final-seams'])
-    
-    for suffix in meshes_dict:
-        meshes_dict[suffix].sort(key=lambda mesh: mesh.is_front)
-
-        canvas_size = (1200, 1200)
-        img_size = (450, 450)
-        combined_image = combine_meshes_on_canvas(meshes_dict[suffix], canvas_size, img_size)
-
-        output_path = os.path.join(output_dir, f'sewing_pattern_{method}_{suffix}.png')
-        save_combined_image(output_path, combined_image)
-    
-    process_2d_meshes(
-        patches=final_meshes, 
-        offsets=MESH_OFFSETS_DICT, 
-        output_dir=output_dir,
-        method=method
-    )
+        doc.saveas(filepath)

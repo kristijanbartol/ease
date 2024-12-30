@@ -6,7 +6,7 @@ import json
 from pprint import pformat
 
 from tailorlang.mesh_processing import MeshState
-from tailorlang.vis.pattern import visualize_pattern
+from eval.qualitative import visualize_pattern
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -21,6 +21,8 @@ def parse_arguments() -> argparse.Namespace:
                         help='body set specification')
     parser.add_argument('--design', type=str,
                         help='design specification')
+    parser.add_argument('--run_grid', action='store_true',
+                        help='runs a grid of configuration settings (for detailed evaluation and analyses)')
     parser.add_argument('--optim_dress', action='store_true',
                         help='enable dress optimization')
     parser.add_argument('--apply_remesh', action='store_true',
@@ -46,7 +48,16 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--dart_coef', type=float,
                         help='dart coefficient')
     
-    return parser.parse_args()
+    # Parse known args to handle missing optional arguments
+    args, unknown = parser.parse_known_args()
+    
+    # Get the list of arguments that were explicitly set on the command line
+    specified_args = {action.dest for action in parser._actions 
+                     if action.dest in vars(args) and 
+                     vars(args)[action.dest] is not None and
+                     vars(args)[action.dest] != action.default}
+    
+    return args, specified_args
 
 def load_config_file(config_name: str, project_dir: str) -> dict:
     """Load configuration from JSON file."""
@@ -90,14 +101,15 @@ def print_configuration(config: SimpleNamespace) -> None:
 
 def prepare_configuration() -> SimpleNamespace:
     """Prepare final configuration by combining CLI arguments and config file."""
-    # Parse command line arguments
-    cli_args = parse_arguments()
-    
-    # Convert CLI args to dictionary, excluding None values
-    cli_dict = {k: v for k, v in vars(cli_args).items() if v is not None}
+    # Parse command line arguments and get explicitly specified arguments
+    cli_args, specified_args = parse_arguments()
     
     # Load configuration file
     config_file_dict = load_config_file(cli_args.setup_config, cli_args.project_dir)
+    
+    # Only include CLI arguments that were explicitly set
+    cli_dict = {k: v for k, v in vars(cli_args).items() 
+                if k in specified_args}
     
     # Merge configurations, giving precedence to CLI arguments
     final_config = {**config_file_dict, **cli_dict}
@@ -106,19 +118,68 @@ def prepare_configuration() -> SimpleNamespace:
     return dict_to_namespace(final_config)
 
 
+def run_grid(config):
+    exhaustive = False
+    matching_modes = ['strict']
+    seamline_strategies = ['average', 'line', 'bezier']
+    num_seam_iterss = [1]    # TODO: Support setting the number of "inner" iterations
+    stretch_coefs = [0.0, 2.0, 10.0]
+    edge_coefs = [0.0, 1.0, 10.0]
+    seam_coefs = [2.0, 35.0, 50.0, 100.0]
+    
+    apply_remesh = [False]
+    use_darts = [False]
+    equalize_seamline_lengths = [False]
+    
+    if exhaustive:
+        matching_modes = ['strict', 'general']
+        seamline_strategies = ['average', 'line', 'bezier']
+        stretch_coefs = [0.0, 2.0, 10.0, 20.0, 100.0]
+        edge_coefs = [0.0, 1.0, 10.0, 50.0]
+        seam_coefs = [0.0, 2.0, 10.0, 20.0, 35.0, 50.0, 100.0]
+        apply_remesh = [False, True]
+        use_darts = [False, True]
+        equalize_seamline_lengths = [False, True]
+        
+    for matching_mode in matching_modes:
+        for seamline_strategy in seamline_strategies:
+            for num_seam_iters in num_seam_iterss:
+                for stretch_coef in stretch_coefs:
+                    for edge_coef in edge_coefs:
+                        for seam_coef in seam_coefs:
+                            for _apply_remesh in apply_remesh:
+                                for _use_darts in use_darts:
+                                    for _equalize_seamline_lengths in equalize_seamline_lengths:
+                                        config.matching_mode = matching_mode
+                                        config.seamline_strategy = seamline_strategy
+                                        config.num_seam_iters = num_seam_iters
+                                        config.stretch_coef = stretch_coef
+                                        config.edge_coef = edge_coef
+                                        config.seam_coef = seam_coef
+                                        config.apply_remesh = _apply_remesh
+                                        config.use_darts = _use_darts
+                                        config.equalize_seamline_lengths = _equalize_seamline_lengths
+                                        
+                                        mesh_state = MeshState(config=config)
+                                        mesh_state.finalize()
+                                        mesh_state.optimize()
+                                        
+                                        method = f'{config.matching_mode}_{config.seamline_strategy}_{config.num_seam_iters}_{config.stretch_coef}_{config.edge_coef}_{config.seam_coef}'
+                                        
+                                        visualize_pattern(method=method)
+
+
 if __name__ == "__main__":
     config = prepare_configuration()
     print_configuration(config)
-    config.use_darts = True
+    
+    if config.run_grid:
+        run_grid(config=config)
+    else:
+        mesh_state = MeshState(config=config)
+        #mesh_state.update_parameters(design_params=config.design)
+        mesh_state.finalize()
+        mesh_state.optimize()
 
-    mesh_state = MeshState(
-        body_set=config.body_set,
-        use_darts=config.use_darts,
-        apply_remesh=config.apply_remesh)
-    #mesh_state.update_parameters(design_params=args.design)
-    mesh_state.finalize()
-    mesh_state.optimize()
-
-    print('#3 Visualize the optimized pattern...')
-    visualize_pattern(method=config.seamline_strategy)
+        visualize_pattern(method=config.seamline_strategy)
     

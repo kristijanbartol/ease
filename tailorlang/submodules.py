@@ -2,11 +2,11 @@ import os
 import subprocess
 
 
-def run_parameterization(project_path, use_darts):
+def run_parameterization(config):
     # Get absolute paths
     current_dir = os.getcwd()
     cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/cmake-build-debug/optimize_set_with_seamlines")
-    root_project_path_arg = os.path.abspath(project_path)
+    root_project_path_arg = os.path.abspath(config.project_dir)
     
     # Ensure the executable exists
     if not os.path.exists(cpp_program_path):
@@ -23,7 +23,38 @@ def run_parameterization(project_path, use_darts):
         if not os.path.exists(dir_path):
             print(f"Required directory not found: {dir_path}")
     
-    command = [cpp_program_path, "--config", "anisotropic-parameterization/configs/default.json"]
+    # Start with base command and config file
+    command = [
+        cpp_program_path,
+        "--config", "anisotropic-parameterization/configs/default.json"
+    ]
+    
+    # Add boolean flags if they are True
+    if config.optim_dress:
+        command.append("--optim-dress")
+    if config.use_darts:
+        command.append("--use-darts")
+    if config.equalize_seamline_lengths:
+        command.append("--equalize-lengths")
+    
+    # Add other parameters with their values
+    param_mapping = {
+        "matching_mode": "--matching-mode",
+        "seamline_strategy": "--seamline-strategy",
+        "num_seam_iters": "--num-seam-iters",
+        "max_stretch": "--max-stretch",
+        "stretch_coef": "--stretch-coef",
+        "edges_coef": "--edges-coef",
+        "seams_coef": "--seams-coef",
+        "dart_coef": "--dart-coef"
+    }
+    
+    for python_param, cpp_param in param_mapping.items():
+        if hasattr(config, python_param):
+            value = getattr(config, python_param)
+            if value is not None:  # Only add if value is specified
+                command.extend([cpp_param, str(value)])
+    
     print(f"Running command: {' '.join(command)}")
     
     try:
@@ -32,7 +63,7 @@ def run_parameterization(project_path, use_darts):
             check=True, 
             capture_output=True, 
             text=True,
-            env=os.environ.copy()  # Ensure environment variables are passed
+            env=os.environ.copy()
         )
         print(f"Program output: {result.stdout}")
         return result

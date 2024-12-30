@@ -15,6 +15,7 @@
                 "--project_dir", "/Users/kristijanbartol/TailorLang/",
                 "--smpl_dir", "/Users/kristijanbartol/data/smpl/models/",
                 "--setup_config", "default",
+                //"--run_grid",
                 //"--body_set", "solo-female",
                 //"--design", "skintight",
                 //"--optim_dress",

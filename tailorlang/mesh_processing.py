@@ -59,6 +59,10 @@ from tailorlang.submodules import run_parameterization
 from tailorlang.geo.dart_extractor import select_faces_in_dart
 
 
+
+from tailorlang.eval.stretch_utils import color_code_stretches
+
+
 class MeshProcessor:
     
     @staticmethod
@@ -189,7 +193,7 @@ class MeshProcessor:
             - List of barycentric coordinates for C_x points
             - List of barycentric coordinates for C_y points
         """
-        UNIT_DISTANCE = 0.005
+        UNIT_DISTANCE = 1.0
         c_x_coords = []
         c_y_coords = []
         
@@ -248,8 +252,8 @@ class MeshProcessor:
             # Compute barycentric coordinates
             c_x_coords.append(compute_barycentric(c_x, v1, v2, v3))
             c_y_coords.append(compute_barycentric(c_y, v1, v2, v3))
-        
-        return c_x_coords, c_y_coords
+            
+        return np.stack((c_x_coords, c_y_coords), axis=1)
     
     @staticmethod
     def extract_local_stretches(verts, faces, design_params, patch_label, side=None) -> np.ndarray:
@@ -343,9 +347,10 @@ def transfer_remesh_to_target(source_vertices, source_faces, target_vertices_lis
 
 class MeshState:
     
-    def __init__(self, body_set='solo-female', use_darts=False, apply_remesh=False):
-        self.use_darts = use_darts
-        self.apply_remesh = apply_remesh
+    def __init__(self, config):
+        self.config = config
+        self.use_darts = config.use_darts
+        self.apply_remesh = config.apply_remesh
         
         # Patch-threshold dictionaries
         self.threshold_dict = {}
@@ -354,7 +359,7 @@ class MeshState:
         self.full_patch_idxs_dict = {}
         self.masked_patch_idxs_dict = {}
         
-        self._init_static(body_set)
+        self._init_static(config.body_set)
         self._prepare_init()
         
         # Data structures for the finalization
@@ -529,16 +534,6 @@ class MeshState:
             
         self.full_patch_idxs_dict['upper'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' not in key])
         self.full_patch_idxs_dict['lower'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' in key])
-            
-        '''
-        # Collect whole upper and lower garments (initial).
-        self.full_patch_idxs_dict['upper'] = \
-            self.full_patch_idxs_dict['upper_front'] + self.full_patch_idxs_dict['upper_back'] + \
-            self.full_patch_idxs_dict['sleeve_front_right'] + self.full_patch_idxs_dict['sleeve_back_right'] + \
-            self.full_patch_idxs_dict['sleeve_front_left'] + self.full_patch_idxs_dict['sleeve_back_left']
-        self.full_patch_idxs_dict['lower'] = \
-            sum([self.full_patch_idxs_dict[f'lower_{part}'] for part in ['front_right', 'front_left', 'back_right', 'back_left']], [])
-        '''
         
     def apply_masks(self):
         ''' Applied when updating the garment parameters. '''
@@ -732,8 +727,8 @@ class MeshState:
         for patch_label in PATCH_LIST:
             new_verts, new_faces, new_seamline_vert_idxs = apply_remesh(
                 vertices=self.ref_patch_verts_dict[patch_label],
-                faces=self.ref_patch_faces_dict[0][patch_label],
-                seamline_pairs=self._get_seam_to_seam_endpoint_dict(patch_label)
+                faces=self.ref_patch_faces_dict[patch_label],
+                seamline_pairs_dict=self._get_seam_to_seam_endpoint_dict(patch_label)
             )
             self.ref_patch_verts_dict[patch_label] = new_verts
             self.ref_patch_faces_dict[patch_label] = new_faces
@@ -766,35 +761,73 @@ class MeshState:
         for patch_label in PATCH_LIST:
             for dart_name in self.dart_dict[patch_label]:
                 dart_vert_pairs = self.dart_dict[patch_label][dart_name]
-                _, inner_triangle_area = select_faces_in_dart(
-                    vertices=self.ref_patch_verts_dict[patch_label], 
-                    faces=self.ref_patch_faces_dict[patch_label], 
-                    left_dart_cut_idx=dart_vert_pairs[-1][1],    # (right, left) dart vertex pairs
-                    right_dart_cut_idx=dart_vert_pairs[-1][0], 
-                    dart_tip_idx=dart_vert_pairs[0], 
-                    dart_size=0.05,
-                    max_distance_from_plane=0.1
-                )
-                # NOTE: For now, not using the fractions, only the "full" faces
-                outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
-                    vertices=self.ref_patch_verts_dict[patch_label], 
-                    faces=self.ref_patch_faces_dict[patch_label], 
-                    left_dart_cut_idx=dart_vert_pairs[-1][1], 
-                    right_dart_cut_idx=dart_vert_pairs[-1][0], 
-                    dart_tip_idx=dart_vert_pairs[0], 
-                    dart_size=0.1,
-                    max_distance_from_plane=0.1
-                )
+                dart_side = dart_name.split('_')[0]
+                # The 'dart_side' indicator is used to swap (right, left) (for right darts) to (left, right) (for right darts).
+                # This is important to properly traverse the edges but is a bit tedious, for now.
+                # Most darts could be right darts, except for the left-armpit dart, where we need to swap.
+                if dart_side == 'right':
+                    _, inner_triangle_area = select_faces_in_dart(
+                        vertices=self.ref_patch_verts_dict[patch_label], 
+                        faces=self.ref_patch_faces_dict[patch_label], 
+                        left_dart_cut_idx=dart_vert_pairs[-1][1],    # (right, left) dart vertex pairs
+                        right_dart_cut_idx=dart_vert_pairs[-1][0], 
+                        dart_tip_idx=dart_vert_pairs[0], 
+                        dart_size=0.05,
+                        max_distance_from_plane=0.1,
+                        dart_side=dart_name.split('_')[0]
+                    )
+                    # NOTE: For now, not using the fractions, only the "full" faces
+                    outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
+                        vertices=self.ref_patch_verts_dict[patch_label], 
+                        faces=self.ref_patch_faces_dict[patch_label], 
+                        left_dart_cut_idx=dart_vert_pairs[-1][1], 
+                        right_dart_cut_idx=dart_vert_pairs[-1][0], 
+                        dart_tip_idx=dart_vert_pairs[0], 
+                        dart_size=0.1,
+                        max_distance_from_plane=0.1,
+                        dart_side=dart_name.split('_')[0]
+                    )
+                else:
+                    _, inner_triangle_area = select_faces_in_dart(
+                        vertices=self.ref_patch_verts_dict[patch_label], 
+                        faces=self.ref_patch_faces_dict[patch_label], 
+                        left_dart_cut_idx=dart_vert_pairs[-1][0],    # (left, right) dart vertex pairs
+                        right_dart_cut_idx=dart_vert_pairs[-1][1], 
+                        dart_tip_idx=dart_vert_pairs[0], 
+                        dart_size=0.05,
+                        max_distance_from_plane=0.1,
+                        dart_side=dart_name.split('_')[0]
+                    )
+                    # NOTE: For now, not using the fractions, only the "full" faces
+                    outer_face_fractions_dict, outer_triangle_area = select_faces_in_dart(
+                        vertices=self.ref_patch_verts_dict[patch_label], 
+                        faces=self.ref_patch_faces_dict[patch_label], 
+                        left_dart_cut_idx=dart_vert_pairs[-1][0], 
+                        right_dart_cut_idx=dart_vert_pairs[-1][1], 
+                        dart_tip_idx=dart_vert_pairs[0], 
+                        dart_size=0.1,
+                        max_distance_from_plane=0.1,
+                        dart_side=dart_name.split('_')[0]
+                    )
                 # NOTE: The new coefficient is simply a ratio between the difference between the larger and smaller triangle divided by the larger times original coefficient
                 # TODO: Later, perhaps, use face fractions to more precisely update the coefficients
                 outer_inner_area_ratio = ((outer_triangle_area - inner_triangle_area) / outer_triangle_area)
                 for face_idx in outer_face_fractions_dict:
                     # TODO: Do not use fixed 'v' direction
                     # Instead, determine the direction based on 1) dart orientation, 2) sleeve/not-sleeve
-                    self.local_stretches_dict[patch_label]['v'][face_idx] *= outer_inner_area_ratio
+                    self.local_stretches_dict[patch_label]['v'][face_idx] /= outer_inner_area_ratio
+                    
+        colored_upper_front_mesh = color_code_stretches(
+            verts=self.ref_patch_verts_dict['upper_front'],
+            faces=self.ref_patch_faces_dict['upper_front'],
+            stretch_array=self.local_stretches_dict['upper_front']['v'],
+            min_stretch=self.local_stretches_dict['upper_front']['v'].min(),
+            max_stretch=self.local_stretches_dict['upper_front']['v'].max()
+        )
+        colored_upper_front_mesh.export('dart_stretches_debug.ply')
             
-    def _export_seamline_vertex_pairs(self, mode='ui'):
-        seamline_dir = f'data/seamlines/{mode}'
+    def _export_seamline_vertex_pairs(self):
+        seamline_dir = f'data/seamlines/'
         os.makedirs(seamline_dir, exist_ok=True)
         for seam_name in self.seam_to_segment_vertex_pairs:
             save_seamline_pairs_file(
@@ -802,7 +835,7 @@ class MeshState:
                 seamline_pair_dict=self.seam_to_segment_vertex_pairs[seam_name]
             )
         for patch_label in self.dart_dict:
-            darts_dir = f'data/darts/{mode}/{patch_label}'
+            darts_dir = f'data/darts/{patch_label}'
             os.makedirs(os.path.join(darts_dir), exist_ok=True)
             save_darts_files(darts_dir, self.dart_dict[patch_label])
         
@@ -812,35 +845,65 @@ class MeshState:
         return len(np.unique(rounded, axis=0)) == len(vertices)
         
     def _export_prepared_data(self):
-        mesh_dir = 'data/embedded/ui/'
+        mesh_dir = 'data/embedded/'
+        stretch_dir = 'data/scales/'
+        uv_ref_dir = 'data/bary/ref_3d/'
         os.makedirs(os.path.join(mesh_dir, 'body'), exist_ok=True)
         
         for patch_label in PATCH_LIST:
-            patch_dir = os.path.join(mesh_dir, patch_label)
-            os.makedirs(patch_dir, exist_ok=True)
+            # Store reference embedded garment meshes (mesh data)
+            embedded_subdir = os.path.join(mesh_dir, patch_label)
+            os.makedirs(embedded_subdir, exist_ok=True)
             export(
                 verts=self.ref_patch_verts_dict[patch_label],
                 faces=self.ref_patch_faces_dict[patch_label],
-                path=os.path.join(patch_dir, f'ref')
+                path=os.path.join(embedded_subdir, f'ref')
             )
+            print(f'Exporting {embedded_subdir}/ref.(ply/obj)...')
+            
+            # Store reference local-triangle design scales (local scalars) to txt
+            stretch_subdir = os.path.join(stretch_dir, patch_label)
+            os.makedirs(stretch_subdir, exist_ok=True)
+            np.savetxt(
+                os.path.join(stretch_subdir, f'scales_u.txt'), 
+                self.local_stretches_dict[patch_label]['u']
+            )
+            np.savetxt(
+                os.path.join(stretch_subdir, f'scales_v.txt'), 
+                self.local_stretches_dict[patch_label]['v']
+            )
+            print(f'Exporting {stretch_subdir}/scales_(u/v).txt...')
+            
+            # Store reference UV directions (global axes projected to local triangles) in bary coordinates
+            uv_ref_subdir = os.path.join(uv_ref_dir, patch_label)
+            os.makedirs(uv_ref_subdir, exist_ok=True)
+            np.savetxt(
+                os.path.join(uv_ref_subdir, f'ref_bary_u.txt'),
+                self.uv_unit_directions_dict[patch_label][:, 0])
+            np.savetxt(
+                os.path.join(uv_ref_subdir, f'ref_bary_v.txt'),
+                self.uv_unit_directions_dict[patch_label][:, 1]
+            )
+            print(f'Exporting {uv_ref_subdir}/ref_bary_(u/v).txt...')
+            
+            # Store seamline vertex pairs
             self._export_seamline_vertex_pairs()
             
             for body_idx in range(len(self.body_set.target['poses'])):
                 export(
                     verts=self.target_patch_verts_dict_list[body_idx][patch_label],
                     faces=self.target_patch_faces_dict_list[body_idx][patch_label],
-                    path=os.path.join(patch_dir, f'target-{body_idx:02d}')
+                    path=os.path.join(embedded_subdir, f'target-{body_idx:02d}')
                 )
-                
-            # TODO: verify whether I need 3D u,v directions or the ones in 2D are enough
-            
-            np.savetxt(os.path.join(patch_dir, f'stretches_u.txt'), self.local_stretches_dict[patch_label]['u'])
-            np.savetxt(os.path.join(patch_dir, f'stretches_v.txt'), self.local_stretches_dict[patch_label]['v'])
+                print(f'Exporting {embedded_subdir}/target-{body_idx:02}.(ply/obj)...')
         
     def optimize(self):
+        os.makedirs('data/param_2d/', exist_ok=True)
+        for patch_label in PATCH_LIST:
+            os.makedirs(f'data/param_2d/{patch_label}', exist_ok=True)
+            
         run_parameterization(
-            project_path=os.getcwd(), 
-            use_darts=self.use_darts
+            config=self.config
         )  # TODO: Use this through pybind
         
     def has_all_meshes(self):

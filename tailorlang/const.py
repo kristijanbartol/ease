@@ -273,7 +273,7 @@ SEGMENT_TO_ID = {
     'lower_back_right': 9
 }
 
-ID_TO_SEGMENT = {
+ID_TO_PATCH = {
     0: 'upper_front',
     1: 'upper_back',
     2: 'sleeve_front_left',
@@ -311,7 +311,7 @@ SEAM_TO_SEAM_IDX_DICT = {
     'back_inner_pant': BACK_INNER_PANT
 }
 
-SEAM_TO_SEGMENT_PAIRS = {
+SEAM_TO_PATCH_PAIRS = {
     'left_armpit': (0, 1),
     'left_front_arm': (0, 2),
     'left_shoulder': (0, 1),
@@ -333,7 +333,7 @@ SEAM_TO_SEGMENT_PAIRS = {
 }
 
 SEGMENT_TO_SEAMLINES_DICT = defaultdict(list)
-for key, (id1, id2) in SEAM_TO_SEGMENT_PAIRS.items():
+for key, (id1, id2) in SEAM_TO_PATCH_PAIRS.items():
     SEGMENT_TO_SEAMLINES_DICT[id1].append(key)
     SEGMENT_TO_SEAMLINES_DICT[id2].append(key)
 SEGMENT_TO_SEAMLINES_DICT = {id_: tuple(keys) for id_, keys in SEGMENT_TO_SEAMLINES_DICT.items()}

@@ -31,7 +31,7 @@ from tailorlang.io import (
     load_preselected,
     store_preselected
 )
-from tailorlang.vis.pattern import visualize_pattern
+from eval.qualitative import visualize_pattern
 
 
 def prepare(args):

@@ -2,6 +2,7 @@
 build/
 view*/
 data/
+results/
 assets/*
 !assets/preprint-review.pdf
 .vscode/settings.json
