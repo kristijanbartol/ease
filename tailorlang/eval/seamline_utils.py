@@ -7,6 +7,7 @@ from tailorlang.const import (
     PATCH_LIST,
     SEAM_TO_PATCH_PAIRS
 )
+from tailorlang.eval.box_plot_utils import compute_box_plot_stats
 
 
 def read_seamline(seam_fpath):
@@ -104,7 +105,30 @@ def compute_point_distances(points1, points2):
     return np.sqrt(np.sum((points1 - points2) ** 2, axis=1))
 
 
-def get_seamline_distances():
+def calculate_seamline_statistics(distances):
+    """
+    Calculate comprehensive statistics for stretch coefficients.
+    
+    Parameters:
+        optim_weft, optim_warp: Optimized stretch coefficients
+        target_weft, target_warp: Target stretch coefficients
+    
+    Returns:
+        Dictionary containing various statistics for both u and v directions
+    """
+    return {
+        'mean': np.mean(distances),
+        'median': np.median(distances),
+        'max': np.max(distances),
+        'min': np.min(distances),
+        'std': np.std(distances),
+        'percentile_95': np.percentile(distances, 95),
+        'percentile_99': np.percentile(distances, 99),
+        'box_plot_stats': compute_box_plot_stats(distances)  # Added box plot stats
+    }
+
+
+def get_seamline_statistics():
     """
     Process all seamline files in the directory.
 
@@ -117,7 +141,8 @@ def get_seamline_distances():
         optim_2ds.append(trimesh.load(
             os.path.join('data/param_2d/', patch_label, 'optim_final-seams.ply')))
     
-    results = {}
+    _distances_dict = {}
+    statistics_dict = {}
     
     for filename in os.listdir(seamlines_dir):
         seamline_name = os.path.splitext(filename)[0]
@@ -148,6 +173,10 @@ def get_seamline_distances():
         # Compute distances between corresponding points
         distances = compute_point_distances(points1, points2_aligned)
         
-        results[seamline_name] = distances
+        _distances_dict[seamline_name] = distances
+        statistics_dict[seamline_name] = calculate_seamline_statistics(distances)
+        
+    _distances_dict['all'] = np.concatenate(distances)
+    statistics_dict['all'] = calculate_seamline_statistics(_distances_dict['all'])
     
-    return results
+    return statistics_dict

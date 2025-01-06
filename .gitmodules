@@ -1,3 +1,9 @@
 [submodule "anisotropic-parameterization"]
 	path = anisotropic-parameterization
 	url = https://github.com/kristijanbartol/anisotropic-parameterization.git
+[submodule "anisotropic-simulations"]
+	path = anisotropic-simulations
+	url = https://github.com/kristijanbartol/anisotropic-simulations.git
+[submodule "anisotropic_simulations"]
+	path = anisotropic_simulations
+	url = https://github.com/kristijanbartol/anisotropic_simulations.git

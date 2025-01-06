@@ -31,7 +31,7 @@ from tailorlang.io import (
     load_preselected,
     store_preselected
 )
-from eval.qualitative import visualize_pattern
+from eval.qualitative import qualitative_evaluation
 
 
 def prepare(args):
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     run_parameterization(args.project_dir, args.use_darts)
 
     print('#3 Visualize the optimized pattern...')
-    visualize_pattern()
+    qualitative_evaluation()
     
     print("#4 Export the resulting optimized edge lengths")
     export_edge_lengths(garment)

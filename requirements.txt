@@ -20,3 +20,8 @@ PyOpenGL
 PyOpenGL_accelerate
 # patch export
 ezdxf
+reportlab
+svgwrite
+# sim
+libigl==2.4.1
+scikit-sparse

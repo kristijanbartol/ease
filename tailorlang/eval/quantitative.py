@@ -3,105 +3,91 @@ import json
 import numpy as np
 
 from tailorlang.const import PATCH_LIST
-from tailorlang.eval.stretch_utils import (
-    load_stretch_data,
-    calculate_stretch_statistics,
-    print_stretch_statistics
+from tailorlang.utils import (
+    construct_configs,
+    construct_experiment_name,
+    prepare_configuration,
+    print_configuration
 )
-from tailorlang.eval.seamline_utils import get_seamline_distances
-        
-        
-def analyze_all_patches(method):
-    """
-    Analyze stretch statistics for individual patches and combined data.
-    
-    Parameters:
-        method: Method identifier
-    
-    Returns:
-        Dictionary containing statistics for each patch and combined statistics
-    """
-    patch_statistics = {}
-    all_optim_u, all_optim_v = [], []
-    all_target_u, all_target_v = [], []
-    
-    # Collect statistics for individual patches
-    for patch_label in PATCH_LIST:
-        # Load stretch data for current patch
-        optim_u, optim_v, target_u, target_v = load_stretch_data(method, patch_label)
-        
-        # Calculate statistics for current patch
-        patch_statistics[patch_label] = calculate_stretch_statistics(
-            optim_u=optim_u,
-            optim_v=optim_v,
-            target_u=target_u,
-            target_v=target_v
-        )
-        print(f"\nStatistics for patch: {patch_label}")
-        print_stretch_statistics(patch_statistics[patch_label])
-        
-        # Collect data for combined analysis
-        all_optim_u.append(optim_u)
-        all_optim_v.append(optim_v)
-        all_target_u.append(target_u)
-        all_target_v.append(target_v)
-    
-    # Combine all arrays using numpy.concatenate
-    combined_optim_u = np.concatenate(all_optim_u)
-    combined_optim_v = np.concatenate(all_optim_v)
-    combined_target_u = np.concatenate(all_target_u)
-    combined_target_v = np.concatenate(all_target_v)
-    
-    # Calculate statistics for combined data
-    patch_statistics['all'] = calculate_stretch_statistics(
-        optim_u=combined_optim_u,
-        optim_v=combined_optim_v,
-        target_u=combined_target_u,
-        target_v=combined_target_v
-    )
-    
-    print("\nCombined statistics across all patches:")
-    print_stretch_statistics(patch_statistics['all'])
-    
-    return patch_statistics
+from tailorlang.eval.stretch_utils import get_stretch_statistics
+from tailorlang.eval.seamline_utils import get_seamline_statistics
+from tailorlang.eval.table_utils import StatisticsTable
 
 
-def save_patch_statistics(method, patch_statistics, base_dir="results/quantitative/stretch/optim"):
+def save_statistics(experiment_name, stats_dict, base_dir):
     """
     Save patch statistics to JSON files in the specified directory structure.
     
     Parameters:
-        method: Method identifier (string)
-        patch_statistics: Dictionary containing statistics for each patch and combined data
+        experiment_name: Method identifier (string)
+        stats_dict: Dictionary containing statistics for each patch and combined data
         base_dir: Root directory for storing results
     """
     # Create method subdirectory
-    method_dir = os.path.join(base_dir, method)
-    os.makedirs(method_dir, exist_ok=True)
+    exp_dir = os.path.join(base_dir, experiment_name)
+    os.makedirs(exp_dir, exist_ok=True)
     
     # Save individual patch statistics
-    for patch_label, stats in patch_statistics.items():
-        if patch_label == 'all':
+    for part_label, stats in stats_dict.items():
+        if part_label == 'all':
             # Save combined statistics directly in method directory
-            output_path = os.path.join(method_dir, 'all.json')
+            output_path = os.path.join(exp_dir, 'all.json')
         else:
             # Create patch subdirectory and save patch-specific statistics
-            patch_dir = os.path.join(method_dir, patch_label)
+            patch_dir = os.path.join(exp_dir, part_label)
             os.makedirs(patch_dir, exist_ok=True)
             output_path = os.path.join(patch_dir, 'statistics.json')
         
         # Save statistics to JSON file
         with open(output_path, 'w') as f:
             json.dump(stats, f, indent=4)
+            
+
+def load_statistics(experiment_name):
+    json_path = os.path.join('results/quantitative/stretch/optim/', experiment_name, 'all.json')
+    with open(json_path) as stats_file:
+        stats_dict = json.read(stats_file)
+    return stats_dict
+            
+
+def quantitative_evaluation(experiment_name):
+    stretch_statistics = get_stretch_statistics()
+    save_statistics(
+        experiment_name=experiment_name,
+        stats_dict=stretch_statistics,
+        base_dir='results/quantitative/stretch/optim/'
+    )
+    seam_statistics = get_seamline_statistics()
+    save_statistics(
+        experiment_name=experiment_name,
+        seam_statistics=seam_statistics,
+        base_dir='results/quantitative/seamline_alignment/'
+    )
+
+            
+def quantatitative_evaluate_grid(init_config):
+    grid_configs = construct_configs(init_config=init_config)
+    
+    stats_list = []
+    for config in grid_configs:
+        experiment_name = construct_experiment_name(config)
+        stats_list.append(load_statistics(experiment_name))
+        
+    table = StatisticsTable(
+        stats_list=stats_list,  # List of statistics dictionaries
+        stat_group='rel_diff',                  # Statistics group to extract
+        metrics=['mean', 'median', 'max'],      # Metrics to include
+        directions=['weft_direction'],  # Directions to include
+        experiment_names=None,          # Optional names
+        precision=4                             # Decimal places
+    )
+    table.to_markdown(os.path.join(f'results/quantitative/stretch/optim/{init_config.group_label}.md'))
+    table.to_html(os.path.join(f'results/quantitative/stretch/optim/{init_config.group_label}.html'))
+    
+    # TODO: Also process seamline statistics.
 
 
 if __name__ == '__main__':
-    method = 'latest'
-    
-    patch_statistics = analyze_all_patches(method=method)
-    save_patch_statistics(
-        method=method,
-        patch_statistics=patch_statistics
-    )
-    
-    seamline_dists_dict = get_seamline_distances()
+    config = prepare_configuration()
+    print_configuration(config)
+    quantatitative_evaluate_grid(init_config=config)

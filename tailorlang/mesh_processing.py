@@ -401,6 +401,8 @@ class MeshState:
         self.active_mesh = self.canonical_mesh.copy()   # set immediately (since the initial design is applied)
         self.bary_coords_for_active_cuts_dict = {}      # component: bary_coords
         
+        self.target_bodies_verts = []
+        
         # Patch-to-(pre-)seamlines dictionary
         # TODO: Seamlines should also become seamline INDICES!
         # NOTE: ref_seamlines_dict and masked_seamlines_dict not needed at the moment (since old_to_new_dict finally selects the seamlines anyway)
@@ -664,6 +666,7 @@ class MeshState:
             
             # Extract target mesh patches
             for body_idx in range(self.body_set.num_targets):
+                self.target_bodies_verts.append(target_posed_verts_list[body_idx])
                 self.target_patch_verts_dict_list[body_idx][patch_label] = target_posed_verts_list[body_idx][patch_vert_idxs]
                 self.target_patch_faces_dict_list[body_idx][patch_label] = self.ref_patch_faces_dict[patch_label]
                 
@@ -846,9 +849,14 @@ class MeshState:
         
     def _export_prepared_data(self):
         mesh_dir = 'data/embedded/'
+        body_dir = 'data/body/'
         stretch_dir = 'data/scales/'
-        uv_ref_dir = 'data/bary/ref_3d/'
-        os.makedirs(os.path.join(mesh_dir, 'body'), exist_ok=True)
+        uv_ref_3d_dir = 'data/bary/ref_3d/'
+        uv_ref_2d_dir = 'data/bary/ref_2d/' # only create the director(ies) and fill out in C++
+        os.makedirs(body_dir, exist_ok=True)
+        
+        trimesh.Trimesh(
+            vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
         
         for patch_label in PATCH_LIST:
             # Store reference embedded garment meshes (mesh data)
@@ -875,21 +883,25 @@ class MeshState:
             print(f'Exporting {stretch_subdir}/scales_(u/v).txt...')
             
             # Store reference UV directions (global axes projected to local triangles) in bary coordinates
-            uv_ref_subdir = os.path.join(uv_ref_dir, patch_label)
-            os.makedirs(uv_ref_subdir, exist_ok=True)
+            uv_ref_3d_subdir = os.path.join(uv_ref_3d_dir, patch_label)
+            uv_ref_2d_subdir = os.path.join(uv_ref_2d_dir, patch_label)
+            os.makedirs(uv_ref_3d_subdir, exist_ok=True)
+            os.makedirs(uv_ref_2d_subdir, exist_ok=True)
             np.savetxt(
-                os.path.join(uv_ref_subdir, f'ref_bary_u.txt'),
+                os.path.join(uv_ref_3d_subdir, f'ref_bary_u.txt'),
                 self.uv_unit_directions_dict[patch_label][:, 0])
             np.savetxt(
-                os.path.join(uv_ref_subdir, f'ref_bary_v.txt'),
+                os.path.join(uv_ref_3d_subdir, f'ref_bary_v.txt'),
                 self.uv_unit_directions_dict[patch_label][:, 1]
             )
-            print(f'Exporting {uv_ref_subdir}/ref_bary_(u/v).txt...')
+            print(f'Exporting {uv_ref_3d_subdir}/ref_bary_(u/v).txt...')
             
             # Store seamline vertex pairs
             self._export_seamline_vertex_pairs()
             
             for body_idx in range(len(self.body_set.target['poses'])):
+                trimesh.Trimesh(
+                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:2d}.ply'))
                 export(
                     verts=self.target_patch_verts_dict_list[body_idx][patch_label],
                     faces=self.target_patch_faces_dict_list[body_idx][patch_label],

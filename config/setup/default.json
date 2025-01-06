@@ -1,9 +1,9 @@
 {
     "project_dir": "/Users/kristijanbartol/TailorLang/",
     "smpl_dir": "/Users/kristijanbartol/data/smpl/models/",
-    "body_set": "posing1",
-    "design": "skintight",
-    "run_grid": false,
+    "body_set": "solo-female",
+    "design": "default",
+    "group_label": "default",
     "optim_dress": false,
     "apply_remesh": false,
     "use_darts": false,

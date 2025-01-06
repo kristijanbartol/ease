@@ -313,13 +313,13 @@ SEAM_TO_SEAM_IDX_DICT = {
 
 SEAM_TO_PATCH_PAIRS = {
     'left_armpit': (0, 1),
-    'left_front_arm': (0, 2),
+    'left_front_sleeve': (0, 2),
     'left_shoulder': (0, 1),
-    'left_back_arm': (1, 3),
+    'left_back_sleeve': (1, 3),
     'right_armpit': (0, 1),
-    'right_front_arm': (0, 4),
+    'right_front_sleeve': (0, 4),
     'right_shoulder': (0, 1),
-    'right_back_arm': (1, 5),
+    'right_back_sleeve': (1, 5),
     'left_up_arm': (2, 3),
     'left_down_arm': (2, 3),
     'right_up_arm': (4, 5),
@@ -427,6 +427,127 @@ COLOR_MAP = {
 # 20 -> right wrist
 # 21 -> left hand
 # 22 -> right hand
+
+
+EXPERIMENT_GROUPS = {
+    'seam_params': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],    # TODO: Support setting the number of "inner" iterations
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 50.0, 75.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'seam_strategies': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['average', 'line', 'bezier', 'hybrid'],
+        'num_seam_iterss': [1],
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [2.0, 10.0, 20.0, 35.0, 50.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'seam_params_large_stretch': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],
+        'stretch_coefs': [20.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [2.0, 10.0, 20.0, 35.0, 50.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'stretch_params_small_seam': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],    
+        'stretch_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 100.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [2.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'stretch_params_mid_seam': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],    
+        'stretch_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 100.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [20.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'stretch_params_large_seam': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],    
+        'stretch_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 100.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [100.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'rigid_params': {
+        'body_sets': ['solo-female'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],
+        'stretch_coefs': [2.0],
+        'edge_coefs': [0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0],
+        'seam_coefs': [2.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'body_sets': {
+        'body_sets': ['solo-female', 'posing1', 'posing2', 'posing3'],  # TODO: Select more suitable body sets
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [20.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'sizes_solo': {
+        'body_sets': ['solo-female'],
+        'designs': ['size1.0', 'size1.05', 'size1.1', 'size1.15', 'size1.2', 'size1.3', 'size1.4'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [20.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    }
+}
 
 
 def t_pose():

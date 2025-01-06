@@ -1,45 +1,12 @@
 import os
+import cv2
 import trimesh
 import numpy as np
 from scipy import stats
 
-
-def load_stretch_data(method, patch_label):
-    bary_rootdir = 'data/bary/ref_2d'
-    mesh_rootdir = 'data/embedded/'
-    param_2d_rootdir = 'data/param_2d/'
-    scales_rootdir = 'data/scales/'
-    
-    bary_subdir = os.path.join(bary_rootdir, method, patch_label)
-    for bary_fname in [x for x in os.listdir(bary_subdir) if 'final-seams' in x]:
-        bary_fpath = os.path.join(bary_subdir, bary_fname)
-        suffix = bary_fpath.split('.')[0].split('_')[-1]
-        if '_u_' in bary_fpath:
-            DU_bary = np.loadtxt(bary_fpath)
-        else:
-            DV_bary = np.loadtxt(bary_fpath)
-    
-    mesh_3d_path = os.path.join(mesh_rootdir, patch_label, 'ref.ply')
-    param_2d_path = os.path.join(param_2d_rootdir, patch_label, 'optim_final-seams.ply')
-    scales_u_path = os.path.join(scales_rootdir, patch_label, 'scales_u.txt')
-    scales_v_path = os.path.join(scales_rootdir, patch_label, 'scales_v.txt')
-    
-    ref_mesh_3d = trimesh.load(mesh_3d_path)
-    ref_param_2d = trimesh.load(param_2d_path)
-    target_scales_u = np.loadtxt(scales_u_path)
-    target_scales_v = np.loadtxt(scales_v_path)
-    
-    optim_u, optim_v, target_u, target_v = extract_stretches(
-        V_2d=ref_param_2d.vertices, 
-        V_3d=ref_mesh_3d.vertices, 
-        F=ref_mesh_3d.faces, 
-        DU_bary=DU_bary, 
-        DV_bary=DV_bary, 
-        target_scale_vec_u=target_scales_u, 
-        target_scale_vec_v=target_scales_v
-    )
-    
-    return optim_u, optim_v, target_u, target_v
+from tailorlang.const import PATCH_LIST
+from tailorlang.eval.const import GLOBAL_IMG_SCALE
+from tailorlang.eval.box_plot_utils import compute_box_plot_stats
 
 
 def extract_stretches(V_2d, V_3d, F, DU_bary, DV_bary, target_scale_vec_u, target_scale_vec_v):
@@ -91,17 +58,166 @@ def extract_stretches(V_2d, V_3d, F, DU_bary, DV_bary, target_scale_vec_u, targe
     return optim_vec_u, optim_vec_v, target_vec_u, target_vec_v
 
 
-def calculate_stretch_statistics(optim_u, optim_v, target_u, target_v):
+def extract_stretch_ratios(V_2d, V_3d, F, DU_bary, DV_bary):
+    """
+    Extract stretch ratios between 2D and 3D triangles, i.e., the scales.
+    
+    Parameters:
+        V_2d: numpy array of shape (n_vertices, 2) - 2D vertices
+        V_3d: numpy array of shape (n_vertices, 3) - 3D vertices
+        F: numpy array of shape (n_faces, 3) - faces
+        DU_bary: numpy array of shape (n_faces, 3) - U barycentric coordinates
+        DV_bary: numpy array of shape (n_faces, 3) - V barycentric coordinates
+    
+    Returns:
+        scales_u: numpy array of shape (n_faces,) - optimized U stretches
+        scales_v: numpy array of shape (n_faces,) - optimized V stretches
+    """
+    n_faces = F.shape[0]
+    scales_u = np.zeros(n_faces)
+    scales_v = np.zeros(n_faces)
+    ref_stretch_u = np.zeros(n_faces)
+    ref_stretch_v = np.zeros(n_faces)
+    optim_vec_u = np.zeros(n_faces)
+    optim_vec_v = np.zeros(n_faces)
+    
+    # Common barycentric coordinates for centroid
+    D_bary = np.array([1/3, 1/3, 1/3])
+    
+    for f_id in range(n_faces):
+        # Get vertices of current face
+        face_verts_2d = V_2d[F[f_id]]
+        face_verts_3d = V_3d[F[f_id]]
+        
+        # Compute 3D positions using barycentric coordinates
+        Dp = np.sum(D_bary[:, np.newaxis] * face_verts_3d, axis=0)
+        DUp = np.sum(DU_bary[f_id][:, np.newaxis] * face_verts_3d, axis=0)
+        DVp = np.sum(DV_bary[f_id][:, np.newaxis] * face_verts_3d, axis=0)
+        
+        # Compute target vectors
+        ref_stretch_u[f_id] = np.linalg.norm(DUp - Dp)
+        ref_stretch_v[f_id] = np.linalg.norm(DVp - Dp)
+        
+        # Compute optimized vectors
+        optim_vec_u[f_id] = np.sum(face_verts_2d[:, 0] * (DU_bary[f_id] - D_bary))
+        optim_vec_v[f_id] = np.sum(face_verts_2d[:, 1] * (DV_bary[f_id] - D_bary))
+        
+        scales_u[f_id] = optim_vec_u[f_id] / ref_stretch_u[f_id]
+        scales_v[f_id] = optim_vec_v[f_id] / ref_stretch_v[f_id]
+    
+    return scales_u, scales_v
+
+
+def load_stretch_data(patch_label):
+    bary_rootdir = 'data/bary/ref_2d'
+    mesh_rootdir = 'data/embedded/'
+    param_2d_rootdir = 'data/param_2d/'
+    scales_rootdir = 'data/scales/'
+    
+    bary_subdir = os.path.join(bary_rootdir, patch_label)
+    for bary_fname in [x for x in os.listdir(bary_subdir) if 'final-seams' in x]:
+        bary_fpath = os.path.join(bary_subdir, bary_fname)
+        if '_u_' in bary_fpath:
+            DU_bary = np.loadtxt(bary_fpath)
+        else:
+            DV_bary = np.loadtxt(bary_fpath)
+    
+    mesh_3d_path = os.path.join(mesh_rootdir, patch_label, 'ref.ply')
+    param_2d_path = os.path.join(param_2d_rootdir, patch_label, 'optim_final-seams.ply')
+    scales_u_path = os.path.join(scales_rootdir, patch_label, 'scales_u.txt')
+    scales_v_path = os.path.join(scales_rootdir, patch_label, 'scales_v.txt')
+    
+    ref_mesh_3d = trimesh.load(mesh_3d_path)
+    ref_param_2d = trimesh.load(param_2d_path)
+    target_scales_u = np.loadtxt(scales_u_path)
+    target_scales_v = np.loadtxt(scales_v_path)
+    
+    optim_u, optim_v, target_u, target_v = extract_stretches(
+        V_2d=ref_param_2d.vertices, 
+        V_3d=ref_mesh_3d.vertices, 
+        F=ref_mesh_3d.faces, 
+        DU_bary=DU_bary, 
+        DV_bary=DV_bary, 
+        target_scale_vec_u=target_scales_u, 
+        target_scale_vec_v=target_scales_v
+    )
+    
+    if 'sleeve' in patch_label:
+        optim_weft, optim_warp, target_weft, target_warp = optim_v, optim_u, target_v, target_u
+    else:
+        optim_weft, optim_warp, target_weft, target_warp = optim_u, optim_v, target_u, target_v
+    
+    return optim_weft, optim_warp, target_weft, target_warp
+
+
+def get_stretch_statistics():
+    """
+    Analyze stretch statistics for individual patches and combined data.
+    
+    Returns:
+        Dictionary containing statistics for each patch and combined statistics
+    """
+    patch_statistics = {}
+    all_optim_weft, all_optim_warp = [], []
+    all_target_weft, all_target_warp = [], []
+    
+    # Collect statistics for individual patches
+    for patch_label in PATCH_LIST:
+        # Load stretch data for current patch
+        optim_weft, optim_warp, target_weft, target_warp = load_stretch_data(patch_label)
+        
+        # Calculate statistics for current patch
+        patch_statistics[patch_label] = calculate_stretch_statistics(
+            optim_weft=optim_weft,
+            optim_warp=optim_warp,
+            target_weft=target_weft,
+            target_warp=target_warp
+        )
+        print(f"\nStatistics for patch: {patch_label}")
+        print_stretch_statistics(patch_statistics[patch_label])
+        
+        # Collect data for combined analysis
+        all_optim_weft.append(optim_weft)
+        all_optim_warp.append(optim_warp)
+        all_target_weft.append(target_weft)
+        all_target_warp.append(target_warp)
+    
+    # Combine all arrays using numpy.concatenate
+    combined_optim_weft = np.concatenate(all_optim_weft)
+    combined_optim_warp = np.concatenate(all_optim_warp)
+    combined_target_weft = np.concatenate(all_target_weft)
+    combined_target_warp = np.concatenate(all_target_warp)
+    
+    
+    # TODO: Concatenate also upper and lower patches separately (for 3D simulation visualization)
+    
+    
+    # Calculate statistics for combined data
+    patch_statistics['all'] = calculate_stretch_statistics(
+        optim_weft=combined_optim_weft,
+        optim_warp=combined_optim_warp,
+        target_weft=combined_target_weft,
+        target_warp=combined_target_warp
+    )
+    
+    print("\nCombined statistics across all patches:")
+    print_stretch_statistics(patch_statistics['all'])
+    
+    return patch_statistics
+
+
+def calculate_stretch_statistics(optim_weft, optim_warp, target_weft, target_warp):
     """
     Calculate comprehensive statistics for stretch coefficients.
     
     Parameters:
-        optim_u, optim_v: Optimized stretch coefficients
-        target_u, target_v: Target stretch coefficients
+        optim_weft, optim_warp: Optimized stretch coefficients
+        target_weft, target_warp: Target stretch coefficients
     
     Returns:
         Dictionary containing various statistics for both u and v directions
     """
+
     def compute_directional_stats(y, t):
         # Absolute differences
         abs_diff = np.abs(y - t)
@@ -120,14 +236,16 @@ def calculate_stretch_statistics(optim_u, optim_v, target_u, target_v):
                 'min': np.min(abs_diff),
                 'std': np.std(abs_diff),
                 'percentile_95': np.percentile(abs_diff, 95),
-                'percentile_99': np.percentile(abs_diff, 99)
+                'percentile_99': np.percentile(abs_diff, 99),
+                'box_plot_stats': compute_box_plot_stats(abs_diff)  # Added box plot stats
             },
             'rel_diff': {
                 'mean': np.mean(rel_diff),
                 'median': np.median(rel_diff),
                 'max': np.max(rel_diff),
                 'min': np.min(rel_diff),
-                'std': np.std(rel_diff)
+                'std': np.std(rel_diff),
+                'box_plot_stats': compute_box_plot_stats(rel_diff)  # Added box plot stats
             },
             'f2_norm': f2_norm,
             'rel_error': {
@@ -157,7 +275,7 @@ def calculate_stretch_statistics(optim_u, optim_v, target_u, target_v):
                     'median': np.median(t),
                     'std': np.std(t),
                     'max': np.max(t),
-                    'min': np.min(t)
+                    'min': np.min(y)
                 }
             }
         }
@@ -165,19 +283,26 @@ def calculate_stretch_statistics(optim_u, optim_v, target_u, target_v):
 
     # Compute statistics for both directions
     stats_dict = {
-        'u_direction': compute_directional_stats(optim_u, target_u),
-        'v_direction': compute_directional_stats(optim_v, target_v),
+        'weft_direction': compute_directional_stats(optim_weft, target_weft),
+        'warp_direction': compute_directional_stats(optim_warp, target_warp),
         'global_metrics': {
-            'total_f2_norm': np.sqrt(np.sum((optim_u - target_u)**2) + np.sum((optim_v - target_v)**2)),
-            'combined_rmse': np.sqrt(np.mean((optim_u - target_u)**2) + np.mean((optim_v - target_v)**2)),
+            'total_f2_norm': np.sqrt(np.sum((optim_weft - target_weft)**2) + np.sum((optim_warp - target_warp)**2)),
+            'combined_rmse': np.sqrt(np.mean((optim_weft - target_weft)**2) + np.mean((optim_warp - target_warp)**2)),
             'mean_relative_error': np.mean(np.concatenate([
-                np.abs(optim_u - target_u) / target_u * 100,
-                np.abs(optim_v - target_v) / target_v * 100
-            ]))
+                np.abs(optim_weft - target_weft) / target_weft * 100,
+                np.abs(optim_warp - target_warp) / target_warp * 100
+            ])),
+            # Add box plot stats for combined data
+            'combined_abs_diff_stats': compute_box_plot_stats(
+                np.concatenate([np.abs(optim_weft - target_weft), np.abs(optim_warp - target_warp)])
+            ),
+            'combined_rel_diff_stats': compute_box_plot_stats(
+                np.concatenate([optim_weft / target_weft, optim_warp / target_warp])
+            )
         }
     }
     
-    return stats_dict
+    return stats_dict, optim_weft / target_weft
 
 # Example usage:
 def print_stretch_statistics(stats_dict, precision=4):
@@ -243,3 +368,127 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
             vertex_colors[i] = [128, 128, 128, 255]  # Default gray color if no face uses this vertex
 
     return trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
+
+
+def calculate_vertex_colors(mesh, face_stretches, min_stretch=0.7, max_stretch=1.3):
+    """
+    Calculate smoothed vertex colors based on adjacent face stretch values.
+    
+    Args:
+        mesh: Trimesh object containing the mesh
+        face_stretches: Array of stretch values per face
+        min_stretch/max_stretch: Range for color mapping
+    
+    Returns:
+        Array of colors for each vertex
+    """
+    vertex_stretches = np.zeros(len(mesh.vertices))
+    vertex_counts = np.zeros(len(mesh.vertices))
+    
+    # Accumulate stretch values from adjacent faces
+    for face_idx, face in enumerate(mesh.faces):
+        stretch = face_stretches[face_idx]
+        vertex_stretches[face] += stretch
+        vertex_counts[face] += 1
+    
+    # Average the stretch values
+    vertex_stretches = np.divide(
+        vertex_stretches, 
+        vertex_counts, 
+        out=np.zeros_like(vertex_stretches), 
+        where=vertex_counts != 0
+    )
+    
+    # Map to colors
+    vertex_colors = np.array([
+        _map_stretch_to_color(s, min_stretch, max_stretch) 
+        for s in vertex_stretches
+    ])
+    
+    return vertex_colors
+
+def interpolate_color(p, triangle_points, vertex_colors):
+    """
+    Interpolate color at point p using barycentric coordinates.
+    
+    Args:
+        p: Point to interpolate color at
+        triangle_points: Vertices of the triangle
+        vertex_colors: Colors at the triangle vertices
+    
+    Returns:
+        Interpolated color at point p
+    """
+    # Calculate barycentric coordinates
+    v0 = triangle_points[1] - triangle_points[0]
+    v1 = triangle_points[2] - triangle_points[0]
+    v2 = p - triangle_points[0]
+    
+    d00 = np.dot(v0, v0)
+    d01 = np.dot(v0, v1)
+    d11 = np.dot(v1, v1)
+    d20 = np.dot(v2, v0)
+    d21 = np.dot(v2, v1)
+    
+    denom = d00 * d11 - d01 * d01
+    v = (d11 * d20 - d01 * d21) / denom
+    w = (d00 * d21 - d01 * d20) / denom
+    u = 1.0 - v - w
+    
+    # Interpolate colors using barycentric coordinates
+    color = u * vertex_colors[0] + v * vertex_colors[1] + w * vertex_colors[2]
+    return color.astype(np.uint8)
+
+def mesh_to_stretch_image(mesh, face_stretches, image_size=(800, 800), 
+                         min_stretch=0.85, max_stretch=1.15):
+    """
+    Create a smoothly interpolated visualization of stretch values.
+    
+    Args:
+        mesh: Trimesh object containing the mesh
+        face_stretches: Array of stretch values per face
+        image_size: Size of output image
+        min_stretch/max_stretch: Range for color mapping
+    
+    Returns:
+        Image array with smooth stretch visualization
+    """
+    # Project vertices to 2D as in your original code
+    points = np.array(mesh.vertices)
+    min_bounds = points.min(axis=0)
+    max_bounds = points.max(axis=0)
+    points[:, :2] = (points[:, :2] - min_bounds[:2]) * GLOBAL_IMG_SCALE
+    
+    # Calculate vertex colors
+    vertex_colors = calculate_vertex_colors(mesh, face_stretches, min_stretch, max_stretch)
+    
+    # Create output image
+    image = np.zeros((*image_size, 4), dtype=np.uint8)
+    
+    # For each triangle
+    for face_idx, face in enumerate(mesh.faces):
+        # Get 2D coordinates of triangle vertices
+        tri_points = points[face, :2].astype(int)
+        
+        # Get bounding box of triangle
+        min_x = max(tri_points[:, 0].min(), 0)
+        max_x = min(tri_points[:, 0].max() + 1, image_size[0])
+        min_y = max(tri_points[:, 1].min(), 0)
+        max_y = min(tri_points[:, 1].max() + 1, image_size[1])
+        
+        # For each pixel in bounding box
+        for y in range(min_y, max_y):
+            for x in range(min_x, max_x):
+                point = np.array([x, y])
+                
+                # Check if point is inside triangle
+                if cv2.pointPolygonTest(tri_points, (x, y), False) >= 0:
+                    # Interpolate color
+                    color = interpolate_color(
+                        point, 
+                        tri_points, 
+                        vertex_colors[face]
+                    )
+                    image[y, x] = color
+    
+    return image[::-1]
