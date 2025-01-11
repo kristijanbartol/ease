@@ -53,7 +53,10 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             },
-            "args": []
+            "args": [
+                "--project_dir", "/Users/kristijanbartol/TailorLang/",
+                "--setup_config", "default"
+            ]
         }
     ]
 }

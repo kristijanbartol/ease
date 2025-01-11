@@ -12,8 +12,8 @@
     "seamline_strategy": "bezier",
     "num_seam_iters": 1,
     "max_stretch": 0.05,
-    "stretch_coef": 10.0,
+    "stretch_coef": 2.0,
     "edges_coef": 1.0,
-    "seams_coef": 50.0,
+    "seams_coef": 2.0,
     "dart_coef": 50.0
 }

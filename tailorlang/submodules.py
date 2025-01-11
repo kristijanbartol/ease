@@ -12,17 +12,6 @@ def run_parameterization(config):
     if not os.path.exists(cpp_program_path):
         raise FileNotFoundError(f"Executable not found at: {cpp_program_path}")
     
-    # Verify required directories exist
-    required_dirs = [
-        os.path.join(root_project_path_arg, "data/embedded/ui/"),
-        os.path.join(root_project_path_arg, "data/seamlines/ui"),
-        os.path.join(root_project_path_arg, "data/darts/latest")
-    ]
-    
-    for dir_path in required_dirs:
-        if not os.path.exists(dir_path):
-            print(f"Required directory not found: {dir_path}")
-    
     # Start with base command and config file
     command = [
         cpp_program_path,

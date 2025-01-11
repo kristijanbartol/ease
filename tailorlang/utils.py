@@ -10,7 +10,7 @@ from tailorlang.const import EXPERIMENT_GROUPS
 
 
 def construct_experiment_name(config):
-    method_name = f'{config.body_set}_{config.design_set}_{config.seamline_strategy}_{config.num_seam_iters}_{config.stretch_coef}_{config.edge_coef}_{config.seam_coef}'
+    method_name = f'{config.body_set}_{config.design}_{config.seamline_strategy}_{config.num_seam_iters}_{config.stretch_coef}_{config.edges_coef}_{config.seams_coef}'
     method_name += '_' + 'T' if config.apply_remesh else 'F'
     method_name += 'T' if config.use_darts else 'F'
     method_name += 'T' if config.equalize_seamline_lengths else 'F'
@@ -19,7 +19,7 @@ def construct_experiment_name(config):
 
 
 def construct_configs(init_config):
-    group_name = init_config['group_label']
+    group_name = init_config.group_label
     if group_name not in EXPERIMENT_GROUPS:
         return [init_config]
     else:
@@ -28,13 +28,13 @@ def construct_configs(init_config):
     configs = []
     
     for body_set in grid_parameters['body_sets']:
-        for design_set in grid_parameters['design_sets']:    
+        for design_set in grid_parameters['designs']:    
         #for matching_mode in grid_parameters['matching_modes']:
             for seamline_strategy in grid_parameters['seamline_strategies']:
                 for num_seam_iters in grid_parameters['num_seam_iterss']:
                     for stretch_coef in grid_parameters['stretch_coefs']:
-                        for edge_coef in grid_parameters['edge_coefs']:
-                            for seam_coef in grid_parameters['seam_coefs']:
+                        for edges_coef in grid_parameters['edge_coefs']:
+                            for seams_coef in grid_parameters['seam_coefs']:
                                 for _apply_remesh in grid_parameters['apply_remesh']:
                                     for _use_darts in grid_parameters['use_darts']:
                                         for _equalize_seamline_lengths in grid_parameters['equalize_seamline_lengths']:
@@ -45,8 +45,8 @@ def construct_configs(init_config):
                                             _config.seamline_strategy = seamline_strategy
                                             _config.num_seam_iters = num_seam_iters
                                             _config.stretch_coef = stretch_coef
-                                            _config.edge_coef = edge_coef
-                                            _config.seam_coef = seam_coef
+                                            _config.edges_coef = edges_coef
+                                            _config.seams_coef = seams_coef
                                             _config.apply_remesh = _apply_remesh
                                             _config.use_darts = _use_darts
                                             _config.equalize_seamline_lengths = _equalize_seamline_lengths
@@ -162,3 +162,10 @@ def prepare_configuration() -> SimpleNamespace:
     
     # Convert to namespace for dot notation access
     return dict_to_namespace(final_config)
+
+def get_experiment_names_for_grid(init_config):
+    grid_configs = construct_configs(init_config=init_config)
+    experiment_names = []
+    for config in grid_configs:
+        experiment_names.append(construct_experiment_name(config))
+    return experiment_names

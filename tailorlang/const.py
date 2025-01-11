@@ -114,8 +114,8 @@ WAISTLINE = [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507, 2922, 2
 # Use alternative seam vertices
 #LEFT_SHOULDER = LEFT_SHOULDER2
 #RIGHT_SHOULDER = RIGHT_SHOULDER2
-LEFT_ARMPIT = LEFT_ARMPIT2
-RIGHT_ARMPIT = RIGHT_ARMPIT2
+#LEFT_ARMPIT = LEFT_ARMPIT2
+#RIGHT_ARMPIT = RIGHT_ARMPIT2
 LEFT_BACK_ARM = LEFT_BACK_ARM2
 RIGHT_BACK_ARM = RIGHT_BACK_ARM2
 LEFT_INNER_PANT = LEFT_INNER_PANT2
@@ -292,13 +292,13 @@ ID_TO_PATCH = {
 
 SEAM_TO_SEAM_IDX_DICT = {
     'left_armpit': LEFT_ARMPIT,
-    'left_front_arm': LEFT_FRONT_ARM,
+    'left_front_sleeve': LEFT_FRONT_ARM,
     'left_shoulder': LEFT_SHOULDER,
-    'left_back_arm': LEFT_BACK_ARM,
+    'left_back_sleeve': LEFT_BACK_ARM,
     'right_armpit': RIGHT_ARMPIT,
-    'right_front_arm': RIGHT_FRONT_ARM,
+    'right_front_sleeve': RIGHT_FRONT_ARM,
     'right_shoulder': RIGHT_SHOULDER,
-    'right_back_arm': RIGHT_BACK_ARM,
+    'right_back_sleeve': RIGHT_BACK_ARM,
     'left_up_arm': LEFT_SLEEVE_UP,
     'left_down_arm': LEFT_SLEEVE_DOWN,
     'right_up_arm': RIGHT_SLEEVE_UP,
@@ -401,32 +401,6 @@ COLOR_MAP = {
     'yellow': (255, 255, 0),
     'white': (255, 255, 255)
 }
-
-
-
-# 0 -> left hip
-# 1 -> right hip
-# 2 -> mid hip
-# 3 -> left knee
-# 4 -> right knee
-# 5 -> spine-bottom
-# 6 -> left ankle
-# 7 -> right ankle
-# 8 -> spine-top
-# 9 -> left foot
-# 10 -> right foot
-# 11 -> neck
-# 12 -> left arm
-# 13 -> right arm
-# 14 -> head 
-# 15 -> left shoulder
-# 16 -> right shoulder
-# 17 -> left elbow
-# 18 -> right elbow
-# 19 -> left wrist
-# 20 -> right wrist
-# 21 -> left hand
-# 22 -> right hand
 
 
 EXPERIMENT_GROUPS = {
@@ -546,8 +520,59 @@ EXPERIMENT_GROUPS = {
         'apply_remesh': [False],
         'use_darts': [False],
         'equalize_seamline_lengths': [False]
+    },
+    'subject-a-pose-grid': {
+        'body_sets': ['subject-a-pose'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['bezier'],
+        'num_seam_iterss': [1],    # TODO: Support setting the number of "inner" iterations
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 50.0, 75.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'subject-sit-pose-grid': {
+        'body_sets': ['subject-sit-pose'],
+        'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['bezier'],
+        'num_seam_iterss': [1],    # TODO: Support setting the number of "inner" iterations
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 50.0, 75.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
     }
 }
+
+
+# 0 -> left hip
+# 1 -> right hip
+# 2 -> mid hip
+# 3 -> left knee
+# 4 -> right knee
+# 5 -> spine-bottom
+# 6 -> left ankle
+# 7 -> right ankle
+# 8 -> spine-top
+# 9 -> left foot
+# 10 -> right foot
+# 11 -> neck
+# 12 -> left arm
+# 13 -> right arm
+# 14 -> head 
+# 15 -> left shoulder
+# 16 -> right shoulder
+# 17 -> left elbow
+# 18 -> right elbow
+# 19 -> left wrist
+# 20 -> right wrist
+# 21 -> left hand
+# 22 -> right hand
 
 
 def t_pose():
@@ -588,8 +613,7 @@ def sit_pose():
     pose[0, 1*3:2*3] = torch.tensor([-np.pi / 2, 0, 0]) # right hip
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])  # left knee
     pose[0, 4*3:5*3] = torch.tensor([np.pi / 2, 0, 0])  # right knee
-    #pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
-    #pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    
     return pose
 
 
@@ -614,6 +638,9 @@ def bent_knee_90_pose():
     pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])
     return pose
+
+
+SUBJECT_BETAS = [[0.8100,  0.8800, -0.7100,  0.2424,  0.0000,  0.0000,  0.0000,  0.0000, 0.0000,  0.0000]]
 
 
 def zero_shape():
@@ -641,6 +668,10 @@ def large_shape():
 def small_shape():
     shape = torch.ones((1, 10)) * 2.5
     return shape
+
+
+def subject_shape():
+    return torch.tensor(SUBJECT_BETAS)
 
 
 def iterate_keypoints():

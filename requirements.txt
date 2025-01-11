@@ -25,3 +25,7 @@ svgwrite
 # sim
 libigl==2.4.1
 scikit-sparse
+# render
+pyrender
+# postprocess
+plyfile

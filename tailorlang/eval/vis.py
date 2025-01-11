@@ -70,7 +70,7 @@ class QualitativeMesh:
         self.offset = IMG_OFFSETS_DICT[patch_label]
         self.patch_label = patch_label
         self.is_front = True if patch_label.split('_')[1] == 'front' else False
-        self.face_scales_weft, self.face_scales_warp = self._extract_stretch_colors(patch_label)
+        #self.face_scales_weft, self.face_scales_warp = self._extract_stretch_colors(patch_label)
         
     def _extract_stretch_colors(self, patch_label):
         embedded_mesh = trimesh.load(f'data/embedded/{patch_label}/ref.ply')
@@ -240,14 +240,16 @@ class PatchProcessor:
             base_filepath: Base filepath without extension (e.g., 'path/to/mesh')
         """
         # DXF versions to try
-        versions = ['R12', 'R2010', 'R2013']
+        #versions = ['R12', 'R2010', 'R2013']
+        versions = ['R2010']
         # Scaling factors (1 means original, 10 means 10x larger, etc.)
-        scales = [1, 10, 100]
+        #scales = [1, 10, 100]
+        scales = [100]
         
         for version in versions:
             for scale in scales:
                 # Create filenames for both full mesh and outline versions
-                full_filepath = f"{base_filepath}_full_v{version}_s{scale}x.dxf"
+                #full_filepath = f"{base_filepath}_full_v{version}_s{scale}x.dxf"
                 outline_filepath = f"{base_filepath}_outline_v{version}_s{scale}x.dxf"
                 
                 try:
@@ -267,6 +269,7 @@ class PatchProcessor:
                     
                     # Process each patch
                     for patch in self.patches:
+                        '''
                         # Full mesh export
                         for face in patch.mesh.faces:
                             points = patch.mesh.vertices[face]
@@ -278,6 +281,7 @@ class PatchProcessor:
                                 polyline.close(True)
                             else:
                                 msp_full.add_lwpolyline(points_2d)
+                        '''
                         
                         # Outline export
                         outlines = self._extract_mesh_outline(patch.mesh)
@@ -292,9 +296,9 @@ class PatchProcessor:
                                 msp_outline.add_lwpolyline(points_2d)
                     
                     # Save both versions
-                    doc_full.saveas(full_filepath)
+                    #doc_full.saveas(full_filepath)
                     doc_outline.saveas(outline_filepath)
-                    print(f"Successfully exported full mesh: {full_filepath}")
+                    #print(f"Successfully exported full mesh: {full_filepath}")
                     print(f"Successfully exported outline: {outline_filepath}")
                     
                 except Exception as e:
@@ -311,7 +315,8 @@ class PatchProcessor:
         # A1 size in mm
         a1_width_mm = 594
         a1_height_mm = 841
-        scales = [1, 10, 100]
+        #scales = [1, 10, 100]
+        scales = [100]
         
         # Get mesh bounds for all patches
         all_vertices = np.vstack([patch.mesh.vertices for patch in self.patches])
@@ -322,13 +327,14 @@ class PatchProcessor:
         
         for scale in scales:
             # Create filenames for both versions
-            full_filepath = f"{base_filepath}_full_s{scale}x.pdf"
+            #full_filepath = f"{base_filepath}_full_s{scale}x.pdf"
             outline_filepath = f"{base_filepath}_outline_s{scale}x.pdf"
             
             try:
                 # Create PDFs for both versions
-                for is_outline in [False, True]:
-                    filepath = outline_filepath if is_outline else full_filepath
+                for is_outline in [True]:
+                    #filepath = outline_filepath if is_outline else full_filepath
+                    filepath = outline_filepath
                     c = canvas.Canvas(filepath, pagesize=A1)
                     
                     # Calculate scaling to fit on page with margins
@@ -394,7 +400,8 @@ class PatchProcessor:
         Args:
             base_filepath: Base filepath without extension
         """
-        scales = [1, 10, 100]
+        #scales = [1, 10, 100]
+        scales = [100]
         
         # Get mesh bounds for all patches
         all_vertices = np.vstack([patch.mesh.vertices for patch in self.patches])
@@ -405,13 +412,14 @@ class PatchProcessor:
         
         for scale in scales:
             # Create filenames for both versions
-            full_filepath = f"{base_filepath}_full_s{scale}x.svg"
+            #full_filepath = f"{base_filepath}_full_s{scale}x.svg"
             outline_filepath = f"{base_filepath}_outline_s{scale}x.svg"
             
             try:
                 # Create SVGs for both versions
-                for is_outline in [False, True]:
-                    filepath = outline_filepath if is_outline else full_filepath
+                for is_outline in [True]:
+                    #filepath = outline_filepath if is_outline else full_filepath
+                    filepath = outline_filepath
                     
                     # Create SVG document with appropriate viewBox
                     margin = mesh_width * 0.05  # 5% margin

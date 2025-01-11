@@ -24,12 +24,13 @@ from tailorlang.io import (
 
 class DesignParameters:
     def __init__(self, design_dict=None):
-        self.shirt_looseness = 1.0
-        self.sleeve_looseness = 1.0
-        self.pant_looseness = 1.0
+        
         
         if design_dict is None:
             # Initialize with default values
+            self.shirt_looseness = 1.0
+            self.sleeve_looseness = 1.0
+            self.pant_looseness = 1.0
             self.shirt_length = 0.3
             self.sleeve_length = 0.3
             self.pant_length = 0.3
@@ -37,6 +38,9 @@ class DesignParameters:
             self.shirt_length = design_dict['dims']['upper']
             self.sleeve_length = design_dict['dims']['sleeve']
             self.pant_length = design_dict['dims']['lower']
+            self.shirt_looseness = design_dict['stretches']['upper']['base_stretch_u']
+            self.sleeve_looseness = design_dict['stretches']['sleeve']['base_stretch_u']
+            self.pant_looseness = design_dict['stretches']['lower']['base_stretch_u']
         
     def update_parameter(self, param_name, value):
         if hasattr(self, param_name):

@@ -66,8 +66,8 @@ def combine_meshes_on_canvas(meshes, canvas_size, img_size,
 def process_2d_meshes(
         patches: List[QualitativeMesh], 
         offsets: Dict[str, Tuple[float, float]],
-        output_dir: str,
-        method: str
+        output_rootdir: str,
+        experiment_name: str
     ):
     """
     Process garment meshes and export to multiple formats.
@@ -84,32 +84,36 @@ def process_2d_meshes(
     processor.apply_offsets()
     processor.combine_meshes()
     
+    for subdir in [os.path.join(f'{output_rootdir}/{file_format}/{experiment_name}/') for file_format in ['ply', 'dxf', 'pdf', 'svg']]:
+        os.makedirs(subdir, exist_ok=True)
+    
     # Export to different formats
-    processor.export_ply(f"{output_dir}/pattern_{method}.ply")
-    processor.export_dxf_variants(f"{output_dir}/pattern_{method}.dxf")
-    processor.export_pdf_variants(f"{output_dir}/pattern_{method}.pdf")
-    processor.export_svg_variants(f"{output_dir}/pattern_{method}.svg")
+    processor.export_ply(f"{output_rootdir}/ply/{experiment_name}/pattern.ply")
+    processor.export_dxf_variants(f"{output_rootdir}/dxf/{experiment_name}/pattern.dxf")
+    processor.export_pdf_variants(f"{output_rootdir}/pdf/{experiment_name}/pattern.pdf")
+    processor.export_svg_variants(f"{output_rootdir}/svg/{experiment_name}/pattern.svg")
         
 
-def qualitative_evaluation(method):
+def qualitative_evaluation(experiment_name):
     meshes_dict = {}
     param_2d_dir = 'data/param_2d/'
     output_rootdir = 'results/qualitative/pattern/'
     for _, patch_labels, _ in os.walk(param_2d_dir):
         for patch_label in patch_labels:
-            for param_2d_fname in os.listdir(os.path.join(param_2d_dir, patch_label)):
-                if 'optim' in param_2d_fname and 'ply' in param_2d_fname:
-                    suffix = param_2d_fname.split('.')[0][6:]
-                    qualitative_mesh = QualitativeMesh(patch_label, param_2d_fname)
-                    if suffix not in meshes_dict:
-                        meshes_dict[suffix] = [qualitative_mesh]
-                    else:
-                        meshes_dict[suffix].append(qualitative_mesh)
+            if not(('upper' in patch_label or 'sleeve' in patch_label) and 'subject' in experiment_name):
+                for param_2d_fname in os.listdir(os.path.join(param_2d_dir, patch_label)):
+                    if 'optim' in param_2d_fname and 'ply' in param_2d_fname:
+                        suffix = param_2d_fname.split('.')[0][6:]
+                        qualitative_mesh = QualitativeMesh(patch_label, param_2d_fname)
+                        if suffix not in meshes_dict:
+                            meshes_dict[suffix] = [qualitative_mesh]
+                        else:
+                            meshes_dict[suffix].append(qualitative_mesh)
     
-    output_dir_latest = os.path.join(output_rootdir, 'latest/')
-    output_dir_method = os.path.join(output_rootdir, method)
-    os.makedirs(os.path.join(output_dir_latest, 'png'), exist_ok=True)     
-    os.makedirs(os.path.join(output_dir_method, 'png'), exist_ok=True)     
+    #output_dir_latest = os.path.join(output_rootdir, 'latest/')
+    output_dir_method = os.path.join(output_rootdir, 'png', experiment_name)
+    #os.makedirs(os.path.join(output_dir_latest, 'png'), exist_ok=True)     
+    os.makedirs(output_dir_method, exist_ok=True)     
     
     final_meshes = deepcopy(meshes_dict['final-seams'])
     
@@ -120,35 +124,33 @@ def qualitative_evaluation(method):
         img_size = (450, 450)
         
         # For stretch visualization
-        stretch_canvas_weft = combine_meshes_on_canvas(
-            meshes_dict[suffix], canvas_size, img_size, visualization_mode='stretch', direction='weft')
-        stretch_canvas_warp = combine_meshes_on_canvas(
-            meshes_dict[suffix], canvas_size, img_size, visualization_mode='stretch', direction='warp')
+        #stretch_canvas_weft = combine_meshes_on_canvas(
+        #    meshes_dict[suffix], canvas_size, img_size, visualization_mode='stretch', direction='weft')
+        #stretch_canvas_warp = combine_meshes_on_canvas(
+        #    meshes_dict[suffix], canvas_size, img_size, visualization_mode='stretch', direction='warp')
 
         # For original front/back visualization
         patch_canvas = combine_meshes_on_canvas(
             meshes_dict[suffix], canvas_size, img_size, visualization_mode='sewing_pattern')
 
+        #cv2.imwrite(
+        #    os.path.join(output_dir_latest, 'png', f'weft_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_weft)
+        #cv2.imwrite(
+        #    os.path.join(output_dir_method, 'png', f'weft_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_weft)
+        #cv2.imwrite(
+        #    os.path.join(output_dir_latest, 'png', f'warp_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_warp)
+        #cv2.imwrite(
+        #    os.path.join(output_dir_method, 'png', f'warp_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_warp)
+        #cv2.imwrite(
+        #    os.path.join(output_dir_latest, 'png', f'sewing_pattern_{experiment_name}_{suffix}.png'), patch_canvas)
         cv2.imwrite(
-            os.path.join(output_dir_latest, 'png', f'weft_stretch_pattern_{method}_{suffix}.png'), stretch_canvas_weft)
-        cv2.imwrite(
-            os.path.join(output_dir_method, 'png', f'weft_stretch_pattern_{method}_{suffix}.png'), stretch_canvas_weft)
-        cv2.imwrite(
-            os.path.join(output_dir_latest, 'png', f'warp_stretch_pattern_{method}_{suffix}.png'), stretch_canvas_warp)
-        cv2.imwrite(
-            os.path.join(output_dir_method, 'png', f'warp_stretch_pattern_{method}_{suffix}.png'), stretch_canvas_warp)
-        cv2.imwrite(
-            os.path.join(output_dir_latest, 'png', f'sewing_pattern_{method}_{suffix}.png'), patch_canvas)
-        cv2.imwrite(
-            os.path.join(output_dir_method, 'png', f'sewing_pattern_{method}_{suffix}.png'), patch_canvas)
+            os.path.join(output_dir_method, f'sewing_pattern_{suffix}.png'), patch_canvas)
     
-    output_dir = os.path.join(output_rootdir, 'dfx', method)
-    os.makedirs(output_dir, exist_ok=True)
     process_2d_meshes(
         patches=final_meshes, 
         offsets=MESH_OFFSETS_DICT, 
-        output_dir=output_dir,
-        method=method
+        output_rootdir=output_rootdir,
+        experiment_name=experiment_name
     )
 
 

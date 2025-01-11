@@ -167,7 +167,7 @@ def get_stretch_statistics():
         optim_weft, optim_warp, target_weft, target_warp = load_stretch_data(patch_label)
         
         # Calculate statistics for current patch
-        patch_statistics[patch_label] = calculate_stretch_statistics(
+        patch_statistics[patch_label], _ = calculate_stretch_statistics(
             optim_weft=optim_weft,
             optim_warp=optim_warp,
             target_weft=target_weft,
@@ -193,7 +193,7 @@ def get_stretch_statistics():
     
     
     # Calculate statistics for combined data
-    patch_statistics['all'] = calculate_stretch_statistics(
+    patch_statistics['all'], rel_weft_ratios = calculate_stretch_statistics(
         optim_weft=combined_optim_weft,
         optim_warp=combined_optim_warp,
         target_weft=combined_target_weft,

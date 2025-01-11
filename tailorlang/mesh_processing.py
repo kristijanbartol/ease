@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Tuple, List
 import os
+import shutil
 import torch
 import numpy as np
 from smplx import SMPL
@@ -387,6 +388,7 @@ class MeshState:
             set_dict = json.load(json_file)
         self.body_set = BodySet(set_dict)
         self.ref_gender = self.body_set.ref['gender']
+        ref_shape_fun = getattr(const, self.body_set.ref['shape'])
         
         self.smpl_model = SMPL(
             model_path=os.path.join(SMPL_DIR, f'SMPL_{self.ref_gender.upper()}.pkl'), 
@@ -394,7 +396,9 @@ class MeshState:
         )
         
         self.canonical_mesh = {
-            'vertices': self.smpl_model().vertices[0].cpu().detach().numpy(),
+            'vertices': self.smpl_model(
+                betas=ref_shape_fun()
+            ).vertices[0].cpu().detach().numpy(),
             'faces': self.smpl_model.faces,
             'color': (0.7, 0.7, 0.7, 1.0)  # Gray
         }
@@ -494,6 +498,7 @@ class MeshState:
                 plane_orient=PLANE_ORIENT_DICT[component_label],
                 component_length=component_length
             )
+            #if not(self.ref_gender == 'male' and self.body_set.num_targets > 0):    # NOTE: SMPL doesn't work with v_template argument for males
             self.active_mesh['vertices'], self.bary_coords_for_active_cuts_dict[component_label] = modify_mesh_with_plane_cut(
                 vertices=self.active_mesh['vertices'],
                 faces=self.active_mesh['faces'],
@@ -501,8 +506,27 @@ class MeshState:
                 plane_orientation=PLANE_ORIENT_DICT[component_label],
                 sleeve_side=component_label.split('_')[1] if component_label[:6] == 'sleeve' else None
             )
-            trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('cut_mesh.ply')
-            trimesh.Trimesh(vertices=self.canonical_mesh['vertices'], faces=self.canonical_mesh['faces']).export('canonical_mesh.ply')
+                
+        '''
+        if not(self.ref_gender == 'male' and self.body_set.num_targets > 0):
+            active_smpl = SMPL(
+                model_path=os.path.join(SMPL_DIR, f'SMPL_{self.ref_gender.upper()}.pkl'), 
+                gender=self.ref_gender,
+                v_template=torch.from_numpy(self.active_mesh['vertices']).float()
+            )
+            self.active_mesh['vertices'] = active_smpl(
+                body_pose=getattr(const, self.body_set.ref['pose'])(),
+                betas=getattr(const, self.body_set.ref['shape'])(),
+            ).vertices[0].cpu().detach().numpy()
+        else:   # posed and shaped mesh (reference) but without a cut
+            self.active_mesh['vertices'] = self.smpl_model(
+                body_pose=getattr(const, self.body_set.ref['pose']),
+                betas=getattr(const, self.body_set.ref['shape']),
+            ).vertices[0].cpu().detach().numpy()
+        '''
+                
+        trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('cut_mesh.ply')
+        trimesh.Trimesh(vertices=self.canonical_mesh['vertices'], faces=self.canonical_mesh['faces']).export('canonical_mesh.ply')
     
     def apply_pre_seams(self):
         ''' Updates patch_idxs_dict. '''
@@ -599,12 +623,20 @@ class MeshState:
         
     def _get_active_template_smpls(self):
         active_template_smpl_dict = {}
-        active_template_smpl_dict[self.ref_gender] = SMPL(
-            model_path=os.path.join(SMPL_DIR, f'SMPL_{self.ref_gender.upper()}.pkl'), 
-            gender=self.ref_gender,
-            v_template=torch.from_numpy(self.active_mesh['vertices']).float()
-        )
+        if self.ref_gender == 'female':
+            active_template_smpl_dict[self.ref_gender] = SMPL(
+                model_path=os.path.join(SMPL_DIR, f'SMPL_{self.ref_gender.upper()}.pkl'), 
+                gender=self.ref_gender,
+                v_template=torch.from_numpy(self.active_mesh['vertices']).float()
+            )
+        else:   # there seems to be a bug when using v_template with male models so more suitable not to use the cut mesh (especially for pants)
+            active_template_smpl_dict[self.ref_gender] = SMPL(
+                model_path=os.path.join(SMPL_DIR, f'SMPL_{self.ref_gender.upper()}.pkl'), 
+                gender=self.ref_gender
+            )
+        trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('controversial_active_mesh.ply')
         if self.body_set.target_genders_differ_from_ref:
+            raise Exception("Avoid using this for the moment...")
             remaining_gender = 'male' if self.ref_gender == 'female' else 'female'
             other_template_verts = MeshProcessor.update_homologous_mesh(
                 target_gender=remaining_gender,
@@ -626,10 +658,13 @@ class MeshState:
             target_gender = self.body_set.target['genders'][body_idx]
             
             target_posed_verts_list.append(active_template_smpl_dict[target_gender](
-                    body_pose=target_pose_fun(), 
-                    betas=target_shape_fun()
-                ).vertices[0].cpu().detach().numpy()
-            )
+                body_pose=target_pose_fun(), 
+                betas=target_shape_fun()
+            ).vertices[0].cpu().detach().numpy())
+            trimesh.Trimesh(vertices=active_template_smpl_dict[target_gender](
+                body_pose=target_pose_fun(), 
+                betas=target_shape_fun()
+            ).vertices[0].cpu().detach().numpy(), faces=self.active_mesh['faces']).export('controversial_mesh.ply')
         return target_posed_verts_list
     
     def _select_active_faces(self, patch_vert_idxs):
@@ -652,6 +687,7 @@ class MeshState:
         target_posed_verts_list = self._get_target_posed_verts()
         
         trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('active_mesh.ply')
+        #trimesh.Trimesh(vertices=target_posed_verts_list[0], faces=self.active_mesh['faces']).export('target_mesh.ply')
         
         for patch_label in PATCH_LIST:
             patch_vert_idxs = self.masked_patch_idxs_dict[patch_label]
@@ -829,9 +865,7 @@ class MeshState:
         )
         colored_upper_front_mesh.export('dart_stretches_debug.ply')
             
-    def _export_seamline_vertex_pairs(self):
-        seamline_dir = f'data/seamlines/'
-        os.makedirs(seamline_dir, exist_ok=True)
+    def _export_seamline_vertex_pairs(self, seamline_dir):
         for seam_name in self.seam_to_segment_vertex_pairs:
             save_seamline_pairs_file(
                 fpath=os.path.join(seamline_dir, f'{seam_name}.txt'),
@@ -850,10 +884,14 @@ class MeshState:
     def _export_prepared_data(self):
         mesh_dir = 'data/embedded/'
         body_dir = 'data/body/'
+        seamline_dir = f'data/seamlines/'
         stretch_dir = 'data/scales/'
         uv_ref_3d_dir = 'data/bary/ref_3d/'
         uv_ref_2d_dir = 'data/bary/ref_2d/' # only create the director(ies) and fill out in C++
-        os.makedirs(body_dir, exist_ok=True)
+        for dir in [mesh_dir, body_dir, seamline_dir]:
+            if os.path.exists(dir):
+                shutil.rmtree(dir)
+                os.makedirs(dir)
         
         trimesh.Trimesh(
             vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
@@ -897,11 +935,13 @@ class MeshState:
             print(f'Exporting {uv_ref_3d_subdir}/ref_bary_(u/v).txt...')
             
             # Store seamline vertex pairs
-            self._export_seamline_vertex_pairs()
+            self._export_seamline_vertex_pairs(seamline_dir)
             
             for body_idx in range(len(self.body_set.target['poses'])):
                 trimesh.Trimesh(
                     vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:2d}.ply'))
+                trimesh.Trimesh(
+                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:2d}.obj'))
                 export(
                     verts=self.target_patch_verts_dict_list[body_idx][patch_label],
                     faces=self.target_patch_faces_dict_list[body_idx][patch_label],

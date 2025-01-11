@@ -8,12 +8,12 @@ from tailorlang.utils import (
 )
 
 
-def run_grid(config):
-    grid_configs = construct_configs(init_config=config)    # TODO: Also add stretch & sliding parameters
+def run_grid(init_config):
+    grid_configs = construct_configs(init_config=init_config)    # TODO: Also add stretch & sliding parameters
      
     for config in grid_configs:     
         mesh_state = MeshState(config=config)
-        #mesh_state.update_parameters()     # TODO: When measuring execution time, measure only the update part (init will be stored and loaded)
+        mesh_state.update_parameters(config.design)     # TODO: When measuring execution time, measure only the update part (init will be stored and loaded)
         mesh_state.finalize()
         mesh_state.optimize()
         
@@ -21,7 +21,7 @@ def run_grid(config):
 
 
 if __name__ == "__main__":
-    config = prepare_configuration()
-    print_configuration(config)
+    init_config = prepare_configuration()
+    print_configuration(init_config)
     
-    run_grid(config=config)
+    run_grid(init_config=init_config)
