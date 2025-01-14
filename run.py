@@ -13,7 +13,7 @@ def run_grid(init_config):
      
     for config in grid_configs:     
         mesh_state = MeshState(config=config)
-        mesh_state.update_parameters(config.design)     # TODO: When measuring execution time, measure only the update part (init will be stored and loaded)
+        #mesh_state.update_parameters(config.design)     # TODO: When measuring execution time, measure only the update part (init will be stored and loaded)
         mesh_state.finalize()
         mesh_state.optimize()
         
