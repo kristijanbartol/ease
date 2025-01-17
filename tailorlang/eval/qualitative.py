@@ -96,7 +96,7 @@ def process_2d_meshes(
 
 def qualitative_evaluation(experiment_name):
     meshes_dict = {}
-    param_2d_dir = 'data/param_2d/'
+    param_2d_dir = 'results/pattern/latest/'
     output_rootdir = 'results/qualitative/pattern/'
     for _, patch_labels, _ in os.walk(param_2d_dir):
         for patch_label in patch_labels:

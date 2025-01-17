@@ -39,7 +39,7 @@ class DesignParameters:
             self.sleeve_length = design_dict['dims']['sleeve']
             self.pant_length = design_dict['dims']['lower']
             self.shirt_looseness = design_dict['stretches']['upper']['base_stretch_u']
-            self.sleeve_looseness = design_dict['stretches']['sleeve']['base_stretch_u']
+            self.sleeve_looseness = design_dict['stretches']['sleeve']['base_stretch_v']
             self.pant_looseness = design_dict['stretches']['lower']['base_stretch_u']
         
     def update_parameter(self, param_name, value):

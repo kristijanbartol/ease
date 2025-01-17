@@ -136,6 +136,22 @@ PATCH_LIST = [
     'lower_back_left'
 ]
 
+UPPER_PATCH_LIST = [
+    'upper_front',
+    'upper_back',
+    'sleeve_front_right',
+    'sleeve_back_right',
+    'sleeve_front_left',
+    'sleeve_back_left',
+]
+
+LOWER_PATCH_LIST = [
+    'lower_front_right',
+    'lower_back_right',
+    'lower_front_left',
+    'lower_back_left'
+]
+
 SEGMENT_NAMES = {
     'default': {
         'upper': [
@@ -258,6 +274,17 @@ PATCH_TO_PRE_SEAMS_DICT = {
         'mid_inner': BACK_INNER_PANT,
         'waistline': [2919, 2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784]
     }
+}
+
+FIXED_SEAMLINE_LABELS_DICT = {
+    'upper': [
+        'left_down_arm',
+        #'right_down_arm'
+    ],
+    'lower': [
+        'left_inner_pant',
+        'right_inner_pant'
+    ]
 }
 
 SEGMENT_TO_ID = {
@@ -638,6 +665,70 @@ def bent_knee_90_pose():
     pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])
     return pose
+
+
+UPPER_ANGLE_OFFSETS_DICT = {
+    'a_pose': {
+        1.00: 0,
+        1.05: np.pi / 64,
+        1.10: np.pi / 50,
+        1.15: np.pi / 40,
+        1.20: np.pi / 34,
+        1.25: np.pi / 30,
+        1.30: np.pi / 26,
+        1.35: np.pi / 22,
+        1.40: np.pi / 19
+    },
+    'sit_pose': {
+        1.00: 0,
+        1.05: np.pi / 64,
+        1.10: np.pi / 50,
+        1.15: np.pi / 40,
+        1.20: np.pi / 34,
+        1.25: np.pi / 30,
+        1.30: np.pi / 26,
+        1.35: np.pi / 22,
+        1.40: np.pi / 19
+    }
+}
+
+LOWER_ANGLE_OFFSETS_DICT = {
+    'a_pose': {
+        1.00: 0,
+        1.05: 0,
+        1.10: np.pi / 96,
+        1.15: np.pi / 64,
+        1.20: np.pi / 48,
+        1.25: np.pi / 42,
+        1.30: np.pi / 36,
+        1.35: np.pi / 30,
+        1.40: np.pi / 26
+    },
+    'sit_pose': {
+        1.00: 0,
+        1.05: 0,
+        1.10: np.pi / 96,
+        1.15: np.pi / 64,
+        1.20: np.pi / 48,
+        1.25: np.pi / 42,
+        1.30: np.pi / 36,
+        1.35: np.pi / 30,
+        1.40: np.pi / 26
+    }
+}
+
+
+def apply_angle_offset(pose_params, pose_label, upper_coef, lower_coef):
+    # Upper offset    
+    pose_params[0, 15*3+2] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+    pose_params[0, 16*3+2] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+    
+    # Lower offset
+    pose_params[0, 0*3+2] += LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
+    pose_params[0, 1*3+2] -= LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
+    
+    return pose_params
+    
 
 
 SUBJECT_BETAS = [[0.8100,  0.8800, -0.7100,  0.2424,  0.0000,  0.0000,  0.0000,  0.0000, 0.0000,  0.0000]]

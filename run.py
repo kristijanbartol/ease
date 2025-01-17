@@ -17,7 +17,7 @@ def run_grid(init_config):
         mesh_state.finalize()
         mesh_state.optimize()
         
-        evaluate_experiment(config)
+        evaluate_experiment(config, mesh_state.design_params, mesh_state.body_set)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from tailorlang.const import (
     INIT_RIGHT_FRONT_PANT,
     PRE_SEAMS_DICT,
     FIXED_POINTS_DICT,
+    FIXED_SEAMLINE_LABELS_DICT,
     PATCH_LIST,
     PLANE_ORIENT_DICT,
     SEGMENT_TO_ID,
@@ -259,7 +260,7 @@ class MeshProcessor:
     @staticmethod
     def extract_local_stretches(verts, faces, design_params, patch_label, side=None) -> np.ndarray:
         if 'sleeve' in patch_label:
-            stretches_u = np.ones(faces.shape[0])   # Do not design elongation direction (only looseness)
+            stretches_u = np.ones(faces.shape[0])             # Do not design elongation direction (only looseness)
             stretches_v = np.ones(faces.shape[0]) * design_params.sleeve_looseness
         else:
             if 'upper' in patch_label:
@@ -360,7 +361,7 @@ class MeshState:
         self.full_patch_idxs_dict = {}
         self.masked_patch_idxs_dict = {}
         
-        self._init_static(config.body_set)
+        self._init_static(config.design, config.body_set)
         self._prepare_init()
         
         # Data structures for the finalization
@@ -379,8 +380,8 @@ class MeshState:
         self.uv_unit_directions_dict = {}
         self.local_stretches_dict = {}
         
-    def _init_static(self, body_set):
-        with open(f'config/designs/long.json', 'r') as json_file:
+    def _init_static(self, design, body_set):
+        with open(f'config/designs/{design}.json', 'r') as json_file:   # TODO: For efficiency, start with "long.json" and then update
             init_design_dict = json.load(json_file)
         self.design_params = DesignParameters(init_design_dict)
         
@@ -706,6 +707,17 @@ class MeshState:
                 self.target_patch_verts_dict_list[body_idx][patch_label] = target_posed_verts_list[body_idx][patch_vert_idxs]
                 self.target_patch_faces_dict_list[body_idx][patch_label] = self.ref_patch_faces_dict[patch_label]
                 
+        #self.old_to_new_idx_dict['upper'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' not in key])
+        #self.old_to_new_idx_dict['lower'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' in key])
+                
+    def map_old_to_new_indices(self, patch_label, old_indices):
+        new_indices = []
+        for old_index in old_indices:
+            # NOTE (crucial): Some old indices might not be in the old-to-new dictionary since they are boundary vertices below the garment length threshold
+            if old_index in self.old_to_new_idx_dict[patch_label]:
+                new_indices.append(self.old_to_new_idx_dict[patch_label][old_index])
+        return new_indices
+                
     def _update_seamlines(self):
         ''' Updates seamline vertex indices based on the selected garment patch vertices.
         
@@ -719,24 +731,16 @@ class MeshState:
         The `map_old_to_new_indices` function selects only the vertex indices that are previously
         selected for that patch.
         '''
-        def map_old_to_new_indices(patch_label, old_indices):
-            new_indices = []
-            for old_index in old_indices:
-                # NOTE (crucial): Some old indices might not be in the old-to-new dictionary since they are boundary vertices below the garment length threshold
-                if old_index in self.old_to_new_idx_dict[patch_label]:
-                    new_indices.append(self.old_to_new_idx_dict[patch_label][old_index])
-            return new_indices
-
         for patch_label in PATCH_LIST:
             patch_id = SEGMENT_TO_ID[patch_label]
             for seam_label in SEGMENT_TO_SEAMLINES_DICT[patch_id]:
                 if seam_label not in self.seam_to_segment_vertex_pairs:
                     self.seam_to_segment_vertex_pairs[seam_label] = {
-                        patch_id: map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        patch_id: self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
                     }
                 else:
                     self.seam_to_segment_vertex_pairs[seam_label][patch_id] = \
-                        map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
                         
     def _create_darts(self):
         for patch_label in PATCH_LIST:
@@ -875,6 +879,30 @@ class MeshState:
             darts_dir = f'data/darts/{patch_label}'
             os.makedirs(os.path.join(darts_dir), exist_ok=True)
             save_darts_files(darts_dir, self.dart_dict[patch_label])
+         
+    '''   
+    def _export_fixed_vertices(self, fixed_verts_dir):
+        self.old_to_new_idx_dict['upper'] = self._extract_old_to_new_vert_idxs_map(self.full_patch_idxs_dict['upper'])
+        self.old_to_new_idx_dict['lower'] = self._extract_old_to_new_vert_idxs_map(self.full_patch_idxs_dict['lower'])
+
+        fixed_verts_dict = {
+            'upper': [],
+            'lower': []
+        }
+        for garment_part in ['upper', 'lower']:
+            for seam_label in FIXED_SEAMLINE_LABELS_DICT[garment_part]:
+                old_seam_vert_idxs = SEAM_TO_SEAM_IDX_DICT[seam_label]
+                new_seam_verts = self.map_old_to_new_indices(
+                    patch_label=garment_part,
+                    old_indices=old_seam_vert_idxs
+                )
+                fixed_verts_dict[garment_part] += new_seam_verts
+            
+            fpath = os.path.join(fixed_verts_dir, f'{garment_part}.txt')
+            with open(fpath, 'w') as f:
+                for v in fixed_verts_dict[garment_part]:
+                    f.write(str(v) + '\n')
+    '''
         
     @staticmethod
     def check_unique_with_tolerance(vertices, tolerance=1e-4):
@@ -884,11 +912,12 @@ class MeshState:
     def _export_prepared_data(self):
         mesh_dir = 'data/embedded/'
         body_dir = 'data/body/'
-        seamline_dir = f'data/seamlines/'
+        seamline_dir = 'data/seamlines/'
+        fixed_verts_dir = 'data/fixed_vertices/'
         stretch_dir = 'data/scales/'
         uv_ref_3d_dir = 'data/bary/ref_3d/'
         uv_ref_2d_dir = 'data/bary/ref_2d/' # only create the director(ies) and fill out in C++
-        for dir in [mesh_dir, body_dir, seamline_dir]:
+        for dir in [mesh_dir, body_dir, seamline_dir, fixed_verts_dir]:
             if os.path.exists(dir):
                 shutil.rmtree(dir)
                 os.makedirs(dir)
@@ -939,20 +968,20 @@ class MeshState:
             
             for body_idx in range(len(self.body_set.target['poses'])):
                 trimesh.Trimesh(
-                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:2d}.ply'))
+                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:02d}.ply'))
                 trimesh.Trimesh(
-                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:2d}.obj'))
+                    vertices=self.target_bodies_verts[body_idx], faces=self.active_mesh['faces']).export(os.path.join(body_dir, f'target-{body_idx:02d}.obj'))
                 export(
                     verts=self.target_patch_verts_dict_list[body_idx][patch_label],
                     faces=self.target_patch_faces_dict_list[body_idx][patch_label],
                     path=os.path.join(embedded_subdir, f'target-{body_idx:02d}')
                 )
-                print(f'Exporting {embedded_subdir}/target-{body_idx:02}.(ply/obj)...')
+                print(f'Exporting {embedded_subdir}/target-{body_idx:02d}.(ply/obj)...')
         
     def optimize(self):
-        os.makedirs('data/param_2d/', exist_ok=True)
+        pattern_dir = 'results/pattern/'
         for patch_label in PATCH_LIST:
-            os.makedirs(f'data/param_2d/{patch_label}', exist_ok=True)
+            os.makedirs(os.path.join(pattern_dir, 'latest', patch_label), exist_ok=True)
             
         run_parameterization(
             config=self.config

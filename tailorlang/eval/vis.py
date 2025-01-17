@@ -66,7 +66,7 @@ def draw_mesh_on_canvas(canvas, mesh_image, offset, color):
 
 class QualitativeMesh:
     def __init__(self, patch_label, param_2d_fname):
-        self.mesh = trimesh.load(f'data/param_2d/{patch_label}/{param_2d_fname}')
+        self.mesh = trimesh.load(f'results/pattern/latest/{patch_label}/{param_2d_fname}')
         self.offset = IMG_OFFSETS_DICT[patch_label]
         self.patch_label = patch_label
         self.is_front = True if patch_label.split('_')[1] == 'front' else False

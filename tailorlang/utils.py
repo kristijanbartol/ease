@@ -18,6 +18,10 @@ def construct_experiment_name(config):
     return method_name
 
 
+def modify_experiment_name_for_refit(base_experiment, target_pose):
+    return target_pose + '_' + '_'.join(base_experiment.split('_')[1:])
+
+
 def construct_configs(init_config):
     group_name = init_config.group_label
     if group_name not in EXPERIMENT_GROUPS:
