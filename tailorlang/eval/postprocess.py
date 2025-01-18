@@ -12,6 +12,15 @@ from tailorlang.sim.utils import (
 
 
 def postprocess(experiment_name):
+    # Copy latest patches to the current experiment folder (results/pattern/latest/ -> results/pattern/<experiment>/)
+    pattern_2d_dir = 'results/pattern/'
+    latest_dir = os.path.join(pattern_2d_dir, 'latest/')
+    experiment_dir = os.path.join(pattern_2d_dir, experiment_name)
+    
+    os.makedirs(experiment_dir, exist_ok=True)
+    for patch_label in os.listdir(latest_dir):
+        shutil.copytree(os.path.join(latest_dir, patch_label), os.path.join(experiment_dir, patch_label), dirs_exist_ok=True)
+    
     embedded_mesh_list_dict = {
         'upper': [],
         'lower': []    
@@ -66,15 +75,6 @@ def postprocess(experiment_name):
                            mesh_2d_list=param_2d_mesh_list_dict['lower'],
                            faces=np.vstack([x for x in faces_dict['lower']])
         )
-    } 
-    
-    # Copy latest patches to the current experiment folder (results/pattern/latest/ -> results/pattern/<experiment>/)
-    pattern_2d_dir = 'results/pattern/'
-    latest_dir = os.path.join(pattern_2d_dir, 'latest/')
-    experiment_dir = os.path.join(pattern_2d_dir, experiment_name)
-    
-    os.makedirs(experiment_dir, exist_ok=True)
-    for patch_label in os.listdir(latest_dir):
-        shutil.copytree(os.path.join(latest_dir, patch_label), os.path.join(experiment_dir, patch_label), dirs_exist_ok=True)
+    }
         
     return param_mesh_dict

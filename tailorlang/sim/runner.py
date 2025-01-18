@@ -68,7 +68,7 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
     base_upper_path, base_lower_path = store_garments_for_simulation(
         experiment_name=base_experiment,
         body_path=body_path,
-        refit_pose='base',
+        is_refit=False,
         body_mesh=body_mesh,
         upper_param_mesh=base_param_mesh_dict['upper'],
         lower_param_mesh=base_param_mesh_dict['lower']
@@ -90,33 +90,39 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
         refit_upper_path, refit_lower_path = store_garments_for_simulation(
             experiment_name=base_experiment,    # store in the base experiment since you use base pose
             body_path=body_path,
-            refit_pose=refit_pose,
+            is_refit=True,
             body_mesh=body_mesh,
             upper_param_mesh=refit_preprocessed_garment_dict['upper'],
             lower_param_mesh=refit_preprocessed_garment_dict['lower']
         )
             
+    sim_dir = f'results/sim/{base_experiment}/'
+    os.makedirs(sim_dir, exist_ok=True)
+            
     simulate_pose(
         body_path=body_path,
         shirt_path=base_upper_path,
         pant_path=base_lower_path,
-        body_output='results/sim/base_body.ply',
-        shirt_output='results/sim/base_shirt.ply',
-        pant_output='results/sim/base_pant.ply',
+        body_output=os.path.join(sim_dir, 'base_body.ply'),
+        shirt_output=os.path.join(sim_dir, 'base_shirt.ply'),
+        pant_output=os.path.join(sim_dir, 'base_pant.ply'),
         blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
         scripts_dir=f'{config.project_dir}/tailorlang/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply
     
-    update_meshes_after_simulation(base_param_mesh_dict=base_param_mesh_dict)
+    update_meshes_after_simulation(
+        sim_dir=sim_dir,
+        base_param_mesh_dict=base_param_mesh_dict
+    )
     
     if refit_pose:
         simulate_pose(
             body_path=body_path,
             shirt_path=refit_upper_path,
             pant_path=refit_lower_path,
-            body_output='results/sim/refit_body.ply',
-            shirt_output='results/sim/refit_shirt.ply',
-            pant_output='results/sim/refit_pant.ply',
+            body_output=os.path.join(sim_dir, 'refit_body.ply'),
+            shirt_output=os.path.join(sim_dir, 'refit_shirt.ply'),
+            pant_output=os.path.join(sim_dir, 'refit_pant.ply'),
             blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
             scripts_dir=f'{config.project_dir}/tailorlang/blender/'
         )   # output_path: results/sim/<base_experiment>/refit.ply

@@ -431,9 +431,22 @@ COLOR_MAP = {
 
 
 EXPERIMENT_GROUPS = {
-    'seam_params': {
+    'seam_params_solo': {
         'body_sets': ['solo-female'],
         'designs': ['default'],
+        #'matching_modes': ['strict'],
+        'seamline_strategies': ['hybrid'],
+        'num_seam_iterss': [1],    # TODO: Support setting the number of "inner" iterations
+        'stretch_coefs': [2.0],
+        'edge_coefs': [1.0],
+        'seam_coefs': [0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 50.0, 75.0, 100.0, 200.0],
+        'apply_remesh': [False],
+        'use_darts': [False],
+        'equalize_seamline_lengths': [False]
+    },
+    'seam_params_a_pose': {
+        'body_sets': ['a-pose'],
+        'designs': ['long'],
         #'matching_modes': ['strict'],
         'seamline_strategies': ['hybrid'],
         'num_seam_iterss': [1],    # TODO: Support setting the number of "inner" iterations

@@ -191,7 +191,7 @@ def process_refit_for_simulation(garment_mesh):
 def store_garments_for_simulation(
         experiment_name,    # base experiment name
         body_path,     # the path to the body mesh on top of which garments will be draped
-        refit_pose,         # the pose to which to refit, 'base' in case of not processing the refit pose
+        is_refit,         # the pose to which to refit, 'base' in case of not processing the refit pose
         body_mesh,          # target-01.ply -> transformed
         upper_param_mesh,         # upper trimesh mesh (merged)
         lower_param_mesh,          # lower trimesh mesh (merged)
@@ -201,27 +201,37 @@ def store_garments_for_simulation(
     
     body_mesh.export(body_path)
     
-    upper_path = os.path.join(non_skintight_garment_dir, f'{refit_pose}_upper.ply')
-    lower_path = os.path.join(non_skintight_garment_dir, f'{refit_pose}_lower.ply')
-    upper_path_with_uv = os.path.join(non_skintight_garment_dir, f'{refit_pose}_upper_uv.ply')
-    lower_path_with_uv = os.path.join(non_skintight_garment_dir, f'{refit_pose}_lower_uv.ply')
+    basename = 'refit' if is_refit else 'base'
     
-    if refit_pose == 'base':
+    upper_path = os.path.join(non_skintight_garment_dir, f'{basename}_upper.ply')
+    lower_path = os.path.join(non_skintight_garment_dir, f'{basename}_lower.ply')
+    upper_path_with_uv = os.path.join(non_skintight_garment_dir, f'{basename}_upper_uv.ply')
+    lower_path_with_uv = os.path.join(non_skintight_garment_dir, f'{basename}_lower_uv.ply')
+    
+    if is_refit:
+        upper_param_mesh.export(upper_path)
+        lower_param_mesh.export(lower_path)
+    else:
         upper_param_mesh.mesh_3d.export(upper_path)
         lower_param_mesh.mesh_3d.export(lower_path)
         upper_param_mesh.export(upper_path_with_uv)     # mesh with UV and duplicates
         lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates
-    else:
-        upper_param_mesh.export(upper_path)
-        lower_param_mesh.export(lower_path)
     
     return upper_path, lower_path
 
 
-def update_meshes_after_simulation(base_param_mesh_dict):
+def update_meshes_after_simulation(sim_dir, base_param_mesh_dict):
     # Update simulation results to include uv coordinates as well + apply inverse transformations
-    shirt_mesh = trimesh.load('results/sim/base_shirt.ply')
-    pant_mesh = trimesh.load('results/sim/base_pant.ply')
-    postprocess_base_after_simulation(base_param_mesh_dict['upper'], shirt_mesh, 'results/sim/base_shirt_uv.ply')
-    postprocess_base_after_simulation(base_param_mesh_dict['lower'], pant_mesh, 'results/sim/base_pant_uv.ply')
+    shirt_mesh = trimesh.load(os.path.join(sim_dir, 'base_shirt.ply'))
+    pant_mesh = trimesh.load(os.path.join(sim_dir, 'base_pant.ply'))
     
+    postprocess_base_after_simulation(
+        param_mesh=base_param_mesh_dict['upper'], 
+        sim_mesh=shirt_mesh, 
+        output_path=os.path.join(sim_dir, 'base_shirt_uv.ply')
+    )
+    postprocess_base_after_simulation(
+        param_mesh=base_param_mesh_dict['lower'], 
+        sim_mesh=pant_mesh, 
+        output_path=os.path.join(sim_dir, 'base_pant_uv.ply')
+    )
