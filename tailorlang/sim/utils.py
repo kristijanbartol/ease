@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import trimesh
+from copy import deepcopy
 from smplx import SMPL
 from plyfile import PlyData, PlyElement
 
@@ -8,73 +9,82 @@ from tailorlang import const
 from tailorlang.const import apply_angle_offset
 
 
-class ParamMesh():
+class ParamMeshUV():
     
-    def __init__(self, mesh_3d_list, mesh_2d_list, faces):
-        self.mesh_3d_with_duplicates = trimesh.Trimesh(
-            vertices=np.vstack([x.vertices for x in mesh_3d_list]),
-            faces=faces,
-            process=False
-        )
-        self.faces = faces
+    def __init__(self, mesh_3d_list, mesh_2d_list, garment_part):
+        self.mesh_3d_with_duplicates = trimesh.util.concatenate(mesh_3d_list)
         self.mesh_3d = trimesh.Trimesh(
             vertices=self.mesh_3d_with_duplicates.vertices,
-            faces=faces,
+            faces=self.mesh_3d_with_duplicates.faces,
             process=True        # remove duplicates for the "active" vertices
         )
-        self.pattern_2d = trimesh.Trimesh(
-            vertices=np.vstack([x.vertices for x in mesh_2d_list]),
-            faces=faces
+        self.pattern_2d_subdivided = self._process_pattern(mesh_2d_list, garment_part)
+        self.duplicate_pairs_dict = self._find_duplicate_vertices(      # needed to update duplicate mesh before preparing for sim (transform + subdivide)
+            mesh=self.mesh_3d,
+            mesh_with_duplicates=self.mesh_3d_with_duplicates
         )
-        self.pattern_2d_subdivided = self._subdivide_patches(mesh_2d_list)
-        self.duplicate_pairs_dict = self._find_duplicate_vertices()
-        self.verts_3d_subdivided = None
-        self.verts_3d_with_duplicates_subdivided = None
-
-    def _subdivide_patches(self, mesh_2d_list):
-        subdivided_patches = []
-        for patch in mesh_2d_list:
-            subdivided_patches.append(patch.subdivide())
-        _pattern_2d_subdivided = trimesh.Trimesh(
-            vertices=np.vstack([x.vertices for x in subdivided_patches]),
-            faces=self.faces,
-            process=False
-        )
-        return _pattern_2d_subdivided
-
-    def _find_duplicate_vertices(self, tolerance=1e-6):
-        duplicate_groups = trimesh.grouping.group_rows(self.mesh_3d_with_duplicates.vertices, digits=6)
-        _duplicate_pairs_dict = {}
-        for group in duplicate_groups:
-            non_duplicate_index = self.mesh_3d.kdtree.query(self.mesh_3d_with_duplicates.vertices[group[0]])[1]
-            for orig_index in group:
-                _duplicate_pairs_dict[orig_index] = non_duplicate_index
-        return _duplicate_pairs_dict
+        self.duplicate_pairs_dict_subdivided = None
+        self.mesh_3d_subdivided = None
+        self.mesh_3d_with_duplicates_subdivided = None
+        
+    @staticmethod
+    def _process_pattern(mesh_2d_list, garment_part):
+        for mesh_idx in range(len(mesh_2d_list)):
+            if garment_part == 'lower':
+                mesh_2d_list[mesh_idx].vertices[:, 0] += mesh_idx * 1.0
+            else:
+                mesh_2d_list[mesh_idx].vertices[:, 1] += 1.0
+                mesh_2d_list[mesh_idx].vertices[:, 0] += mesh_idx * 1.0
+        return trimesh.util.concatenate(mesh_2d_list).subdivide()
     
     def update_duplicate_mesh(self):
         for duplicate_idx, non_duplicate_idx in self.duplicate_pairs_dict.items():
             self.mesh_3d_with_duplicates.vertices[duplicate_idx] = self.mesh_3d.vertices[non_duplicate_idx]
-
+            
     def subdivide(self):
-        self.verts_3d_subdivided = self.mesh_3d_with_duplicates.subdivide()
-        self.verts_3d_with_duplicates_subdivided = self.mesh_3d_with_duplicates.subdivide()
+        self.mesh_3d_with_duplicates_subdivided = self.mesh_3d_with_duplicates.subdivide()
+        self.mesh_3d_subdivided = trimesh.Trimesh(                  # used for simulation
+            vertices=self.mesh_3d_with_duplicates_subdivided.vertices,
+            faces=self.mesh_3d_with_duplicates_subdivided.faces,
+            process=True
+        )
+        self.duplicate_pairs_dict_subdivided = self._find_duplicate_vertices(
+            mesh=self.mesh_3d_subdivided,
+            mesh_with_duplicates=self.mesh_3d_with_duplicates_subdivided
+        )
         
-    def export(self, output_path, subdivided=True):
-        if subdivided:
-            mesh_3d_with_duplicates_subdivided = self.mesh_3d_with_duplicates.subdivide()
-            mesh_3d_with_duplicates_plydata = trimesh_to_plydata(mesh_3d_with_duplicates_subdivided)
-            add_uv_coordinates(
-                mesh_3d=mesh_3d_with_duplicates_plydata,
-                uv_coordinates=self.pattern_2d_subdivided.vertices[:, :2],
-                output_path=output_path
-            )
+    def update_duplicate_mesh_subdivided(self):
+        # Update the subdivided duplicate mesh with the subdivided simulated mesh
+        for duplicate_idx, non_duplicate_idx in self.duplicate_pairs_dict_subdivided.items():
+            self.mesh_3d_with_duplicates_subdivided.vertices[duplicate_idx] = self.mesh_3d_subdivided.vertices[non_duplicate_idx]
+        
+    def export(self, output_path):
+        # When storing non-skintight (for simulation), the mesh is transformed but we need an original size for rendering
+        if self.mesh_3d_with_duplicates_subdivided.vertices.max() - self.mesh_3d_with_duplicates_subdivided.vertices.min() > 5.0:
+            _retrans_mesh_3d_with_duplicates_subdivided = deepcopy(self.mesh_3d_with_duplicates_subdivided)
+            _retrans_mesh_3d_with_duplicates_subdivided.apply_transform(trimesh.transformations.rotation_matrix(
+                angle=-np.pi/2,
+                direction=[1, 0, 0] 
+            ))
+            _retrans_mesh_3d_with_duplicates_subdivided.vertices /= 10.
+            mesh_3d_with_duplicates_plydata = trimesh_to_plydata(_retrans_mesh_3d_with_duplicates_subdivided)  
         else:
-            mesh_3d_with_duplicates_plydata = trimesh_to_plydata(self.mesh_3d_with_duplicates)
-            add_uv_coordinates(
-                mesh_3d=mesh_3d_with_duplicates_plydata,
-                uv_coordinates=self.pattern_2d.vertices[:, :2],
-                output_path=output_path
-            )
+            mesh_3d_with_duplicates_plydata = trimesh_to_plydata(self.mesh_3d_with_duplicates_subdivided)
+        add_uv_coordinates(
+            mesh_3d=mesh_3d_with_duplicates_plydata,
+            uv_coordinates=self.pattern_2d_subdivided.vertices[:, :2],
+            output_path=output_path
+        )
+        
+    @staticmethod
+    def _find_duplicate_vertices(mesh, mesh_with_duplicates):
+        duplicate_groups = trimesh.grouping.group_rows(mesh_with_duplicates.vertices, digits=6)
+        _duplicate_pairs_dict = {}
+        for group in duplicate_groups:
+            non_duplicate_index = mesh.kdtree.query(mesh_with_duplicates.vertices[group[0]])[1]
+            for orig_index in group:
+                _duplicate_pairs_dict[orig_index] = non_duplicate_index
+        return _duplicate_pairs_dict
 
 
 def trimesh_to_plydata(trimesh_mesh):
@@ -156,29 +166,32 @@ def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_c
     return body_mesh
 
 
-def process_base_for_simulation(param_mesh):
-    param_mesh.mesh_3d.vertices *= 10.
-    param_mesh.mesh_3d.apply_transform(trimesh.transformations.rotation_matrix(
+def process_base_for_simulation(param_mesh: ParamMeshUV):
+    param_mesh.mesh_3d_with_duplicates.vertices *= 10.
+    param_mesh.mesh_3d_with_duplicates.apply_transform(trimesh.transformations.rotation_matrix(
         angle=np.pi/2,
         direction=[1, 0, 0] 
     ))
-    param_mesh.update_duplicate_mesh()
     param_mesh.subdivide()
     return param_mesh
 
 
-def postprocess_base_after_simulation(param_mesh, sim_mesh, output_path):
-    param_mesh.mesh_3d.vertices = sim_mesh.vertices
-    param_mesh.mesh_3d.apply_transform(trimesh.transformations.rotation_matrix(
+def postprocess_base_after_simulation(
+        param_mesh: ParamMeshUV, 
+        sim_mesh: trimesh.Trimesh, 
+        output_path: str
+    ) -> None:
+    param_mesh.mesh_3d_subdivided.vertices = sim_mesh.vertices
+    param_mesh.update_duplicate_mesh_subdivided()
+    param_mesh.mesh_3d_with_duplicates_subdivided.apply_transform(trimesh.transformations.rotation_matrix(
         angle=-np.pi/2,
         direction=[1, 0, 0] 
     ))
-    param_mesh.mesh_3d.vertices /= 10.
-    param_mesh.update_duplicate_mesh()
+    param_mesh.mesh_3d_with_duplicates_subdivided.vertices /= 10.
     param_mesh.export(output_path)
 
 
-def process_refit_for_simulation(garment_mesh):
+def process_refit_for_simulation(garment_mesh: trimesh.Trimesh):
     garment_mesh.vertices *= 10.
     garment_mesh.apply_transform(trimesh.transformations.rotation_matrix(
         angle=np.pi/2,
@@ -193,8 +206,8 @@ def store_garments_for_simulation(
         body_path,     # the path to the body mesh on top of which garments will be draped
         is_refit,         # the pose to which to refit, 'base' in case of not processing the refit pose
         body_mesh,          # target-01.ply -> transformed
-        upper_param_mesh,         # upper trimesh mesh (merged)
-        lower_param_mesh,          # lower trimesh mesh (merged)
+        upper_param_mesh: ParamMeshUV,         # upper trimesh mesh (merged)
+        lower_param_mesh: ParamMeshUV,          # lower trimesh mesh (merged)
     ):
     non_skintight_garment_dir = f'results/non-skintight/{experiment_name}'
     os.makedirs(non_skintight_garment_dir, exist_ok=True)
@@ -212,26 +225,29 @@ def store_garments_for_simulation(
         upper_param_mesh.export(upper_path)
         lower_param_mesh.export(lower_path)
     else:
-        upper_param_mesh.mesh_3d.export(upper_path)
-        lower_param_mesh.mesh_3d.export(lower_path)
-        upper_param_mesh.export(upper_path_with_uv)     # mesh with UV and duplicates
-        lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates
+        upper_param_mesh.mesh_3d_subdivided.export(upper_path)
+        lower_param_mesh.mesh_3d_subdivided.export(lower_path)
+        upper_param_mesh.export(upper_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
+        lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
     
     return upper_path, lower_path
 
 
-def update_meshes_after_simulation(sim_dir, base_param_mesh_dict):
+def update_meshes_after_simulation(
+        sim_dir, 
+        base_param_mesh_dict
+    ):
     # Update simulation results to include uv coordinates as well + apply inverse transformations
-    shirt_mesh = trimesh.load(os.path.join(sim_dir, 'base_shirt.ply'))
-    pant_mesh = trimesh.load(os.path.join(sim_dir, 'base_pant.ply'))
+    upper_mesh = trimesh.load(os.path.join(sim_dir, 'base_upper.ply'))
+    lower_mesh = trimesh.load(os.path.join(sim_dir, 'base_lower.ply'))
     
     postprocess_base_after_simulation(
         param_mesh=base_param_mesh_dict['upper'], 
-        sim_mesh=shirt_mesh, 
-        output_path=os.path.join(sim_dir, 'base_shirt_uv.ply')
+        sim_mesh=upper_mesh, 
+        output_path=os.path.join(sim_dir, 'base_upper_uv.ply')
     )
     postprocess_base_after_simulation(
         param_mesh=base_param_mesh_dict['lower'], 
-        sim_mesh=pant_mesh, 
-        output_path=os.path.join(sim_dir, 'base_pant_uv.ply')
+        sim_mesh=lower_mesh, 
+        output_path=os.path.join(sim_dir, 'base_lower_uv.ply')
     )

@@ -11,11 +11,11 @@
     "use_darts": false,
     "equalize_seamline_lengths": false,
     "matching_mode": "strict",
-    "seamline_strategy": "bezier",
+    "seamline_strategy": "hybrid",
     "num_seam_iters": 1,
     "max_stretch": 0.05,
     "stretch_coef": 2.0,
     "edges_coef": 1.0,
-    "seams_coef": 2.0,
+    "seams_coef": 30.0,
     "dart_coef": 50.0
 }

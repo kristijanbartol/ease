@@ -336,14 +336,21 @@ def print_stretch_statistics(stats_dict, precision=4):
         print(f"{key:20}: {value:.{precision}f}")
         
         
-def _map_stretch_to_color(stretch, min_stretch=0.7, max_stretch=1.3):
-    normalized_stretch = (stretch - min_stretch) / (max_stretch - min_stretch)
-    intensity = int((1 - normalized_stretch) * 255)
-    color = np.array([intensity, intensity, 255 - intensity, 255], dtype=np.uint8)
-    return color
+def _map_garment_stretch_to_color(stretch, tightness_max=0.15, looseness_max=0.4):
+    #normalized_stretch = (stretch - 1.0) / (max_stretch - min_stretch)  # Center at 1.0
+    if stretch > 1.0:
+        # Blue range for loose areas (darker blue = more loose)
+        normalized_stretch = min(1.0, (stretch - 1.0) / looseness_max)
+        intensity = int(normalized_stretch * 255)
+        return np.array([0, 0, intensity, 255], dtype=np.uint8)
+    else:
+        # Red range for tight areas (brighter red = more tight)
+        normalized_stretch = min(1.0, (1.0 - stretch) / tightness_max)
+        intensity = int(normalized_stretch * 255)
+        return np.array([intensity, 0, 0, 255], dtype=np.uint8)
 
 
-def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stretch=1.3):
+def color_code_stretches(verts, faces, stretch_array, tightness_max=0.15, looseness_max=0.4):
     # Ensure the stretch array length matches the number of faces
     assert len(stretch_array) == len(faces), "The length of stretch_array must match the number of faces."
 
@@ -355,7 +362,7 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
 
     # Apply the color coding
     for face, stretch in zip(faces, stretch_array):
-        color = _map_stretch_to_color(stretch, min_stretch, max_stretch)
+        color = _map_garment_stretch_to_color(stretch, tightness_max, looseness_max)
         for vertex in face:
             vertex_colors[vertex] += color
             vertex_counts[vertex] += 1
@@ -367,7 +374,97 @@ def color_code_stretches(verts, faces, stretch_array, min_stretch=0.7, max_stret
         else:
             vertex_colors[i] = [128, 128, 128, 255]  # Default gray color if no face uses this vertex
 
-    return trimesh.Trimesh(vertices=verts, faces=faces, vertex_colors=vertex_colors)
+    return vertex_colors
+
+
+'''
+def _map_subdivided_to_original_faces(orig_verts, orig_faces, subdiv_verts, subdiv_faces):
+    """
+    Create a mapping from subdivided faces to their original faces.
+    
+    Returns:
+    --------
+    np.ndarray
+        Array where index i contains the index of the original face that contained
+        subdivided face i
+    """
+    # Calculate centroids of original faces
+    orig_centroids = np.array([np.mean(orig_verts[face], axis=0) for face in orig_faces])
+    
+    # Calculate centroids of subdivided faces
+    subdiv_centroids = np.array([np.mean(subdiv_verts[face], axis=0) for face in subdiv_faces])
+    
+    # For each subdivided face, find the closest original face centroid
+    mapping = np.zeros(len(subdiv_faces), dtype=np.int32)
+    
+    for i, subdiv_centroid in enumerate(subdiv_centroids):
+        # Calculate distances to all original centroids
+        distances = np.linalg.norm(orig_centroids - subdiv_centroid, axis=1)
+        # Find the closest original face
+        mapping[i] = np.argmin(distances)
+    
+    return mapping
+
+
+def color_code_stretches_subdivided(orig_verts, orig_faces, subdiv_verts, subdiv_faces, stretch_array, min_stretch=0.7, max_stretch=1.3):
+    """
+    Calculate vertex colors for a subdivided mesh based on stretch values from the original mesh.
+    
+    Parameters:
+    -----------
+    orig_verts : np.ndarray
+        Vertices of the original mesh
+    orig_faces : np.ndarray
+        Faces of the original mesh
+    subdiv_verts : np.ndarray
+        Vertices of the subdivided mesh
+    subdiv_faces : np.ndarray
+        Faces of the subdivided mesh
+    stretch_array : np.ndarray
+        Stretch values for each face in the original mesh
+    min_stretch : float, optional
+        Minimum stretch value for color mapping (default: 0.7)
+    max_stretch : float, optional
+        Maximum stretch value for color mapping (default: 1.3)
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of RGBA colors for each vertex in the subdivided mesh
+    """
+    # Ensure the stretch array length matches the number of original faces
+    assert len(stretch_array) == len(orig_faces), "The length of stretch_array must match the number of original faces."
+    
+    # Initialize vertex colors for subdivided mesh
+    vertex_colors = np.zeros((len(subdiv_verts), 4), dtype=np.uint8)
+    vertex_counts = np.zeros(len(subdiv_verts), dtype=np.int32)
+    
+    # Create a mapping from subdivided faces to original faces
+    subdiv_to_orig = _map_subdivided_to_original_faces(orig_verts, orig_faces, subdiv_verts, subdiv_faces)
+    
+    # Apply the color coding
+    for subdiv_face_idx, subdiv_face in enumerate(subdiv_faces):
+        # Get the original face index and its stretch value
+        orig_face_idx = subdiv_to_orig[subdiv_face_idx]
+        stretch = stretch_array[orig_face_idx]
+        
+        # Map stretch to color
+        color = _map_garment_stretch_to_color(stretch, min_stretch, max_stretch)
+        
+        # Apply color to vertices of the subdivided face
+        for vertex in subdiv_face:
+            vertex_colors[vertex] += color
+            vertex_counts[vertex] += 1
+    
+    # Average the colors for each vertex
+    for i in range(len(vertex_colors)):
+        if vertex_counts[i] > 0:
+            vertex_colors[i] //= vertex_counts[i]
+        else:
+            vertex_colors[i] = [128, 128, 128, 255]  # Default gray color
+    
+    return vertex_colors
+'''
 
 
 def calculate_vertex_colors(mesh, face_stretches, min_stretch=0.7, max_stretch=1.3):
@@ -401,7 +498,7 @@ def calculate_vertex_colors(mesh, face_stretches, min_stretch=0.7, max_stretch=1
     
     # Map to colors
     vertex_colors = np.array([
-        _map_stretch_to_color(s, min_stretch, max_stretch) 
+        _map_garment_stretch_to_color(s, min_stretch, max_stretch) 
         for s in vertex_stretches
     ])
     

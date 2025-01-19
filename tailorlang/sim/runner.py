@@ -1,3 +1,4 @@
+from typing import Dict
 import trimesh
 import os
 
@@ -7,15 +8,15 @@ from tailorlang.sim.utils import (
     process_base_for_simulation,
     process_refit_for_simulation,
     store_garments_for_simulation,
-    update_meshes_after_simulation
+    update_meshes_after_simulation,
+    ParamMeshUV
 )
 from tailorlang.sim.blender_caller import simulate_pose
-from tailorlang.eval.postprocess import add_uv_coordinates
 
 from anisotropic_simulations.evaluation_frame_based import get_non_skintight_garment
 
 
-def simulate_garment_set(config, base_experiment, design_params, body_set, param_mesh_dict):
+def simulate_garment_set(config, base_experiment, design_params, body_set, param_mesh_dict: Dict[str, ParamMeshUV]):
     non_skintight_dict_dict = {}
     refit_pose = None if config.refit_pose == '' else config.refit_pose
     
@@ -41,6 +42,7 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
             process=False
         )
         param_mesh_dict[garment_part].mesh_3d = garment_mesh
+        param_mesh_dict[garment_part].update_duplicate_mesh()
         base_param_mesh_dict[garment_part] = process_base_for_simulation(
             param_mesh=param_mesh_dict[garment_part]
         )   # NOTE: returns param_mesh, useful only to 'base'
@@ -104,11 +106,14 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
         shirt_path=base_upper_path,
         pant_path=base_lower_path,
         body_output=os.path.join(sim_dir, 'base_body.ply'),
-        shirt_output=os.path.join(sim_dir, 'base_shirt.ply'),
-        pant_output=os.path.join(sim_dir, 'base_pant.ply'),
+        shirt_output=os.path.join(sim_dir, 'base_upper.ply'),
+        pant_output=os.path.join(sim_dir, 'base_lower.ply'),
         blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
         scripts_dir=f'{config.project_dir}/tailorlang/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply
+    
+    qualitative_dir = f'results/qualitative/sim/{base_experiment}/'
+    os.makedirs(qualitative_dir, exist_ok=True)
     
     update_meshes_after_simulation(
         sim_dir=sim_dir,
@@ -121,8 +126,8 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
             shirt_path=refit_upper_path,
             pant_path=refit_lower_path,
             body_output=os.path.join(sim_dir, 'refit_body.ply'),
-            shirt_output=os.path.join(sim_dir, 'refit_shirt.ply'),
-            pant_output=os.path.join(sim_dir, 'refit_pant.ply'),
+            shirt_output=os.path.join(sim_dir, 'refit_upper.ply'),
+            pant_output=os.path.join(sim_dir, 'refit_lower.ply'),
             blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
             scripts_dir=f'{config.project_dir}/tailorlang/blender/'
         )   # output_path: results/sim/<base_experiment>/refit.ply
