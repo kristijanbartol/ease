@@ -1,9 +1,9 @@
 {
     "project_dir": "/Users/kristijanbartol/TailorLang/",
     "smpl_dir": "/Users/kristijanbartol/data/smpl/models/",
-    "body_set": "a-pose",
-    "design": "long",
-    "refit_pose": "",
+    "body_set": "t-pose",
+    "design": "short",
+    "refit_pose": "standard3-set1-pose",
     "transfer_shape": "",
     "group_label": "default",
     "optim_dress": false,
@@ -16,6 +16,6 @@
     "max_stretch": 0.05,
     "stretch_coef": 2.0,
     "edges_coef": 1.0,
-    "seams_coef": 30.0,
+    "seams_coef": 2.0,
     "dart_coef": 50.0
 }

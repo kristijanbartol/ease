@@ -1,0 +1,14 @@
+{
+    "poses": [
+        "t_pose",
+        "standard2_pose"
+    ],
+    "shapes": [
+        "zero_shape",
+        "zero_shape"
+    ],
+    "genders": [
+        "female",
+        "female"
+    ]
+}

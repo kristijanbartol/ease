@@ -58,7 +58,7 @@ def extract_stretches(V_2d, V_3d, F, DU_bary, DV_bary, target_scale_vec_u, targe
     return optim_vec_u, optim_vec_v, target_vec_u, target_vec_v
 
 
-def extract_stretch_ratios(V_2d, V_3d, F, DU_bary, DV_bary):
+def extract_stretch_ratios(V_2d, V_3d_ref, F, DU_bary, DV_bary):
     """
     Extract stretch ratios between 2D and 3D triangles, i.e., the scales.
     
@@ -87,7 +87,7 @@ def extract_stretch_ratios(V_2d, V_3d, F, DU_bary, DV_bary):
     for f_id in range(n_faces):
         # Get vertices of current face
         face_verts_2d = V_2d[F[f_id]]
-        face_verts_3d = V_3d[F[f_id]]
+        face_verts_3d = V_3d_ref[F[f_id]]
         
         # Compute 3D positions using barycentric coordinates
         Dp = np.sum(D_bary[:, np.newaxis] * face_verts_3d, axis=0)
@@ -104,6 +104,74 @@ def extract_stretch_ratios(V_2d, V_3d, F, DU_bary, DV_bary):
         
         scales_u[f_id] = optim_vec_u[f_id] / ref_stretch_u[f_id]
         scales_v[f_id] = optim_vec_v[f_id] / ref_stretch_v[f_id]
+    
+    return scales_u, scales_v
+
+
+def extract_stretch_ratios_with_target(V_2d, V_3d_ref, V_3d_target, F, DU_bary, DV_bary):
+    """
+    Extract stretch ratios between 2D and 3D triangles, i.e., the scales.
+    
+    Parameters:
+        V_2d: numpy array of shape (n_vertices, 2) - 2D vertices
+        V_3d: numpy array of shape (n_vertices, 3) - 3D vertices
+        F: numpy array of shape (n_faces, 3) - faces
+        DU_bary: numpy array of shape (n_faces, 3) - U barycentric coordinates
+        DV_bary: numpy array of shape (n_faces, 3) - V barycentric coordinates
+    
+    Returns:
+        scales_u: numpy array of shape (n_faces,) - optimized U stretches
+        scales_v: numpy array of shape (n_faces,) - optimized V stretches
+    """
+    n_faces = F.shape[0]
+    scales_u = np.zeros(n_faces)
+    scales_v = np.zeros(n_faces)
+    ref_stretch_u = np.zeros(n_faces)
+    ref_stretch_v = np.zeros(n_faces)
+    target_stretch_u = np.zeros(n_faces)
+    target_stretch_v = np.zeros(n_faces)
+    final_stretch_u = np.zeros(n_faces)
+    final_stretch_v = np.zeros(n_faces)
+    optim_vec_u = np.zeros(n_faces)
+    optim_vec_v = np.zeros(n_faces)
+    
+    # Common barycentric coordinates for centroid
+    D_bary = np.array([1/3, 1/3, 1/3])
+    
+    for f_id in range(n_faces):
+        # Get vertices of current face
+        face_verts_2d = V_2d[F[f_id]]
+        face_verts_3d_ref = V_3d_ref[F[f_id]]
+        face_verts_3d_target = V_3d_target[F[f_id]]
+        
+        # Compute 3D positions using barycentric coordinates - Reference
+        Dp_ref = np.sum(D_bary[:, np.newaxis] * face_verts_3d_ref, axis=0)
+        DUp_ref = np.sum(DU_bary[f_id][:, np.newaxis] * face_verts_3d_ref, axis=0)
+        DVp_ref = np.sum(DV_bary[f_id][:, np.newaxis] * face_verts_3d_ref, axis=0)
+        
+        # Compute 3D positions using barycentric coordinates - Target
+        Dp_target = np.sum(D_bary[:, np.newaxis] * face_verts_3d_target, axis=0)
+        DUp_target = np.sum(DU_bary[f_id][:, np.newaxis] * face_verts_3d_target, axis=0)
+        DVp_target = np.sum(DV_bary[f_id][:, np.newaxis] * face_verts_3d_target, axis=0)
+        
+        # Compute target vectors - Reference
+        ref_stretch_u[f_id] = np.linalg.norm(DUp_ref - Dp_ref)
+        ref_stretch_v[f_id] = np.linalg.norm(DVp_ref - Dp_ref)
+        
+        # Compute target vectors - Target
+        target_stretch_u[f_id] = np.linalg.norm(DUp_target - Dp_target)
+        target_stretch_v[f_id] = np.linalg.norm(DVp_target - Dp_target)
+        
+        # Calculate final stretch targets
+        final_stretch_u[f_id] = max(target_stretch_u[f_id], ref_stretch_u[f_id])
+        final_stretch_v[f_id] = max(target_stretch_v[f_id], ref_stretch_v[f_id])
+        
+        # Compute optimized vectors
+        optim_vec_u[f_id] = np.sum(face_verts_2d[:, 0] * (DU_bary[f_id] - D_bary))
+        optim_vec_v[f_id] = np.sum(face_verts_2d[:, 1] * (DV_bary[f_id] - D_bary))
+        
+        scales_u[f_id] = optim_vec_u[f_id] / final_stretch_u[f_id]
+        scales_v[f_id] = optim_vec_v[f_id] / final_stretch_v[f_id]
     
     return scales_u, scales_v
 

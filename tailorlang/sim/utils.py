@@ -156,6 +156,8 @@ def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_c
     
     body_verts = smpl_model(body_pose=pose_params, betas=shape_params).vertices[0].cpu().detach().numpy()
     body_mesh = trimesh.Trimesh(vertices=body_verts, faces=smpl_model.faces)
+    
+    body_mesh.export('data/body/target-00-with-offset.ply')
         
     body_mesh.vertices *= 10.
     body_mesh.apply_transform(trimesh.transformations.rotation_matrix(

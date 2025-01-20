@@ -48,24 +48,27 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
         )   # NOTE: returns param_mesh, useful only to 'base'
     
     # Process body
-    if body_set.num_targets == 0:
-        body_pose = body_set.ref['pose']
-        body_shape = body_set.ref['shape']
-        body_fname = 'ref_x10.ply'
+    ref_body_pose = body_set.ref['pose']
+    ref_body_shape = body_set.ref['shape']
+    ref_body_fname = 'ref_x10.ply'
+    if body_set.num_targets > 0:
+        target_body_pose = body_set.target['poses'][0]
+        target_body_shape = body_set.target['shapes'][0]
+        target_fname = 'target-00_x10.ply'
     else:
-        body_pose = body_set.target['poses'][0]
-        body_shape = body_set.target['shapes'][0]
-        body_fname = 'target-00_x10.ply'
+        target_body_pose = ref_body_pose
+        target_body_shape = ref_body_shape
+        target_fname = ref_body_fname
         
     body_mesh = process_body_for_simulation(
         smpl_dir=config.smpl_dir,
         gender=body_set.ref_gender,
-        body_pose=body_pose,
-        body_shape=body_shape,
+        body_pose=target_body_pose,
+        body_shape=target_body_shape,
         upper_coef=design_params.shirt_looseness,
         lower_coef=design_params.pant_looseness
     )
-    body_path = f'data/body/{body_fname}'
+    body_path = f'data/body/{target_fname}'
             
     base_upper_path, base_lower_path = store_garments_for_simulation(
         experiment_name=base_experiment,
