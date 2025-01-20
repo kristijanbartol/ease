@@ -32,6 +32,7 @@ def run_parameterization(config):
         "seamline_strategy": "--seamline-strategy",
         "num_seam_iters": "--num-seam-iters",
         "max_stretch": "--max-stretch",
+        "material_stretch_coef": "--material-stretch-coef",
         "stretch_coef": "--stretch-coef",
         "edges_coef": "--edges-coef",
         "seams_coef": "--seams-coef",
