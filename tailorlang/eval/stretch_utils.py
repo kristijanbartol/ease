@@ -410,12 +410,14 @@ def _map_garment_stretch_to_color(stretch, tightness_max=0.15, looseness_max=0.4
         # Blue range for loose areas (darker blue = more loose)
         normalized_stretch = min(1.0, (stretch - 1.0) / looseness_max)
         intensity = int(normalized_stretch * 255)
-        return np.array([0, 0, intensity, 255], dtype=np.uint8)
+        #return np.array([0, 0, intensity, 255], dtype=np.uint8)
+        return np.array([255 - intensity, 255 - intensity, 255, 255], dtype=np.uint8)
     else:
         # Red range for tight areas (brighter red = more tight)
         normalized_stretch = min(1.0, (1.0 - stretch) / tightness_max)
         intensity = int(normalized_stretch * 255)
-        return np.array([intensity, 0, 0, 255], dtype=np.uint8)
+        #return np.array([intensity, 0, 0, 255], dtype=np.uint8)
+        return np.array([255, 255 - intensity, 255 - intensity, 255], dtype=np.uint8)
 
 
 def color_code_stretches(verts, faces, stretch_array, tightness_max=0.15, looseness_max=0.4):

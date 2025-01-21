@@ -650,23 +650,33 @@ class MeshState:
             )
         return active_template_smpl_dict
         
-    def _get_target_posed_verts(self):
+    def _get_posed_verts(self):
         active_template_smpl_dict = self._get_active_template_smpls()   # will typically contain only the reference gender
-        target_posed_verts_list = []
+        posed_verts_list = []
+        
+        ref_pose_fun = getattr(const, self.body_set.ref['pose'])
+        ref_shape_fun = getattr(const, self.body_set.ref['shape'])
+        ref_gender = self.body_set.ref['gender']
+        
+        posed_verts_list.append(active_template_smpl_dict[ref_gender](
+            body_pose=ref_pose_fun(), 
+            betas=ref_shape_fun()
+        ).vertices[0].cpu().detach().numpy())
+        
         for body_idx in range(self.body_set.num_targets):
             target_pose_fun = getattr(const, self.body_set.target['poses'][body_idx])
             target_shape_fun = getattr(const, self.body_set.target['shapes'][body_idx])
             target_gender = self.body_set.target['genders'][body_idx]
             
-            target_posed_verts_list.append(active_template_smpl_dict[target_gender](
+            posed_verts_list.append(active_template_smpl_dict[target_gender](
                 body_pose=target_pose_fun(), 
                 betas=target_shape_fun()
             ).vertices[0].cpu().detach().numpy())
-            trimesh.Trimesh(vertices=active_template_smpl_dict[target_gender](
-                body_pose=target_pose_fun(), 
-                betas=target_shape_fun()
-            ).vertices[0].cpu().detach().numpy(), faces=self.active_mesh['faces']).export('controversial_mesh.ply')
-        return target_posed_verts_list
+            #trimesh.Trimesh(vertices=active_template_smpl_dict[target_gender](
+            #    body_pose=target_pose_fun(), 
+            #    betas=target_shape_fun()
+            #).vertices[0].cpu().detach().numpy(), faces=self.active_mesh['faces']).export('controversial_mesh.ply')
+        return posed_verts_list
     
     def _select_active_faces(self, patch_vert_idxs):
         return [face for face in self.active_mesh['faces'] if set(face).issubset(patch_vert_idxs)]
@@ -685,7 +695,7 @@ class MeshState:
         return np.array(new_face_list)
         
     def _extract_patch_meshes(self):
-        target_posed_verts_list = self._get_target_posed_verts()
+        posed_verts_list = self._get_posed_verts()
         
         trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('active_mesh.ply')
         #trimesh.Trimesh(vertices=target_posed_verts_list[0], faces=self.active_mesh['faces']).export('target_mesh.ply')
@@ -696,16 +706,19 @@ class MeshState:
             self.old_to_new_idx_dict[patch_label] = self._extract_old_to_new_vert_idxs_map(patch_vert_idxs)
             
             # Extract reference mesh patches
-            self.ref_patch_verts_dict[patch_label] = self.active_mesh['vertices'][patch_vert_idxs]
+            #self.ref_patch_verts_dict[patch_label] = self.active_mesh['vertices'][patch_vert_idxs]
             self.ref_patch_faces_dict[patch_label] = self._map_old_to_new_faces(patch_label, patch_faces)
             
-            trimesh.Trimesh(vertices=self.ref_patch_verts_dict[patch_label], faces=self.ref_patch_faces_dict[patch_label]).export(f'{patch_label}.ply')
+            #trimesh.Trimesh(vertices=self.ref_patch_verts_dict[patch_label], faces=self.ref_patch_faces_dict[patch_label]).export(f'{patch_label}.ply')
+            
+            self.ref_body_verts = posed_verts_list[0]
+            self.ref_patch_verts_dict[patch_label] = posed_verts_list[0][patch_vert_idxs]
             
             # Extract target mesh patches
-            for body_idx in range(self.body_set.num_targets):
-                self.target_bodies_verts.append(target_posed_verts_list[body_idx])
-                self.target_patch_verts_dict_list[body_idx][patch_label] = target_posed_verts_list[body_idx][patch_vert_idxs]
-                self.target_patch_faces_dict_list[body_idx][patch_label] = self.ref_patch_faces_dict[patch_label]
+            for body_idx in range(1, self.body_set.num_targets + 1):
+                self.target_bodies_verts.append(posed_verts_list[body_idx])
+                self.target_patch_verts_dict_list[body_idx-1][patch_label] = posed_verts_list[body_idx][patch_vert_idxs]
+                self.target_patch_faces_dict_list[body_idx-1][patch_label] = self.ref_patch_faces_dict[patch_label]
                 
         #self.old_to_new_idx_dict['upper'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' not in key])
         #self.old_to_new_idx_dict['lower'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' in key])
@@ -923,7 +936,7 @@ class MeshState:
                 os.makedirs(dir)
         
         trimesh.Trimesh(
-            vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
+            vertices=self.ref_body_verts, faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
         
         for patch_label in PATCH_LIST:
             # Store reference embedded garment meshes (mesh data)
