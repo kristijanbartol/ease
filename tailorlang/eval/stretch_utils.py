@@ -404,22 +404,33 @@ def print_stretch_statistics(stats_dict, precision=4):
         print(f"{key:20}: {value:.{precision}f}")
         
         
-def _map_garment_stretch_to_color(stretch, tightness_max=0.15, looseness_max=0.4):
-    #normalized_stretch = (stretch - 1.0) / (max_stretch - min_stretch)  # Center at 1.0
+def _map_garment_stretch_to_color(stretch, tightness_max=0.3, looseness_max=0.4):
     if stretch > 1.0:
         # Blue range for loose areas (darker blue = more loose)
         normalized_stretch = min(1.0, (stretch - 1.0) / looseness_max)
         intensity = int(normalized_stretch * 255)
-        #return np.array([0, 0, intensity, 255], dtype=np.uint8)
         return np.array([255 - intensity, 255 - intensity, 255, 255], dtype=np.uint8)
     else:
         # Red range for tight areas (brighter red = more tight)
         normalized_stretch = min(1.0, (1.0 - stretch) / tightness_max)
         intensity = int(normalized_stretch * 255)
-        #return np.array([intensity, 0, 0, 255], dtype=np.uint8)
         return np.array([255, 255 - intensity, 255 - intensity, 255], dtype=np.uint8)
+    
+    
+def _map_garment_stretch_to_alternative_scale(stretch, tightness_max=0.3, looseness_max=0.4):
+    if stretch > 1.0:
+        # Blue range for loose areas (darker blue = more loose)
+        normalized_stretch = min(1.0, (stretch - 1.0) / looseness_max)
+        intensity = int(normalized_stretch * 255)
+        return np.array([255 - intensity, 255, 255 - intensity, 255], dtype=np.uint8)
+    else:
+        # Red range for tight areas (brighter red = more tight)
+        normalized_stretch = min(1.0, (1.0 - stretch) / tightness_max)
+        intensity = int(normalized_stretch * 255)
+        return np.array([255, 255 - intensity, 255, 255], dtype=np.uint8)
 
 
+'''
 def color_code_stretches(verts, faces, stretch_array, tightness_max=0.15, looseness_max=0.4):
     # Ensure the stretch array length matches the number of faces
     assert len(stretch_array) == len(faces), "The length of stretch_array must match the number of faces."
@@ -445,6 +456,35 @@ def color_code_stretches(verts, faces, stretch_array, tightness_max=0.15, loosen
             vertex_colors[i] = [128, 128, 128, 255]  # Default gray color if no face uses this vertex
 
     return vertex_colors
+'''
+
+
+def color_code_stretches(verts, faces, stretch_array):
+    assert len(stretch_array) == len(faces), "The length of stretch_array must match the number of faces."
+    
+    # Initialize arrays for accumulating colors and counts
+    vertex_colors = np.zeros((verts.shape[0], 4), dtype=np.float32)  # Using float32 for accumulation
+    vertex_counts = np.zeros(verts.shape[0], dtype=np.int32)
+    
+    # First pass: accumulate stretch values per vertex
+    vertex_stretches = np.zeros(verts.shape[0], dtype=np.float32)
+    for face, stretch in zip(faces, stretch_array):
+        for vertex in face:
+            vertex_stretches[vertex] += stretch
+            vertex_counts[vertex] += 1
+    
+    # Average the stretch values
+    mask = vertex_counts > 0
+    vertex_stretches[mask] /= vertex_counts[mask]
+    
+    # Apply color mapping to averaged stretch values
+    for i in range(len(vertex_colors)):
+        if vertex_counts[i] > 0:
+            vertex_colors[i] = _map_garment_stretch_to_color(vertex_stretches[i])
+        else:
+            vertex_colors[i] = [128, 128, 128, 255]  # Default gray
+            
+    return vertex_colors.astype(np.uint8)
 
 
 '''

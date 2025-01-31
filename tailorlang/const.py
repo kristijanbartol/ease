@@ -647,8 +647,29 @@ def arms_front_pose():
     return pose
 
 
+def arms_front_bent():
+    pose = torch.zeros((1, 23 * 3))
+    # Arms front
+    pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
+    pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    # Arms bent
+    pose[0, 17*3:18*3] = torch.tensor([0, 0, np.pi / 2])  # left arm
+    pose[0, 18*3:19*3] = torch.tensor([0, 0, -np.pi / 2]) # right arm
+    return pose
+
+
 def sit_pose():
     pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([-np.pi / 2, 0, 0]) # left hip
+    pose[0, 1*3:2*3] = torch.tensor([-np.pi / 2, 0, 0]) # right hip
+    pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])  # left knee
+    pose[0, 4*3:5*3] = torch.tensor([np.pi / 2, 0, 0])  # right knee
+    
+    return pose
+
+
+def a_sit_pose():
+    pose = a_pose()
     pose[0, 0*3:1*3] = torch.tensor([-np.pi / 2, 0, 0]) # left hip
     pose[0, 1*3:2*3] = torch.tensor([-np.pi / 2, 0, 0]) # right hip
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])  # left knee
@@ -661,6 +682,20 @@ def legs_apart_pose():
     pose = a_pose()
     pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
     pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
+    return pose
+
+
+def legs_scissors_pose():
+    pose = a_pose()
+    pose[0, 0*3:1*3] = torch.tensor([np.pi / 6, 0, 0])
+    pose[0, 1*3:2*3] = torch.tensor([-np.pi / 6, 0, 0])
+    return pose
+
+
+def standard5_pose():       # arms up + legs scissors pose
+    pose = arms_up_pose()
+    pose[0, 0*3:1*3] = torch.tensor([np.pi / 6, 0, 0])
+    pose[0, 1*3:2*3] = torch.tensor([-np.pi / 6, 0, 0])
     return pose
 
 
@@ -682,6 +717,13 @@ def standard3_pose():       # arms front bent + sit
     return pose
 
 
+def standard4_pose():       # arms front bent + legs apart
+    pose = arms_front_bent()
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
+    return pose
+
+
 def bent_knee_45_pose():
     pose = a_pose()
     pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
@@ -700,12 +742,14 @@ def bent_knee_90_pose():
 
 UPPER_ANGLE_OFFSETS_DICT = {
     'a_pose': {
-        1.00: 0,
+        0.8: -np.pi / 34,
+        0.9: -np.pi / 50,
+        1.00: np.pi / 85,
         #1.05: np.pi / 64,
         1.05: 0,
-        1.10: np.pi / 50,
-        1.15: np.pi / 40,
-        1.20: np.pi / 34,
+        1.10: np.pi / 70,
+        1.15: np.pi / 65,
+        1.20: np.pi / 90,
         1.25: np.pi / 30,
         1.30: np.pi / 26,
         1.35: np.pi / 22,
@@ -722,6 +766,20 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.35: np.pi / 22,
         1.40: np.pi / 19
     },
+    'a_sit_pose': {
+        0.8: -np.pi / 34,
+        0.9: -np.pi / 50,
+        1.00: 0,
+        #1.05: np.pi / 64,
+        1.05: 0,
+        1.10: np.pi / 70,
+        1.15: np.pi / 65,
+        1.20: np.pi / 90,
+        1.25: np.pi / 30,
+        1.30: np.pi / 26,
+        1.35: np.pi / 22,
+        1.40: np.pi / 19
+    },
     't_pose': {
         1.00: 0,
         1.05: 0,
@@ -734,6 +792,7 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.40: 0
     },
     'standard2_pose': {
+        0.9: 0,
         1.00: 0,
         1.05: 0,
         1.10: 0,
@@ -745,6 +804,31 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.40: 0
     },
     'standard3_pose': {
+        0.9: 0,
+        1.00: 0,
+        1.05: 0,
+        1.10: 0,
+        1.15: 0,
+        1.20: 0,
+        1.25: 0,
+        1.30: 0,
+        1.35: 0,
+        1.40: 0
+    },
+    'standard4_pose': {
+        0.9: 0,
+        1.00: 0,
+        1.05: 0,
+        1.10: 0,
+        1.15: 0,
+        1.20: 0,
+        1.25: 0,
+        1.30: 0,
+        1.35: 0,
+        1.40: 0
+    },
+    'standard5_pose': {
+        0.9: 0,
         1.00: 0,
         1.05: 0,
         1.10: 0,
@@ -759,9 +843,14 @@ UPPER_ANGLE_OFFSETS_DICT = {
 
 LOWER_ANGLE_OFFSETS_DICT = {
     'a_pose': {
-        1.00: 0,
+        0.7: -np.pi / 36,
+        0.8: -np.pi / 48,
+        0.9: -np.pi / 96,
+        #1.00: np.pi / 96,
+        1.00: np.pi / 80,
         1.05: 0,
-        1.10: np.pi / 96,
+        #1.10: np.pi / 96,
+        1.10: 0,
         1.15: np.pi / 64,
         1.20: np.pi / 48,
         1.25: np.pi / 42,
@@ -780,6 +869,17 @@ LOWER_ANGLE_OFFSETS_DICT = {
         1.35: np.pi / 30,
         1.40: np.pi / 26
     },
+    'a_sit_pose': {
+        1.00: 0,
+        1.05: 0,
+        1.10: np.pi / 96,
+        1.15: np.pi / 64,
+        1.20: np.pi / 48,
+        1.25: np.pi / 42,
+        1.30: np.pi / 36,
+        1.35: np.pi / 30,
+        1.40: np.pi / 26
+    },
     't_pose': {
         1.00: 0,
         1.05: np.pi / 96,
@@ -792,6 +892,7 @@ LOWER_ANGLE_OFFSETS_DICT = {
         1.40: np.pi / 30
     },
     'standard2_pose': {
+        0.9: -np.pi / 70,
         1.00: 0,
         1.05: np.pi / 96,
         1.10: np.pi / 70,
@@ -803,15 +904,40 @@ LOWER_ANGLE_OFFSETS_DICT = {
         1.40: np.pi / 30
     },
     'standard3_pose': {
+        0.9: 0,
         1.00: 0,
         1.05: 0,
         1.10: np.pi / 96,
         1.15: np.pi / 64,
         1.20: np.pi / 48,
         1.25: np.pi / 42,
-        1.30: np.pi / 36,
+        1.30: np.pi / 48,
         1.35: np.pi / 30,
         1.40: np.pi / 26
+    },
+    'standard4_pose': {
+        0.9: -np.pi / 70,
+        1.00: 0,
+        1.05: np.pi / 96,
+        1.10: np.pi / 70,
+        1.15: np.pi / 58,
+        1.20: np.pi / 50,
+        1.25: np.pi / 44,
+        1.30: np.pi / 38,
+        1.35: np.pi / 34,
+        1.40: np.pi / 30
+    },
+    'standard5_pose': {
+        0.9: 0,
+        1.00: 0,
+        1.05: 0,
+        1.10: 0,
+        1.15: 0,
+        1.20: 0,
+        1.25: 0,
+        1.30: 0,
+        1.35: 0,
+        1.40: 0
     },
 }
 
@@ -845,7 +971,7 @@ def plump_shape():
 
 def slim_shape():
     shape = torch.zeros((1, 10))
-    shape[:, 1:10] = 2.5
+    shape[:, 1:10] = 1.25
     return shape
 
 

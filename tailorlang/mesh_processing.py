@@ -408,6 +408,11 @@ class MeshState:
         
         self.target_bodies_verts = []
         
+        trimesh.Trimesh(
+            vertices=self.canonical_mesh['vertices'],
+            faces=self.canonical_mesh['faces'],
+        ).export('/Users/kristijanbartol/TailorLang/canonical.ply')
+        
         # Patch-to-(pre-)seamlines dictionary
         # TODO: Seamlines should also become seamline INDICES!
         # NOTE: ref_seamlines_dict and masked_seamlines_dict not needed at the moment (since old_to_new_dict finally selects the seamlines anyway)
@@ -577,7 +582,7 @@ class MeshState:
             patch_verts = self.active_mesh['vertices'][self.full_patch_idxs_dict[patch_label]]
             mask_fun = _upper_mask if patch_label.split('_')[0] == 'upper' else _lower_mask
             mask = mask_fun(patch_verts, self.threshold_dict)
-            self.masked_patch_idxs_dict[patch_label] = self.full_patch_idxs_dict[patch_label][mask]
+            self.masked_patch_idxs_dict[patch_label] = self.full_patch_idxs_dict[patch_label]#[mask]        # NOTE: Temporary commenting out masking
             
         # NOTE: Masked seamlines dict not needed at the moment, since old-to-new dict finally masks the seamlines as well
         for seamline_component in self.ref_seamlines_dict:

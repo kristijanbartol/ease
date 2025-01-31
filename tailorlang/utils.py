@@ -10,7 +10,7 @@ from tailorlang.const import EXPERIMENT_GROUPS
 
 
 def construct_experiment_name(config):
-    method_name = f'{config.body_set}_{config.design}_{config.seamline_strategy}_{config.num_seam_iters}_{config.stretch_coef}_{config.edges_coef}_{config.seams_coef}'
+    method_name = f'{config.body_set}_{config.design}_{config.seamline_strategy}_{config.num_seam_iters}_{config.stretch_coef}_{config.edges_coef}_{config.seams_coef}_{config.material_stretch_coef}'
     method_name += '_' + 'T' if config.apply_remesh else 'F'
     method_name += 'T' if config.use_darts else 'F'
     method_name += 'T' if config.equalize_seamline_lengths else 'F'

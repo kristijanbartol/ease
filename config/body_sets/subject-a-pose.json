@@ -1,7 +1,7 @@
 {
     "poses": [
-        "a_pose",
-        "a_pose"
+        "t_pose",
+        "t_pose"
     ],
     "shapes": [
         "subject_shape",

@@ -115,6 +115,7 @@ def qualitative_evaluation(experiment_name):
     #os.makedirs(os.path.join(output_dir_latest, 'png'), exist_ok=True)     
     os.makedirs(output_dir_method, exist_ok=True)     
     
+    #final_meshes = deepcopy(meshes_dict['pre'])
     final_meshes = deepcopy(meshes_dict['final-seams'])
     
     for suffix in meshes_dict:

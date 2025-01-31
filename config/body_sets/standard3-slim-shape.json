@@ -1,0 +1,14 @@
+{
+    "poses": [
+        "a_pose",
+        "standard3_pose"
+    ],
+    "shapes": [
+        "zero_shape",
+        "slim_shape"
+    ],
+    "genders": [
+        "female",
+        "female"
+    ]
+}
