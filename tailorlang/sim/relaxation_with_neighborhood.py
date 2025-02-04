@@ -191,18 +191,16 @@ class GarmentRelaxer:
         return is_boundary
     
     def _apply_edge_constraints(self):
-        """Apply edge length constraints with surface projection."""
+        """Apply edge length constraints with bidirectional strain handling."""
         for _ in range(self.sub_iterations):
             # Get current edge vectors and lengths
             edge_vectors = self.current_vertices[self.edges[:, 1]] - self.current_vertices[self.edges[:, 0]]
             current_lengths = np.linalg.norm(edge_vectors, axis=1)
             
-            # Calculate strain (only count stretching beyond target length)
-            strain = np.zeros_like(current_lengths)
-            mask = current_lengths > self.target_lengths
-            strain[mask] = (current_lengths[mask] - self.target_lengths[mask]) / self.target_lengths[mask]
+            # Calculate strain for all edges (both compression and stretch)
+            strain = (current_lengths - self.target_lengths) / self.target_lengths
             
-            # Sort edges by strain magnitude
+            # Sort edges by absolute strain magnitude
             edge_order = np.argsort(np.abs(strain))[::-1]
             
             # Initialize corrections
@@ -219,33 +217,47 @@ class GarmentRelaxer:
                 
                 current_length = current_lengths[edge_idx]
                 target_length = self.target_lengths[edge_idx]
+                edge_strain = strain[edge_idx]
                 
-                # Only apply correction if edge is stretched beyond target
+                # Calculate correction direction
+                direction = edge_vectors[edge_idx] / current_length
+                
+                # Different handling for compression vs stretch
                 if current_length > target_length:
-                    # Calculate correction
-                    direction = edge_vectors[edge_idx] / current_length
+                    # Stretching case
                     correction = direction * (current_length - target_length)
-                    
-                    # Weight correction based on strain
-                    weight = self.constraint_stiffness * (1.0 + 5.0 * strain[edge_idx])
-                    
-                    # Apply weighted correction
-                    if not self.is_boundary[v1_idx]:
-                        corrections[v1_idx] += correction * weight / 2
-                        correction_weights[v1_idx] += weight
-                    
-                    if not self.is_boundary[v2_idx]:
-                        corrections[v2_idx] -= correction * weight / 2
-                        correction_weights[v2_idx] += weight
+                    weight = self.constraint_stiffness * (1.0 + 5.0 * abs(edge_strain))
+                else:
+                    # Compression case - softer correction
+                    compression_ratio = abs(edge_strain)
+                    if compression_ratio > 0.1:  # Only correct significant compressions
+                        correction = direction * (current_length - target_length)
+                        weight = self.constraint_stiffness * compression_ratio * 0.5
+                    else:
+                        continue
+                
+                # Apply weighted correction
+                if not self.is_boundary[v1_idx]:
+                    corrections[v1_idx] += correction * weight / 2
+                    correction_weights[v1_idx] += weight
+                
+                if not self.is_boundary[v2_idx]:
+                    corrections[v2_idx] -= correction * weight / 2
+                    correction_weights[v2_idx] += weight
             
             # Apply weighted corrections
             mask = correction_weights > 0
             corrections[mask] /= correction_weights[mask, np.newaxis]
             
-            # Scale corrections based on maximum allowed movement
+            # Scale corrections based on local neighborhood average strain
+            neighborhood_strain = self._compute_neighborhood_strain()
             max_movement = np.mean(self.target_lengths) * 0.1
             correction_magnitudes = np.linalg.norm(corrections, axis=1)
+            
+            # Adjust scale factors based on neighborhood strain
             scale_factors = np.minimum(1.0, max_movement / (correction_magnitudes + 1e-10))
+            scale_factors *= (1.0 + neighborhood_strain)  # Allow larger movements in high-strain regions
+            
             corrections *= scale_factors[:, np.newaxis]
             
             # Apply corrections
@@ -256,6 +268,29 @@ class GarmentRelaxer:
             self.current_vertices[non_boundary] = self._project_to_surface(
                 self.current_vertices[non_boundary]
             )
+
+    def _compute_neighborhood_strain(self):
+        """Compute average strain in vertex neighborhoods."""
+        vertex_strain = np.zeros(len(self.current_vertices))
+        vertex_counts = np.zeros(len(self.current_vertices))
+        
+        # Get current edge strains
+        edge_vectors = self.current_vertices[self.edges[:, 1]] - self.current_vertices[self.edges[:, 0]]
+        current_lengths = np.linalg.norm(edge_vectors, axis=1)
+        strain = abs((current_lengths - self.target_lengths) / self.target_lengths)
+        
+        # Accumulate strain for each vertex
+        for i, (v1, v2) in enumerate(self.edges):
+            vertex_strain[v1] += strain[i]
+            vertex_strain[v2] += strain[i]
+            vertex_counts[v1] += 1
+            vertex_counts[v2] += 1
+        
+        # Average the strain
+        mask = vertex_counts > 0
+        vertex_strain[mask] /= vertex_counts[mask]
+        
+        return vertex_strain
     
     def simulate(self, num_iterations=100, log_frequency=10):
         """Run the simulation with surface projection."""
@@ -462,13 +497,13 @@ def main():
     )
     
     # Visualize initial state
-    min_strain, max_strain = relaxer.visualize_param_mesh("Initial State", "initial_state.png")
+    min_strain, max_strain = relaxer.visualize_param_mesh("Initial State", "initial_state_with_neighborhood.png")
     
     # Run simulation
     relaxer.simulate(num_iterations=25, log_frequency=10)
     
     # Visualize final state
-    relaxer.visualize_param_mesh("Final State", "final_state.png", min_strain, max_strain)
+    relaxer.visualize_param_mesh("Final State", "final_state_with_neighborhood.png", min_strain, max_strain)
     
     # Save final mesh
     final_mesh = trimesh.Trimesh(

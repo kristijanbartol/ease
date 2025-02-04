@@ -139,7 +139,7 @@ def get_seamline_statistics():
     optim_2ds = []
     for patch_label in PATCH_LIST:
         optim_2ds.append(trimesh.load(
-            os.path.join('data/param_2d/', patch_label, 'optim_final-seams.ply')))
+            os.path.join('results/pattern/latest/', patch_label, 'optim_final-seams.ply')))
     
     _distances_dict = {}
     statistics_dict = {}

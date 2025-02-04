@@ -1,7 +1,7 @@
 {
     "project_dir": "/Users/kristijanbartol/TailorLang/",
     "smpl_dir": "/Users/kristijanbartol/data/smpl/models/",
-    "body_set": "a-pose",
+    "body_set": "standard3-pose",
     "design": "long",
     "refit_pose": "",
     "transfer_shape": "",

@@ -179,7 +179,7 @@ def extract_stretch_ratios_with_target(V_2d, V_3d_ref, V_3d_target, F, DU_bary, 
 def load_stretch_data(patch_label):
     bary_rootdir = 'data/bary/ref_2d'
     mesh_rootdir = 'data/embedded/'
-    param_2d_rootdir = 'data/param_2d/'
+    param_2d_rootdir = 'results/pattern/latest/'
     scales_rootdir = 'data/scales/'
     
     bary_subdir = os.path.join(bary_rootdir, patch_label)
