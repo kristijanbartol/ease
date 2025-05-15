@@ -1,0 +1,33 @@
+{
+    "flags": {
+        "skirtified": false
+    },
+    "dims": {
+        "sleeve": 0.33,
+        "upper": 0.22,
+        "lower": 0.66,
+        "lower_offset": -100000
+    },
+    "stretches": {
+        "sleeve": {
+            "type": "uniform",
+            "base_stretch_u": 1.0,
+            "base_stretch_v": 0.9,
+            "max_stretch": 1.5,
+            "ref_x": 0.25
+        },
+        "upper": {
+            "type": "uniform",
+            "base_stretch_u": 0.9,
+            "base_stretch_v": 1.0,
+            "max_stretch": 1.5,
+            "ref_y": -0.093
+        },
+        "lower": {
+            "type": "uniform",
+            "base_stretch_u": 0.9,
+            "base_stretch_v": 1.0,
+            "max_stretch": 1.5
+        }
+    }
+}

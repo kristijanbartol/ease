@@ -5,6 +5,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.collections import LineCollection
 from scipy.spatial import KDTree
 from collections import defaultdict
+import time
 
 class GarmentRelaxer:
     def __init__(self, body_mesh, garment_tpose, garment_apose, param_mesh, sub_iterations=10):
@@ -102,57 +103,83 @@ class GarmentRelaxer:
         return np.mean(self.body_mesh.vertices[self.body_mesh.faces], axis=1)
     
     def _project_to_surface(self, vertices):
-        """Project vertices onto the body mesh surface using barycentric coordinates."""
-        # Find closest face centroids using KD-tree
-        _, face_indices = self.centroid_kdtree.query(vertices)
+        """Project vertices onto body mesh surface using vectorized orthogonal projection."""
+        K = 2  # Number of nearest faces to check
         
-        # Get triangle vertices for each closest face
-        closest_faces = self.body_mesh.faces[face_indices]
-        v0 = self.body_mesh.vertices[closest_faces[:, 0]]
-        v1 = self.body_mesh.vertices[closest_faces[:, 1]]
-        v2 = self.body_mesh.vertices[closest_faces[:, 2]]
+        # Find K nearest faces for each vertex
+        distances, face_indices = self.centroid_kdtree.query(vertices, k=K)
         
-        # Get face normals for closest faces
-        face_normals = self.face_normals[face_indices]
+        # For each vertex, process K nearest faces in parallel
+        face_vertices = self.body_mesh.vertices[self.body_mesh.faces[face_indices]]  # Shape: (N, K, 3, 3)
+        v0 = face_vertices[:, :, 0]  # Shape: (N, K, 3)
+        v1 = face_vertices[:, :, 1]
+        v2 = face_vertices[:, :, 2]
         
-        # Project points onto triangle planes
-        v0_to_point = vertices - v0
-        dist_to_plane = np.sum(v0_to_point * face_normals, axis=1)
-        projected_points = vertices - dist_to_plane[:, np.newaxis] * face_normals
-        
-        # Compute barycentric coordinates
-        edge1 = v1 - v0
+        # Compute face normals for all candidates
+        edge1 = v1 - v0  # Shape: (N, K, 3)
         edge2 = v2 - v0
+        normals = np.cross(edge1, edge2)  # Shape: (N, K, 3)
+        normal_lengths = np.linalg.norm(normals, axis=2, keepdims=True)
+        normals /= normal_lengths
         
-        # Compute areas using cross products
-        normal = np.cross(edge1, edge2)
-        area_total = np.linalg.norm(normal, axis=1) / 2
+        # Compute orthogonal projections to all candidate planes
+        v0_to_point = vertices[:, np.newaxis] - v0  # Shape: (N, K, 3)
+        dist_to_plane = np.sum(v0_to_point * normals, axis=2)  # Shape: (N, K)
+        proj_points = vertices[:, np.newaxis] - dist_to_plane[:, :, np.newaxis] * normals  # Shape: (N, K, 3)
         
-        p_v0 = projected_points - v0
-        p_v1 = projected_points - v1
-        p_v2 = projected_points - v2
+        # Compute barycentric coordinates for all projections
+        areas = np.zeros((len(vertices), K, 3))  # Shape: (N, K, 3)
         
-        area0 = np.linalg.norm(np.cross(p_v1, p_v2), axis=1) / 2
-        area1 = np.linalg.norm(np.cross(p_v2, p_v0), axis=1) / 2
-        area2 = np.linalg.norm(np.cross(p_v0, p_v1), axis=1) / 2
+        # Compute areas using vectorized cross products
+        areas[:, :, 0] = np.linalg.norm(np.cross(v1 - proj_points, v2 - proj_points), axis=2) / 2
+        areas[:, :, 1] = np.linalg.norm(np.cross(v2 - proj_points, v0 - proj_points), axis=2) / 2
+        areas[:, :, 2] = np.linalg.norm(np.cross(v0 - proj_points, v1 - proj_points), axis=2) / 2
         
-        # Convert to barycentric coordinates
-        b0 = area0 / area_total
-        b1 = area1 / area_total
-        b2 = area2 / area_total
+        total_areas = np.sum(areas, axis=2)[:, :, np.newaxis]
+        barycentric = areas / total_areas  # Shape: (N, K, 3)
         
-        # Handle points outside triangle
-        sum_coords = b0 + b1 + b2
-        b0 /= sum_coords
-        b1 /= sum_coords
-        b2 /= sum_coords
+        # Check which projections are inside triangles
+        inside_triangle = np.all(barycentric >= -1e-6, axis=2) & (np.abs(np.sum(barycentric, axis=2) - 1) < 1e-6)
+        distances_inside = np.where(inside_triangle, np.abs(dist_to_plane), np.inf)
         
-        # Compute final projected positions
-        projected_vertices = (b0[:, np.newaxis] * v0 +
-                            b1[:, np.newaxis] * v1 +
-                            b2[:, np.newaxis] * v2)
+        # For points not inside any triangle, compute edge projections
+        edge_dists = np.full((len(vertices), K, 3), np.inf)  # Shape: (N, K, 3) for 3 edges
+        edge_projs = np.zeros((len(vertices), K, 3, 3))  # Shape: (N, K, 3, 3)
         
-        return projected_vertices
+        edges = [(v0, v1), (v1, v2), (v2, v0)]
+        for i, (e1, e2) in enumerate(edges):
+            edge_vectors = e2 - e1  # Shape: (N, K, 3)
+            t = np.sum((vertices[:, np.newaxis] - e1) * edge_vectors, axis=2) / np.sum(edge_vectors * edge_vectors, axis=2)
+            t = np.clip(t, 0, 1)
+            edge_projs[:, :, i] = e1 + t[:, :, np.newaxis] * edge_vectors
+            edge_dists[:, :, i] = np.linalg.norm(vertices[:, np.newaxis] - edge_projs[:, :, i], axis=2)
+        
+        # Find minimum distance among all projections
+        min_edge_dists = np.min(edge_dists, axis=2)
+        min_distances = np.minimum(distances_inside, min_edge_dists)
+        
+        # Select best projection for each vertex
+        best_indices = np.argmin(min_distances, axis=1)
+        vertex_indices = np.arange(len(vertices))
+        
+        # Get final projections
+        inside_mask = inside_triangle[vertex_indices, best_indices]
+        
+        result = np.zeros_like(vertices)
+        # For points inside triangles
+        result[inside_mask] = proj_points[vertex_indices[inside_mask], best_indices[inside_mask]]
+        
+        if sum(inside_mask) == 0:
+            print('No projection within the triangle. Exiting...')
+            exit()
+        
+        # For points outside triangles
+        outside_mask = ~inside_mask
+        if np.any(outside_mask):
+            edge_min_indices = np.argmin(edge_dists[vertex_indices[outside_mask], best_indices[outside_mask]], axis=1)
+            result[outside_mask] = edge_projs[vertex_indices[outside_mask], best_indices[outside_mask]][np.arange(np.sum(outside_mask)), edge_min_indices]
+        
+        return result
     
     def _extract_edges(self, faces):
         """Extract unique edges from triangle faces."""
@@ -448,9 +475,15 @@ def main():
     """Main execution function."""
     # Load meshes
     body_mesh = trimesh.load('data/body/target-00.ply')
-    garment_tpose = trimesh.load('data/embedded/lower_back_right/ref.ply')
-    garment_apose = trimesh.load('data/embedded/lower_back_right/target-00.ply')
-    param_mesh = trimesh.load('results/pattern/latest/lower_back_right/optim_final-seams.ply')
+    garment_tpose = trimesh.load('data/embedded/sleeve_back_right/ref.ply')
+    garment_apose = trimesh.load('data/embedded/sleeve_back_right/target-00.ply')
+    param_mesh = trimesh.load('results/pattern/latest/sleeve_back_right/optim_final-seams.ply')
+    
+    if False:
+        body_mesh = body_mesh.subdivide()
+        garment_tpose = garment_tpose.subdivide()
+        garment_apose = garment_apose.subdivide()
+        param_mesh = param_mesh.subdivide()
     
     # Create relaxer
     relaxer = GarmentRelaxer(
@@ -458,17 +491,20 @@ def main():
         garment_tpose=garment_tpose,
         garment_apose=garment_apose,
         param_mesh=param_mesh,
-        sub_iterations=10
+        sub_iterations=1
     )
     
     # Visualize initial state
     min_strain, max_strain = relaxer.visualize_param_mesh("Initial State", "initial_state.png")
     
+    start_time = time.time()
     # Run simulation
     relaxer.simulate(num_iterations=25, log_frequency=10)
+    total_time = time.time() - start_time
+    print(f'Time: {total_time:.2f}s')
     
     # Visualize final state
-    relaxer.visualize_param_mesh("Final State", "final_state.png", min_strain, max_strain)
+    relaxer.visualize_param_mesh("Final State", "relaxed_state.png", min_strain, max_strain)
     
     # Save final mesh
     final_mesh = trimesh.Trimesh(

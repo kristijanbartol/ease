@@ -3,8 +3,8 @@
         "skirtified": false
     },
     "dims": {
-        "sleeve": 0.4,
-        "upper": 0.3,
+        "sleeve": 0.44,
+        "upper": 0.22,
         "lower": 0.88,
         "lower_offset": -100000
     },
@@ -12,7 +12,7 @@
         "sleeve": {
             "type": "uniform",
             "base_stretch_u": 1.0,
-            "base_stretch_v": 1.0,
+            "base_stretch_v": 1.05,
             "max_stretch": 1.5,
             "ref_x": 0.25
         },
@@ -25,7 +25,7 @@
         },
         "lower": {
             "type": "uniform",
-            "base_stretch_u": 1.4,
+            "base_stretch_u": 1.1,
             "base_stretch_v": 1.0,
             "max_stretch": 1.5
         }

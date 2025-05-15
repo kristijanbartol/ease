@@ -1,14 +1,14 @@
 IMG_OFFSETS_DICT = {
-    'upper_front': [0, -100],
-    'upper_back': [0, -375],
+    'upper_front': [-20, -50],
+    'upper_back': [-20, -325],
     'sleeve_front_right': [-300, -270],
     'sleeve_back_right': [-270, -375],
-    'sleeve_front_left': [300, -270],
-    'sleeve_back_left': [280, -375],
-    'lower_front_right': [-80, 340],
-    'lower_back_right': [-340, 150],
-    'lower_front_left': [170, 340],
-    'lower_back_left': [375, 150]
+    'sleeve_front_left': [340, -270],
+    'sleeve_back_left': [320, -375],
+    'lower_front_right': [-90, 375],
+    'lower_back_right': [-360, 200],
+    'lower_front_left': [145, 375],
+    'lower_back_left': [350, 200]
 }
 GLOBAL_IMG_SCALE = 400
 

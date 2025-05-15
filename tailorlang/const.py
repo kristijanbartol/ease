@@ -742,16 +742,18 @@ def bent_knee_90_pose():
 
 UPPER_ANGLE_OFFSETS_DICT = {
     'a_pose': {
-        0.8: -np.pi / 34,
-        0.9: -np.pi / 50,
+        0.8: -np.pi / 64,
+        #0.9: -np.pi / 90,
+        0.9: 0,
         1.00: np.pi / 85,
-        #1.05: np.pi / 64,
+        #1.05: np.pi / 60,
         1.05: 0,
         1.10: np.pi / 70,
         1.15: np.pi / 65,
         1.20: np.pi / 90,
         1.25: np.pi / 30,
-        1.30: np.pi / 26,
+        #1.30: np.pi / 26,
+        1.30: np.pi / 45,
         1.35: np.pi / 22,
         1.40: np.pi / 19
     },
@@ -796,8 +798,8 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.00: 0,
         1.05: 0,
         1.10: 0,
-        1.15: 0,
-        1.20: 0,
+        1.15: np.pi / 35,
+        1.20: np.pi / 35,
         1.25: 0,
         1.30: 0,
         1.35: 0,
@@ -809,7 +811,7 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.05: 0,
         1.10: 0,
         1.15: 0,
-        1.20: 0,
+        1.20: np.pi / 35,
         1.25: 0,
         1.30: 0,
         1.35: 0,
@@ -849,11 +851,12 @@ LOWER_ANGLE_OFFSETS_DICT = {
         #1.00: np.pi / 96,
         1.00: np.pi / 80,
         1.05: 0,
-        #1.10: np.pi / 96,
-        1.10: 0,
+        1.10: np.pi / 96,
+        #1.10: 0,
         1.15: np.pi / 64,
         1.20: np.pi / 48,
-        1.25: np.pi / 42,
+        #1.25: np.pi / 42,
+        1.25: np.pi / 64,
         1.30: np.pi / 36,
         1.35: np.pi / 30,
         1.40: np.pi / 26
@@ -892,7 +895,8 @@ LOWER_ANGLE_OFFSETS_DICT = {
         1.40: np.pi / 30
     },
     'standard2_pose': {
-        0.9: -np.pi / 70,
+        #0.9: -np.pi / 70,
+        0.9: 0,
         1.00: 0,
         1.05: np.pi / 96,
         1.10: np.pi / 70,
@@ -943,16 +947,25 @@ LOWER_ANGLE_OFFSETS_DICT = {
 
 
 def apply_angle_offset(pose_params, pose_label, upper_coef, lower_coef):
-    # Upper offset    
-    pose_params[0, 15*3+2] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-    pose_params[0, 16*3+2] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-    
+    # Upper offset   
+    if pose_label == 'standard2_pose' or pose_label == 'standard3_pose':
+        pose_params[0, 15*3+1] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+        pose_params[0, 16*3+1] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+    else:
+        pose_params[0, 15*3+2] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+        pose_params[0, 16*3+2] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+        
     # Lower offset
     pose_params[0, 0*3+2] += LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
     pose_params[0, 1*3+2] -= LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
     
     return pose_params
     
+
+GARMENT_LENGTHS_WRT_SHAPE = {
+    's_s_shape': 0.95,
+    'l_l_shape': 1.02
+}
 
 
 SUBJECT_BETAS = [[0.8100,  0.8800, -0.7100,  0.2424,  0.0000,  0.0000,  0.0000,  0.0000, 0.0000,  0.0000]]
@@ -980,8 +993,36 @@ def large_shape():
     return shape
 
 
-def small_shape():
-    shape = torch.ones((1, 10)) * 2.5
+def s_s_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = 1.25
+    shape[0, 0] = -1.25
+    return shape
+
+
+def sm_sm_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = 0.75
+    shape[0, 0] = -0.75
+    return shape
+
+
+def m_m_shape():
+    shape = torch.zeros((1, 10))
+    return shape
+
+
+def ml_ml_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = -1.25
+    shape[0, 0] = 1.25
+    return shape
+
+
+def l_l_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = -2.5
+    shape[0, 0] = 1.75
     return shape
 
 

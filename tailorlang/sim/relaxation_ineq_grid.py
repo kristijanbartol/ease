@@ -410,12 +410,15 @@ class GridClothSimulator:
         ax.set_ylim(self.vertices[:, 1].min() - padding, 
                    self.vertices[:, 1].max() + padding)
         
-        plt.savefig('ineq.png', dpi=300, bbox_inches='tight')
+        if final:
+            plt.savefig('ineq_final.png', dpi=300, bbox_inches='tight')
+        else:
+            plt.savefig('ineq_init.png', dpi=300, bbox_inches='tight')
         plt.show()
 
 # Example usage
 if __name__ == "__main__":
-    GRID_SIZE = 25
+    GRID_SIZE = 10
     NROWS = GRID_SIZE
     NCOLS = GRID_SIZE
     NEDGES = (NROWS - 1) * NCOLS * 2
@@ -426,8 +429,8 @@ if __name__ == "__main__":
     # Create simulator with a 10x10 grid
     simulator = GridClothSimulator(rows=NROWS, cols=NCOLS, spacing=1.0)
 
-    #eq_edge_idxs = [250, 24, 33, 121, 135, 147]
-    stretching_edge_idxs = random.sample(range(0, NEDGES), NEDGES // 5)
+    stretching_edge_idxs = [14, 24, 33, 121, 135, 147]
+    #stretching_edge_idxs = random.sample(range(0, NEDGES), NEDGES // 5)
 
     # Add some equality constraints for comparison
     for edge_idx in stretching_edge_idxs:

@@ -1,6 +1,7 @@
 from typing import Dict
 import trimesh
 import os
+import shutil
 
 from tailorlang.utils import modify_experiment_name_for_refit
 from tailorlang.sim.utils import (
@@ -103,6 +104,7 @@ def simulate_garment_set(config, base_experiment, design_params, body_set, param
             
     sim_dir = f'results/sim/{base_experiment}/'
     os.makedirs(sim_dir, exist_ok=True)
+    shutil.copyfile('data/body/target-00-with-offset.ply', f'results/sim/{base_experiment}/target-00-with-offset.ply')
             
     simulate_pose(
         body_path=body_path,

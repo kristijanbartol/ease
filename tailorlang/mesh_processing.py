@@ -36,7 +36,8 @@ from tailorlang.const import (
     SEGMENT_TO_SEAMLINES_DICT,
     SEAM_TO_SEAM_IDX_DICT,
     SEGMENT_TO_DARTS,
-    PATCH_TO_PRE_SEAMS_DICT
+    PATCH_TO_PRE_SEAMS_DICT,
+    GARMENT_LENGTHS_WRT_SHAPE
 )
 from tailorlang.garment import (
     BodySet,
@@ -259,6 +260,7 @@ class MeshProcessor:
     
     @staticmethod
     def extract_local_stretches(verts, faces, design_params, patch_label, side=None) -> np.ndarray:
+        #if design_params.type == 'uniform':
         if 'sleeve' in patch_label:
             stretches_u = np.ones(faces.shape[0])             # Do not design elongation direction (only looseness)
             stretches_v = np.ones(faces.shape[0]) * design_params.sleeve_looseness
@@ -268,8 +270,9 @@ class MeshProcessor:
             else:
                 stretches_u = np.ones(faces.shape[0]) * design_params.pant_looseness
             stretches_v = np.ones(faces.shape[0])   # Do not design elongation direction (only looseness)
-
-        # TODO: Implement other stretch functions using design_params.
+                
+        #else:
+            
         
         return {
             'u': stretches_u,
@@ -403,6 +406,7 @@ class MeshState:
             'faces': self.smpl_model.faces,
             'color': (0.7, 0.7, 0.7, 1.0)  # Gray
         }
+        np.save('data/body/ref-betas.npy', ref_shape_fun().cpu().detach().numpy())
         self.active_mesh = self.canonical_mesh.copy()   # set immediately (since the initial design is applied)
         self.bary_coords_for_active_cuts_dict = {}      # component: bary_coords
         
@@ -490,10 +494,14 @@ class MeshState:
     
     def apply_length_params(self):
         ''' Updates active_mesh and threshold_dict. '''
+        if self.body_set.ref['shape'] in GARMENT_LENGTHS_WRT_SHAPE:
+            length_wrt_body_height_ratio = GARMENT_LENGTHS_WRT_SHAPE[self.body_set.ref['shape']]
+        else:
+            length_wrt_body_height_ratio = 1.0
         component_lengths_dict = {
-            'upper': self.design_params.shirt_length, 
-            'sleeve': self.design_params.sleeve_length,
-            'lower': self.design_params.pant_length
+            'upper': self.design_params.shirt_length * length_wrt_body_height_ratio, 
+            'sleeve': self.design_params.sleeve_length * length_wrt_body_height_ratio,
+            'lower': self.design_params.pant_length * length_wrt_body_height_ratio
         }
         self.active_mesh['vertices'] = self.canonical_mesh['vertices']
         for component_label in ['upper', 'sleeve_left', 'sleeve_right', 'lower']:
@@ -505,6 +513,7 @@ class MeshState:
                 component_length=component_length
             )
             #if not(self.ref_gender == 'male' and self.body_set.num_targets > 0):    # NOTE: SMPL doesn't work with v_template argument for males
+            #if False:
             self.active_mesh['vertices'], self.bary_coords_for_active_cuts_dict[component_label] = modify_mesh_with_plane_cut(
                 vertices=self.active_mesh['vertices'],
                 faces=self.active_mesh['faces'],
@@ -660,13 +669,15 @@ class MeshState:
         posed_verts_list = []
         
         ref_pose_fun = getattr(const, self.body_set.ref['pose'])
-        ref_shape_fun = getattr(const, self.body_set.ref['shape'])
+        #ref_shape_fun = getattr(const, self.body_set.ref['shape'])
+        ref_shape_fun = getattr(const, 'zero_shape')
         ref_gender = self.body_set.ref['gender']
         
         posed_verts_list.append(active_template_smpl_dict[ref_gender](
             body_pose=ref_pose_fun(), 
             betas=ref_shape_fun()
         ).vertices[0].cpu().detach().numpy())
+        np.save('data/body/ref-pose.npy', ref_pose_fun().cpu().detach().numpy())
         
         for body_idx in range(self.body_set.num_targets):
             target_pose_fun = getattr(const, self.body_set.target['poses'][body_idx])
@@ -677,6 +688,8 @@ class MeshState:
                 body_pose=target_pose_fun(), 
                 betas=target_shape_fun()
             ).vertices[0].cpu().detach().numpy())
+            np.save(f'data/body/target-{body_idx:2d}-shape.npy', target_shape_fun().cpu().detach().numpy())
+            np.save(f'data/body/target-{body_idx:2d}-pose.npy', target_pose_fun().cpu().detach().numpy())
             #trimesh.Trimesh(vertices=active_template_smpl_dict[target_gender](
             #    body_pose=target_pose_fun(), 
             #    betas=target_shape_fun()
@@ -935,7 +948,8 @@ class MeshState:
         stretch_dir = 'data/scales/'
         uv_ref_3d_dir = 'data/bary/ref_3d/'
         uv_ref_2d_dir = 'data/bary/ref_2d/' # only create the director(ies) and fill out in C++
-        for dir in [mesh_dir, body_dir, seamline_dir, fixed_verts_dir]:
+        #for dir in [mesh_dir, body_dir, seamline_dir, fixed_verts_dir]:
+        for dir in [mesh_dir, seamline_dir, fixed_verts_dir]:
             if os.path.exists(dir):
                 shutil.rmtree(dir)
                 os.makedirs(dir)

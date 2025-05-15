@@ -176,6 +176,16 @@ def extract_stretch_ratios_with_target(V_2d, V_3d_ref, V_3d_target, F, DU_bary, 
     return scales_u, scales_v
 
 
+def load_design_stretches(patch_label):
+    scales_rootdir = 'data/scales/'
+    scales_u_path = os.path.join(scales_rootdir, patch_label, 'scales_u.txt')
+    scales_v_path = os.path.join(scales_rootdir, patch_label, 'scales_v.txt')
+    target_scales_u = np.loadtxt(scales_u_path)
+    target_scales_v = np.loadtxt(scales_v_path)
+    
+    return target_scales_u, target_scales_v
+
+
 def load_stretch_data(patch_label):
     bary_rootdir = 'data/bary/ref_2d'
     mesh_rootdir = 'data/embedded/'
@@ -459,7 +469,7 @@ def color_code_stretches(verts, faces, stretch_array, tightness_max=0.15, loosen
 '''
 
 
-def color_code_stretches(verts, faces, stretch_array):
+def color_code_stretches(verts, faces, stretch_array, grain_dir):
     assert len(stretch_array) == len(faces), "The length of stretch_array must match the number of faces."
     
     # Initialize arrays for accumulating colors and counts
@@ -480,7 +490,10 @@ def color_code_stretches(verts, faces, stretch_array):
     # Apply color mapping to averaged stretch values
     for i in range(len(vertex_colors)):
         if vertex_counts[i] > 0:
-            vertex_colors[i] = _map_garment_stretch_to_color(vertex_stretches[i])
+            if grain_dir == 'weft':
+                vertex_colors[i] = _map_garment_stretch_to_color(vertex_stretches[i])
+            else:
+                vertex_colors[i] = _map_garment_stretch_to_alternative_scale(vertex_stretches[i])
         else:
             vertex_colors[i] = [128, 128, 128, 255]  # Default gray
             
