@@ -13,3 +13,19 @@ rtree
 torch
 torchvision
 pytest
+# ui
+PyQt6
+pyqtgraph
+PyOpenGL
+PyOpenGL_accelerate
+# patch export
+ezdxf
+reportlab
+svgwrite
+# sim
+libigl==2.4.1
+scikit-sparse
+# render
+pyrender
+# postprocess
+plyfile

@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: tailorlang
+Version: 0.2
+License-File: LICENSE.md
+Requires-Dist: numpy
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"

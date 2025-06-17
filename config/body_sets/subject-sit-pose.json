@@ -1,0 +1,14 @@
+{
+    "poses": [
+        "a_pose",
+        "sit_pose"
+    ],
+    "shapes": [
+        "subject_shape",
+        "subject_shape"
+    ],
+    "genders": [
+        "male",
+        "male"
+    ]
+}

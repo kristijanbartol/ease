@@ -1,0 +1,3 @@
+include build_cpp.py
+recursive-include anisotropic-parameterization *
+recursive-include tailorlang/lib *.so *.pyd

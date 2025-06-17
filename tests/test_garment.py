@@ -3,7 +3,7 @@ import numpy as np
 from collections import defaultdict
 
 # Import your functions here
-from src.garment import point_side, map_vertex_idx_to_face_idxs, get_adjacent_faces, update_face, create_dart
+from tailorlang.garment import point_side, map_vertex_idx_to_face_idxs, get_adjacent_faces, update_face, create_dart
 
 class TestMeshCuttingFunctions(unittest.TestCase):
 

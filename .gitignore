@@ -1,8 +1,15 @@
+.DS_Store
 build/
+view*/
 data/
+results/
 assets/*
 !assets/preprint-review.pdf
 .vscode/settings.json
 __pycache__/
 *.ply
 *.obj
+anisotropic-parameterization/build/
+tailorlang/lib/*.so
+tailorlang/lib/*.pyd
+tailorlang/tailorlang.egg-info
