@@ -131,8 +131,8 @@ def qualitative_evaluation(experiment_name):
         #    meshes_dict[suffix], canvas_size, img_size, visualization_mode='stretch', direction='warp')
 
         # For original front/back visualization
-        patch_canvas = combine_meshes_on_canvas(
-            meshes_dict[suffix], canvas_size, img_size, visualization_mode='sewing_pattern')
+        #patch_canvas = combine_meshes_on_canvas(
+        #    meshes_dict[suffix], canvas_size, img_size, visualization_mode='sewing_pattern')
 
         #cv2.imwrite(
         #    os.path.join(output_dir_latest, 'png', f'weft_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_weft)
@@ -144,8 +144,8 @@ def qualitative_evaluation(experiment_name):
         #    os.path.join(output_dir_method, 'png', f'warp_stretch_pattern_{experiment_name}_{suffix}.png'), stretch_canvas_warp)
         #cv2.imwrite(
         #    os.path.join(output_dir_latest, 'png', f'sewing_pattern_{experiment_name}_{suffix}.png'), patch_canvas)
-        cv2.imwrite(
-            os.path.join(output_dir_method, f'sewing_pattern_{suffix}.png'), patch_canvas)
+        #cv2.imwrite(
+        #    os.path.join(output_dir_method, f'sewing_pattern_{suffix}.png'), patch_canvas)
     
     process_2d_meshes(
         patches=final_meshes, 

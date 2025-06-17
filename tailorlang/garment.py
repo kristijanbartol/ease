@@ -37,12 +37,24 @@ class DesignParameters:
             self.type = 'uniform'
         else:
             self.shirt_length = design_dict['dims']['upper']
-            self.sleeve_length = design_dict['dims']['sleeve']
-            self.pant_length = design_dict['dims']['lower']
             self.shirt_looseness = design_dict['stretches']['upper']['base_stretch_u']
-            self.sleeve_looseness = design_dict['stretches']['sleeve']['base_stretch_v']
-            self.pant_looseness = design_dict['stretches']['lower']['base_stretch_u']
-            self.type = design_dict['stretches']['sleeve']['type']
+            self.shirt_max_looseness = design_dict['stretches']['upper']['max_stretch']
+            self.shirt_ref_y = design_dict['stretches']['upper']['ref_y']
+            self.type = design_dict['stretches']['upper']['type']
+            
+            if 'lower' in design_dict['dims']:
+                self.pant_length = design_dict['dims']['lower']
+                self.pant_looseness = design_dict['stretches']['lower']['base_stretch_u']
+            else:
+                self.pant_length = 0.0
+                self.pant_looseness = 1.0
+                
+            if 'sleeve' in design_dict['dims']:
+                self.sleeve_length = design_dict['dims']['sleeve']
+                self.sleeve_looseness = design_dict['stretches']['sleeve']['base_stretch_v']
+            else:
+                self.sleeve_length = 0.0
+                self.sleeve_looseness = 1.0
         
     def update_parameter(self, param_name, value):
         if hasattr(self, param_name):

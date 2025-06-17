@@ -13,14 +13,14 @@ IMG_OFFSETS_DICT = {
 GLOBAL_IMG_SCALE = 400
 
 MESH_OFFSETS_DICT = {
-    'upper_front': [0.00, 0.00],
+    'upper_front': [0.00, -0.50],
     'upper_back': [0.00, 0.70],
     'sleeve_front_right': [-0.70, 0.20],
     'sleeve_back_right': [-0.50, 0.60],
     'sleeve_front_left': [0.65, 0.05],
     'sleeve_back_left': [1.10, 0.55],
-    'lower_front_right': [-0.30, -1.25],
-    'lower_back_right': [-0.85, -0.22],
-    'lower_front_left': [0.40, -0.80],
-    'lower_back_left': [1.15, -0.30]
+    'lower_front_right': [-1.10, 2.25],
+    'lower_back_right': [-1.25, 2.2],
+    'lower_front_left': [1.10, 2.20],
+    'lower_back_left': [1.15, 2.25]
 }

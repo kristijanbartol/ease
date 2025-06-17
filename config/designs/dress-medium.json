@@ -4,13 +4,12 @@
         "type": "dress"
     },
     "dims": {
-        "sleeve": 0.33,
         "upper": 0.75
     },
     "stretches": {
         "upper": {
             "type": "linear",
-            "base_stretch_u": 1.0,
+            "base_stretch_u": 1.5,
             "base_stretch_v": 1.0,
             "max_stretch": 1.2,
             "ref_y": -0.093

@@ -141,7 +141,7 @@ def add_uv_coordinates(mesh_3d, uv_coordinates, output_path):
     new_plydata.write(output_path)
 
 
-def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef):
+def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef, optim_dress=False):
     pose_label = str.replace(body_pose, '-', '_')
     smpl_model = SMPL(model_path=os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender)
     pose_params = getattr(const, pose_label)()
@@ -151,7 +151,8 @@ def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_c
         pose_params=pose_params,
         pose_label=pose_label,
         upper_coef=upper_coef,
-        lower_coef=lower_coef
+        lower_coef=lower_coef,
+        optim_dress=optim_dress
     )
     
     body_verts = smpl_model(body_pose=pose_params, betas=shape_params).vertices[0].cpu().detach().numpy()
@@ -209,7 +210,7 @@ def store_garments_for_simulation(
         is_refit,         # the pose to which to refit, 'base' in case of not processing the refit pose
         body_mesh,          # target-01.ply -> transformed
         upper_param_mesh: ParamMeshUV,         # upper trimesh mesh (merged)
-        lower_param_mesh: ParamMeshUV,          # lower trimesh mesh (merged)
+        lower_param_mesh: ParamMeshUV = None,          # lower trimesh mesh (merged)
     ):
     non_skintight_garment_dir = f'results/non-skintight/{experiment_name}'
     os.makedirs(non_skintight_garment_dir, exist_ok=True)
@@ -225,31 +226,36 @@ def store_garments_for_simulation(
     
     if is_refit:
         upper_param_mesh.export(upper_path)
-        lower_param_mesh.export(lower_path)
+        if lower_param_mesh is not None:
+            lower_param_mesh.export(lower_path)
     else:
         upper_param_mesh.mesh_3d_subdivided.export(upper_path)
-        lower_param_mesh.mesh_3d_subdivided.export(lower_path)
         upper_param_mesh.export(upper_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
-        lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
+        if lower_param_mesh is not None:
+            lower_param_mesh.mesh_3d_subdivided.export(lower_path)
+            lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
     
     return upper_path, lower_path
 
 
 def update_meshes_after_simulation(
         sim_dir, 
-        base_param_mesh_dict
+        base_param_mesh_dict,
+        optim_dress
     ):
     # Update simulation results to include uv coordinates as well + apply inverse transformations
     upper_mesh = trimesh.load(os.path.join(sim_dir, 'base_upper.ply'))
-    lower_mesh = trimesh.load(os.path.join(sim_dir, 'base_lower.ply'))
+    if not optim_dress:
+        lower_mesh = trimesh.load(os.path.join(sim_dir, 'base_lower.ply'))
     
     postprocess_base_after_simulation(
         param_mesh=base_param_mesh_dict['upper'], 
         sim_mesh=upper_mesh, 
         output_path=os.path.join(sim_dir, 'base_upper_uv.ply')
     )
-    postprocess_base_after_simulation(
-        param_mesh=base_param_mesh_dict['lower'], 
-        sim_mesh=lower_mesh, 
-        output_path=os.path.join(sim_dir, 'base_lower_uv.ply')
-    )
+    if not optim_dress:
+        postprocess_base_after_simulation(
+            param_mesh=base_param_mesh_dict['lower'], 
+            sim_mesh=lower_mesh, 
+            output_path=os.path.join(sim_dir, 'base_lower_uv.ply')
+        )

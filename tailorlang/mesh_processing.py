@@ -259,19 +259,38 @@ class MeshProcessor:
         return np.stack((c_x_coords, c_y_coords), axis=1)
     
     @staticmethod
-    def extract_local_stretches(verts, faces, design_params, patch_label, side=None) -> np.ndarray:
-        #if design_params.type == 'uniform':
-        if 'sleeve' in patch_label:
-            stretches_u = np.ones(faces.shape[0])             # Do not design elongation direction (only looseness)
-            stretches_v = np.ones(faces.shape[0]) * design_params.sleeve_looseness
+    def extract_local_stretches(verts, faces, design_params, patch_label, optim_dress=False) -> np.ndarray:
+        if optim_dress:
+            stretches_u = np.ones(faces.shape[0]) * design_params.shirt_looseness
+            stretches_v = np.ones(faces.shape[0])
+            
+            # 6469
+            #top_y = design_params.shirt_ref_y
+            #top_y = -0.274705
+            top_y = -0.258146
+            #bottom_y = (verts[FIXED_POINTS_DICT['dress']['upper']] - design_params.shirt_length)[1]
+            #bottom_y = -0.675563
+            bottom_y = -0.630922
+            base_stretch = design_params.shirt_looseness
+            max_stretch = design_params.shirt_max_looseness
+            
+            mean_face_coords = np.mean(verts[faces], axis=1)
+            ref_mask = mean_face_coords[:, 1] < top_y
+            stretches_u[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 1] - top_y) / (bottom_y - top_y)) * (max_stretch - base_stretch)
+            
         else:
-            if 'upper' in patch_label:
-                stretches_u = np.ones(faces.shape[0]) * design_params.shirt_looseness
+            #if design_params.type == 'uniform':
+            if 'sleeve' in patch_label:
+                stretches_u = np.ones(faces.shape[0])             # Do not design elongation direction (only looseness)
+                stretches_v = np.ones(faces.shape[0]) * design_params.sleeve_looseness
             else:
-                stretches_u = np.ones(faces.shape[0]) * design_params.pant_looseness
-            stretches_v = np.ones(faces.shape[0])   # Do not design elongation direction (only looseness)
-                
-        #else:
+                if 'upper' in patch_label:
+                    stretches_u = np.ones(faces.shape[0]) * design_params.shirt_looseness
+                else:
+                    stretches_u = np.ones(faces.shape[0]) * design_params.pant_looseness
+                stretches_v = np.ones(faces.shape[0])   # Do not design elongation direction (only looseness)
+                    
+            #else:
             
         
         return {
@@ -356,6 +375,7 @@ class MeshState:
         self.config = config
         self.use_darts = config.use_darts
         self.apply_remesh = config.apply_remesh
+        self.optim_dress = config.optim_dress
         
         # Patch-threshold dictionaries
         self.threshold_dict = {}
@@ -503,23 +523,46 @@ class MeshState:
             'sleeve': self.design_params.sleeve_length * length_wrt_body_height_ratio,
             'lower': self.design_params.pant_length * length_wrt_body_height_ratio
         }
-        self.active_mesh['vertices'] = self.canonical_mesh['vertices']
-        for component_label in ['upper', 'sleeve_left', 'sleeve_right', 'lower']:
-            component_length = component_lengths_dict[component_label.split('_')[0]]
+        if not self.optim_dress:
+            self.active_mesh['vertices'] = self.canonical_mesh['vertices']
+            for component_label in ['upper', 'sleeve_left', 'sleeve_right', 'lower']:
+                component_length = component_lengths_dict[component_label.split('_')[0]]
+                self.threshold_dict[component_label] = self._get_threshold(
+                    init_fixed_vertex=self.canonical_mesh['vertices'][FIXED_POINTS_DICT['regular'][component_label]],
+                    component_sign=COMPONENT_SIGN_DICT[component_label],
+                    plane_orient=PLANE_ORIENT_DICT[component_label],
+                    component_length=component_length
+                )
+                #if not(self.ref_gender == 'male' and self.body_set.num_targets > 0):    # NOTE: SMPL doesn't work with v_template argument for males
+                #if False:
+                self.active_mesh['vertices'], self.bary_coords_for_active_cuts_dict[component_label] = modify_mesh_with_plane_cut(
+                    vertices=self.active_mesh['vertices'],
+                    faces=self.active_mesh['faces'],
+                    cutting_point=self.threshold_dict[component_label],
+                    plane_orientation=PLANE_ORIENT_DICT[component_label],
+                    sleeve_side=component_label.split('_')[1] if component_label[:6] == 'sleeve' else None
+                )
+        else:
+            #skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/m_body-skirtified.ply')
+            skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/ss_body-skirtified.ply')
+            #skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/ll_body-skirtified.ply')
+            self.active_mesh['vertices'] = np.array(skirtified_mesh.vertices, dtype=np.float32)
+            self.active_mesh['faces'] = np.array(skirtified_mesh.faces)
+            component_label = 'upper'
+            
+            component_length = component_lengths_dict[component_label]
             self.threshold_dict[component_label] = self._get_threshold(
-                init_fixed_vertex=self.canonical_mesh['vertices'][FIXED_POINTS_DICT[component_label]],
-                component_sign=COMPONENT_SIGN_DICT[component_label],
-                plane_orient=PLANE_ORIENT_DICT[component_label],
+                init_fixed_vertex=self.active_mesh['vertices'][FIXED_POINTS_DICT['dress'][component_label]],
+                component_sign=-1,
+                plane_orient='horizontal',
                 component_length=component_length
             )
-            #if not(self.ref_gender == 'male' and self.body_set.num_targets > 0):    # NOTE: SMPL doesn't work with v_template argument for males
-            #if False:
             self.active_mesh['vertices'], self.bary_coords_for_active_cuts_dict[component_label] = modify_mesh_with_plane_cut(
                 vertices=self.active_mesh['vertices'],
                 faces=self.active_mesh['faces'],
                 cutting_point=self.threshold_dict[component_label],
-                plane_orientation=PLANE_ORIENT_DICT[component_label],
-                sleeve_side=component_label.split('_')[1] if component_label[:6] == 'sleeve' else None
+                plane_orientation='horizontal',
+                sleeve_side=None
             )
                 
         '''
@@ -545,10 +588,14 @@ class MeshState:
     
     def apply_pre_seams(self):
         ''' Updates patch_idxs_dict. '''
-        self.vertex_adjacency_list = MeshProcessor.build_vertex_adjacency_list(self.canonical_mesh['faces'])
+        if not self.optim_dress:
+            self.vertex_adjacency_list = MeshProcessor.build_vertex_adjacency_list(self.canonical_mesh['faces'])
+        else:
+            self.vertex_adjacency_list = MeshProcessor.build_vertex_adjacency_list(self.active_mesh['faces'])
         
         # Collect individual garment patches (initial).
-        for patch_label in INIT_IDXS:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in INIT_IDXS[garment_type]:
             patch_type = patch_label.split('_')[0]
             if patch_type == 'sleeve':
                 sleeve_side = patch_label.split('_')[-1]
@@ -567,22 +614,26 @@ class MeshState:
                 
             patch_vert_idxs = self.flood_fill(
                 vertex_positions=self.active_mesh['vertices'],
-                boundary_vertices=sum(PATCH_TO_PRE_SEAMS_DICT[patch_label].values(), []),
-                start_vertex=INIT_IDXS[patch_label],
+                boundary_vertices=sum(PATCH_TO_PRE_SEAMS_DICT[garment_type][patch_label].values(), []),
+                start_vertex=INIT_IDXS[garment_type][patch_label],
                 threshold_params=params
             )
             self.full_patch_idxs_dict[patch_label] = np.array(patch_vert_idxs, dtype=np.int16)
             
         self.full_patch_idxs_dict['upper'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' not in key])
-        self.full_patch_idxs_dict['lower'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' in key])
+        if not self.optim_dress:
+            self.full_patch_idxs_dict['lower'] = np.concatenate([idxs for key, idxs in self.full_patch_idxs_dict.items() if 'lower' in key])
         
     def apply_masks(self):
         ''' Applied when updating the garment parameters. '''
     
         def _upper_mask(verts, threshold_dict):
-            return (verts[:, 1] >= threshold_dict['upper']) & \
-                (verts[:, 0] >= threshold_dict['sleeve_right']) & \
-                (verts[:, 0] <= threshold_dict['sleeve_left'])
+            if self.optim_dress:
+                return (verts[:, 1] >= threshold_dict['upper'])
+            else:    
+                return (verts[:, 1] >= threshold_dict['upper']) & \
+                    (verts[:, 0] >= threshold_dict['sleeve_right']) & \
+                    (verts[:, 0] <= threshold_dict['sleeve_left'])
                 
         def _lower_mask(verts, threshold_dict):
             return verts[:, 1] >= threshold_dict['lower']
@@ -673,11 +724,14 @@ class MeshState:
         ref_shape_fun = getattr(const, 'zero_shape')
         ref_gender = self.body_set.ref['gender']
         
-        posed_verts_list.append(active_template_smpl_dict[ref_gender](
-            body_pose=ref_pose_fun(), 
-            betas=ref_shape_fun()
-        ).vertices[0].cpu().detach().numpy())
-        np.save('data/body/ref-pose.npy', ref_pose_fun().cpu().detach().numpy())
+        if not self.optim_dress:
+            posed_verts_list.append(active_template_smpl_dict[ref_gender](
+                body_pose=ref_pose_fun(), 
+                betas=ref_shape_fun()
+            ).vertices[0].cpu().detach().numpy())
+            np.save('data/body/ref-pose.npy', ref_pose_fun().cpu().detach().numpy())
+        else:
+            posed_verts_list.append(self.active_mesh['vertices'])
         
         for body_idx in range(self.body_set.num_targets):
             target_pose_fun = getattr(const, self.body_set.target['poses'][body_idx])
@@ -718,7 +772,8 @@ class MeshState:
         trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('active_mesh.ply')
         #trimesh.Trimesh(vertices=target_posed_verts_list[0], faces=self.active_mesh['faces']).export('target_mesh.ply')
         
-        for patch_label in PATCH_LIST:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in PATCH_LIST[garment_type]:
             patch_vert_idxs = self.masked_patch_idxs_dict[patch_label]
             patch_faces = self._select_active_faces(patch_vert_idxs)
             self.old_to_new_idx_dict[patch_label] = self._extract_old_to_new_vert_idxs_map(patch_vert_idxs)
@@ -762,16 +817,17 @@ class MeshState:
         The `map_old_to_new_indices` function selects only the vertex indices that are previously
         selected for that patch.
         '''
-        for patch_label in PATCH_LIST:
-            patch_id = SEGMENT_TO_ID[patch_label]
-            for seam_label in SEGMENT_TO_SEAMLINES_DICT[patch_id]:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in PATCH_LIST[garment_type]:
+            patch_id = SEGMENT_TO_ID[garment_type][patch_label]
+            for seam_label in SEGMENT_TO_SEAMLINES_DICT[garment_type][patch_id]:
                 if seam_label not in self.seam_to_segment_vertex_pairs:
                     self.seam_to_segment_vertex_pairs[seam_label] = {
-                        patch_id: self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        patch_id: self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[garment_type][seam_label])
                     }
                 else:
                     self.seam_to_segment_vertex_pairs[seam_label][patch_id] = \
-                        self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[seam_label])
+                        self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[garment_type][seam_label])
                         
     def _create_darts(self):
         for patch_label in PATCH_LIST:
@@ -816,19 +872,22 @@ class MeshState:
                 )
         
     def _extract_uv_unit_directions(self):
-        for patch_label in PATCH_LIST:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in PATCH_LIST[garment_type]:
             self.uv_unit_directions_dict[patch_label] = MeshProcessor.compute_triangle_directions(
                 vertices=self.ref_patch_verts_dict[patch_label],
                 faces=self.ref_patch_faces_dict[patch_label]
             )
     
     def _extract_reference_local_stretches(self):
-        for patch_label in PATCH_LIST:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in PATCH_LIST[garment_type]:
             self.local_stretches_dict[patch_label] = MeshProcessor.extract_local_stretches(
                 verts=self.ref_patch_verts_dict[patch_label],
                 faces=self.ref_patch_faces_dict[patch_label],
                 design_params=self.design_params,
-                patch_label=patch_label
+                patch_label=patch_label,
+                optim_dress=self.optim_dress
             )
             
     def _update_darts(self):
@@ -957,7 +1016,8 @@ class MeshState:
         trimesh.Trimesh(
             vertices=self.ref_body_verts, faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
         
-        for patch_label in PATCH_LIST:
+        garment_type = 'dress' if self.optim_dress else 'regular'
+        for patch_label in PATCH_LIST[garment_type]:
             # Store reference embedded garment meshes (mesh data)
             embedded_subdir = os.path.join(mesh_dir, patch_label)
             os.makedirs(embedded_subdir, exist_ok=True)

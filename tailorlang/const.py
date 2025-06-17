@@ -9,10 +9,15 @@ SEGMENTS_DIR = 'config/segments/'
 SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
 
 FIXED_POINTS_DICT = {
-    'upper': 4767,
-    'sleeve_left': 3010,
-    'sleeve_right': 6469,
-    'lower': 6378
+    'regular': {
+        'upper': 4767,
+        'sleeve_left': 3010,
+        'sleeve_right': 6469,
+        'lower': 6378
+    },
+    'dress': {
+        'upper': 4150
+    }
 }
 
 PLANE_ORIENT_DICT = {
@@ -58,6 +63,7 @@ RIGHT_ARMPIT2 = [
     4768, 4765, 4228, 4227, 6413, 4133, 4130, 4135, 4107, 4108, 6301, 4960, 4961, 4963, 4119, 4120, 4164,
     4317, 6375, 5257, 5256, 4303, 4298, 4297, 4920, 6550, 4745, 4430, 4389
 ]
+#RIGHT_ARMPIT_DRESS = RIGHT_ARMPIT + []
 LEFT_ARMPIT = [
     1285, 1286, 1418, 1419, 2953, 644, 645, 646, 618, 619, 2839, 1487, 1488, 1323, 
     630, 631, 677, 846, 2919, 1795, 1796, 937, 822, 823, 1454, 1321, 1228, 850, 849, 
@@ -67,6 +73,7 @@ LEFT_ARMPIT2 = [
     1284, 1283, 740, 741, 2954, 643, 642, 647, 621, 620, 2840, 1490, 1489, 1492, 633,
     632, 676, 830, 2915, 1793, 1794, 816, 808, 809, 1446, 3129
 ]
+#LEFT_ARMPIT_DRESS = LEFT_ARMPIT + []
 RIGHT_SHOULDER = [6469, 5322, 5325, 4721, 4724, 4270, 4198, 4094, 4097, 4230, 4306, 4305]
 RIGHT_SHOULDER2 = [6470, 5342, 5285, 5282, 5310, 4269, 4271, 5272, 4232, 4231, 4294, 4291]
 LEFT_SHOULDER = [3010, 1861, 1862, 1238, 1239, 783, 711, 606, 607, 742, 818, 817]
@@ -111,6 +118,25 @@ RIGHT_SLEEVE_DOWN = [4767, 4170, 4171, 5326, 4763, 4764, 4281, 4278, 4859, 4858,
 WAISTLINE = [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507, 2922, 2923, 2925, 2920, 2921, 2926, 2927, 2924, 2919,
              2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784, 5246, 5247, 6544, 6371, 6370, 6376, 6377, 6374, 6375]
 
+LEFT_ARMPIT_DRESS = [1278, 1279, 1407, 1408, 2935, 644, 645, 646, 618, 619,
+                          2821, 1474, 1475, 1316, 630, 631, 677, 846, 2901, 1777, 1778,
+                          936, 822, 823, 1441, 1314, 1223, 850, 849, 904, 972, 973, 979,
+                          978, 1021, 1032, 1008, 1009, 1051, 1069, 1071, 1100, 1099, 1457,
+                          1117, 1116, 1135, 3168, 3169]
+RIGHT_ARMPIT_DRESS = [4710, 4709, 4831, 4830, 6334, 4111, 4110, 4113, 4085,
+                           4088, 6222, 4894, 4897, 4747, 4097, 4100, 4144, 4311, 6300, 5181,
+                           5180, 4401, 4290, 4289, 4863, 4744, 4656, 4313, 4314, 4368, 4428,
+                           4429, 4435, 4434, 4472, 4482, 4465, 4464, 4500, 4514, 4517, 4540,
+                           4541, 4878, 4556, 4557, 4574, 6507, 6508]
+RIGHT_SHOULDER_DRESS = [6392, 5264, 5207, 5204, 5232, 4248, 4250, 5194, 4211]
+LEFT_SHOULDER_DRESS = [2993, 1863, 1804, 1803, 1831, 781, 782, 1792, 743]
+RIGHT_FRONT_ARM_DRESS = [6392, 6391, 6390, 6389, 5281, 4141, 4142, 4632, 4930, 4710]
+LEFT_FRONT_ARM_DRESS = [2993, 2992, 2991, 2990, 1880, 674, 673, 1196, 1519, 1278]
+RIGHT_BACK_ARM_DRESS = [4710, 4711, 4712, 4221, 4222, 5262, 4182, 4179, 5224, 6324, 6381, 6384, 5274, 5267, 5268, 6273, 6274, 6392]
+LEFT_BACK_ARM_DRESS = [1278, 1277, 1281, 756, 755, 1861, 713, 712, 1823, 2925, 2982, 2985, 1873, 1866, 1869, 2876, 2875, 2993]
+FRONT_NECK_DRESS = [4211, 4076, 4075, 4722, 4723, 4724, 4725, 6424, 3151, 3049, 1293, 1292, 1291, 1290, 608, 607, 743]
+BACK_NECK_DRESS = [743, 1793, 1800, 1801, 1802, 2857, 2858, 2860, 6258, 6259, 5202, 5203, 5201, 5192, 4211]
+
 # Use alternative seam vertices
 #LEFT_SHOULDER = LEFT_SHOULDER2
 #RIGHT_SHOULDER = RIGHT_SHOULDER2
@@ -123,18 +149,24 @@ RIGHT_INNER_PANT = RIGHT_INNER_PANT2
 FRONT_INNER_PANT = FRONT_INNER_PANT2
 BACK_INNER_PANT = BACK_INNER_PANT2
 
-PATCH_LIST = [
-    'upper_front',
-    'upper_back',
-    'sleeve_front_right',
-    'sleeve_back_right',
-    'sleeve_front_left',
-    'sleeve_back_left',
-    'lower_front_right',
-    'lower_back_right',
-    'lower_front_left',
-    'lower_back_left'
-]
+PATCH_LIST = {
+    'regular': {
+        'upper_front',
+        'upper_back',
+        'sleeve_front_right',
+        'sleeve_back_right',
+        'sleeve_front_left',
+        'sleeve_back_left',
+        'lower_front_right',
+        'lower_back_right',
+        'lower_front_left',
+        'lower_back_left'
+    },
+    'dress': {
+        'upper_front',
+        'upper_back'
+    }
+}
 
 UPPER_PATCH_LIST = [
     'upper_front',
@@ -212,67 +244,89 @@ PRE_SEAMS_DICT = {
 }
 
 PATCH_TO_PRE_SEAMS_DICT = {
-    'upper_front': {
-        'right_armpit': RIGHT_ARMPIT, 
-        'left_armpit':  LEFT_ARMPIT,
-        'right_arm':    RIGHT_FRONT_ARM,
-        'left_arm':     LEFT_FRONT_ARM,
-        'neck':         FRONT_NECK,
-        'right_shoulder': RIGHT_SHOULDER,
-        'left_shoulder':  LEFT_SHOULDER
+    'regular': {
+        'upper_front': {
+            'right_armpit': RIGHT_ARMPIT, 
+            'left_armpit':  LEFT_ARMPIT,
+            'right_arm':    RIGHT_FRONT_ARM,
+            'left_arm':     LEFT_FRONT_ARM,
+            'neck':         FRONT_NECK,
+            'right_shoulder': RIGHT_SHOULDER,
+            'left_shoulder':  LEFT_SHOULDER
+        },
+        'upper_back': {
+            'right_armpit': RIGHT_ARMPIT, 
+            'left_armpit':  LEFT_ARMPIT,
+            'right_arm':    RIGHT_BACK_ARM,
+            'left_arm':     LEFT_BACK_ARM,
+            'neck':         BACK_NECK,
+            'right_shoulder': RIGHT_SHOULDER,
+            'left_shoulder':  LEFT_SHOULDER
+        },
+        'sleeve_front_right': {
+            'up': RIGHT_SLEEVE_UP,
+            'down': RIGHT_SLEEVE_DOWN,
+            'side': RIGHT_FRONT_ARM
+        },
+        'sleeve_back_right': {
+            'up': RIGHT_SLEEVE_UP,
+            'down': RIGHT_SLEEVE_DOWN,
+            'side': RIGHT_BACK_ARM
+        },
+        'sleeve_front_left': {
+            'up':  LEFT_SLEEVE_UP,
+            'down': LEFT_SLEEVE_DOWN,
+            'side': LEFT_FRONT_ARM
+        },
+        'sleeve_back_left': {
+            'up':  LEFT_SLEEVE_UP,
+            'down': LEFT_SLEEVE_DOWN,
+            'side': LEFT_BACK_ARM
+        },
+        'lower_front_right': {
+            'right_outer': RIGHT_OUTER_PANT,
+            'right_inner': RIGHT_INNER_PANT,
+            'mid_inner': FRONT_INNER_PANT,
+            'waistline': [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507]
+        },
+        'lower_front_left': {
+            'left_outer' : LEFT_OUTER_PANT,
+            'left_inner' : LEFT_INNER_PANT,
+            'mid_inner': FRONT_INNER_PANT,
+            'waistline': [3507, 2922, 2923, 2925, 2920, 2921, 2926, 2927, 2924, 2919]
+        },
+        'lower_back_right': {
+            'right_outer': RIGHT_OUTER_PANT,
+            'right_inner': RIGHT_INNER_PANT,
+            'mid_inner': BACK_INNER_PANT,
+            'waistline': [1784, 5246, 5247, 6544, 6371, 6370, 6376, 6377, 6374, 6375, 6378]
+        },
+        'lower_back_left': {
+            'left_outer' : LEFT_OUTER_PANT,
+            'left_inner' : LEFT_INNER_PANT,
+            'mid_inner': BACK_INNER_PANT,
+            'waistline': [2919, 2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784]
+        }
     },
-    'upper_back': {
-        'right_armpit': RIGHT_ARMPIT, 
-        'left_armpit':  LEFT_ARMPIT,
-        'right_arm':    RIGHT_BACK_ARM,
-        'left_arm':     LEFT_BACK_ARM,
-        'neck':         BACK_NECK,
-        'right_shoulder': RIGHT_SHOULDER,
-        'left_shoulder':  LEFT_SHOULDER
-    },
-    'sleeve_front_right': {
-        'up': RIGHT_SLEEVE_UP,
-        'down': RIGHT_SLEEVE_DOWN,
-        'side': RIGHT_FRONT_ARM
-    },
-    'sleeve_back_right': {
-        'up': RIGHT_SLEEVE_UP,
-        'down': RIGHT_SLEEVE_DOWN,
-        'side': RIGHT_BACK_ARM
-    },
-    'sleeve_front_left': {
-        'up':  LEFT_SLEEVE_UP,
-        'down': LEFT_SLEEVE_DOWN,
-        'side': LEFT_FRONT_ARM
-    },
-    'sleeve_back_left': {
-        'up':  LEFT_SLEEVE_UP,
-        'down': LEFT_SLEEVE_DOWN,
-        'side': LEFT_BACK_ARM
-    },
-    'lower_front_right': {
-        'right_outer': RIGHT_OUTER_PANT,
-        'right_inner': RIGHT_INNER_PANT,
-        'mid_inner': FRONT_INNER_PANT,
-        'waistline': [6378, 6383, 6385, 6386, 6379, 6380, 6384, 6381, 6382, 3507]
-    },
-    'lower_front_left': {
-        'left_outer' : LEFT_OUTER_PANT,
-        'left_inner' : LEFT_INNER_PANT,
-        'mid_inner': FRONT_INNER_PANT,
-        'waistline': [3507, 2922, 2923, 2925, 2920, 2921, 2926, 2927, 2924, 2919]
-    },
-    'lower_back_right': {
-        'right_outer': RIGHT_OUTER_PANT,
-        'right_inner': RIGHT_INNER_PANT,
-        'mid_inner': BACK_INNER_PANT,
-        'waistline': [1784, 5246, 5247, 6544, 6371, 6370, 6376, 6377, 6374, 6375, 6378]
-    },
-    'lower_back_left': {
-        'left_outer' : LEFT_OUTER_PANT,
-        'left_inner' : LEFT_INNER_PANT,
-        'mid_inner': BACK_INNER_PANT,
-        'waistline': [2919, 2915, 2916, 2917, 2918, 2911, 2910, 3122, 1780, 1781, 1784]
+    'dress': {
+        'upper_front': {
+            'right_armpit': RIGHT_ARMPIT_DRESS, 
+            'left_armpit':  LEFT_ARMPIT_DRESS,
+            'right_arm':    RIGHT_FRONT_ARM_DRESS,
+            'left_arm':     LEFT_FRONT_ARM_DRESS,
+            'neck':         FRONT_NECK_DRESS,
+            'right_shoulder': RIGHT_SHOULDER_DRESS,
+            'left_shoulder':  LEFT_SHOULDER_DRESS
+        },
+        'upper_back': {
+            'right_armpit': RIGHT_ARMPIT_DRESS, 
+            'left_armpit':  LEFT_ARMPIT_DRESS,
+            'right_arm':    RIGHT_BACK_ARM_DRESS,
+            'left_arm':     LEFT_BACK_ARM_DRESS,
+            'neck':         BACK_NECK_DRESS,
+            'right_shoulder': RIGHT_SHOULDER_DRESS,
+            'left_shoulder':  LEFT_SHOULDER_DRESS
+        },
     }
 }
 
@@ -288,16 +342,22 @@ FIXED_SEAMLINE_LABELS_DICT = {
 }
 
 SEGMENT_TO_ID = {
-    'upper_front': 0,
-    'upper_back': 1,
-    'sleeve_front_left': 2,
-    'sleeve_back_left': 3,
-    'sleeve_front_right': 4,
-    'sleeve_back_right': 5,
-    'lower_front_left': 6,
-    'lower_back_left': 7,
-    'lower_front_right': 8,
-    'lower_back_right': 9
+    'regular': {
+        'upper_front': 0,
+        'upper_back': 1,
+        'sleeve_front_left': 2,
+        'sleeve_back_left': 3,
+        'sleeve_front_right': 4,
+        'sleeve_back_right': 5,
+        'lower_front_left': 6,
+        'lower_back_left': 7,
+        'lower_front_right': 8,
+        'lower_back_right': 9
+    },
+    'dress': {
+        'upper_front': 0,
+        'upper_back': 1
+    }
 }
 
 ID_TO_PATCH = {
@@ -318,64 +378,86 @@ ID_TO_PATCH = {
 #ID_TO_SEGMENT = {idx: key for idx, key in enumerate(SEAM_IDX_DICT.keys())}
 
 SEAM_TO_SEAM_IDX_DICT = {
-    'left_armpit': LEFT_ARMPIT,
-    'left_front_sleeve': LEFT_FRONT_ARM,
-    'left_shoulder': LEFT_SHOULDER,
-    'left_back_sleeve': LEFT_BACK_ARM,
-    'right_armpit': RIGHT_ARMPIT,
-    'right_front_sleeve': RIGHT_FRONT_ARM,
-    'right_shoulder': RIGHT_SHOULDER,
-    'right_back_sleeve': RIGHT_BACK_ARM,
-    'left_up_arm': LEFT_SLEEVE_UP,
-    'left_down_arm': LEFT_SLEEVE_DOWN,
-    'right_up_arm': RIGHT_SLEEVE_UP,
-    'right_down_arm': RIGHT_SLEEVE_DOWN,
-    'left_outer_pant': LEFT_OUTER_PANT,
-    'right_outer_pant': RIGHT_OUTER_PANT,
-    'left_inner_pant': LEFT_INNER_PANT,
-    'right_inner_pant': RIGHT_INNER_PANT,
-    'front_inner_pant': FRONT_INNER_PANT,
-    'back_inner_pant': BACK_INNER_PANT
+    'regular': {
+        'left_armpit': LEFT_ARMPIT,
+        'left_front_sleeve': LEFT_FRONT_ARM,
+        'left_shoulder': LEFT_SHOULDER,
+        'left_back_sleeve': LEFT_BACK_ARM,
+        'right_armpit': RIGHT_ARMPIT,
+        'right_front_sleeve': RIGHT_FRONT_ARM,
+        'right_shoulder': RIGHT_SHOULDER,
+        'right_back_sleeve': RIGHT_BACK_ARM,
+        'left_up_arm': LEFT_SLEEVE_UP,
+        'left_down_arm': LEFT_SLEEVE_DOWN,
+        'right_up_arm': RIGHT_SLEEVE_UP,
+        'right_down_arm': RIGHT_SLEEVE_DOWN,
+        'left_outer_pant': LEFT_OUTER_PANT,
+        'right_outer_pant': RIGHT_OUTER_PANT,
+        'left_inner_pant': LEFT_INNER_PANT,
+        'right_inner_pant': RIGHT_INNER_PANT,
+        'front_inner_pant': FRONT_INNER_PANT,
+        'back_inner_pant': BACK_INNER_PANT
+    },
+    'dress': {
+        'left_armpit': LEFT_ARMPIT_DRESS,
+        'right_armpit': RIGHT_ARMPIT_DRESS
+    }
 }
 
 SEAM_TO_PATCH_PAIRS = {
-    'left_armpit': (0, 1),
-    'left_front_sleeve': (0, 2),
-    'left_shoulder': (0, 1),
-    'left_back_sleeve': (1, 3),
-    'right_armpit': (0, 1),
-    'right_front_sleeve': (0, 4),
-    'right_shoulder': (0, 1),
-    'right_back_sleeve': (1, 5),
-    'left_up_arm': (2, 3),
-    'left_down_arm': (2, 3),
-    'right_up_arm': (4, 5),
-    'right_down_arm': (4, 5),
-    'left_outer_pant': (6, 7),
-    'right_outer_pant': (8, 9),
-    'front_inner_pant': (6, 8),
-    'back_inner_pant': (7, 9),
-    'left_inner_pant': (6, 7),
-    'right_inner_pant': (8, 9)
+    'regular': {
+        'left_armpit': (0, 1),
+        'left_front_sleeve': (0, 2),
+        'left_shoulder': (0, 1),
+        'left_back_sleeve': (1, 3),
+        'right_armpit': (0, 1),
+        'right_front_sleeve': (0, 4),
+        'right_shoulder': (0, 1),
+        'right_back_sleeve': (1, 5),
+        'left_up_arm': (2, 3),
+        'left_down_arm': (2, 3),
+        'right_up_arm': (4, 5),
+        'right_down_arm': (4, 5),
+        'left_outer_pant': (6, 7),
+        'right_outer_pant': (8, 9),
+        'front_inner_pant': (6, 8),
+        'back_inner_pant': (7, 9),
+        'left_inner_pant': (6, 7),
+        'right_inner_pant': (8, 9)
+    },
+    'dress': {
+        'left_armpit': (0, 1),
+        'right_armpit': (0, 1)
+    }
 }
 
-SEGMENT_TO_SEAMLINES_DICT = defaultdict(list)
-for key, (id1, id2) in SEAM_TO_PATCH_PAIRS.items():
-    SEGMENT_TO_SEAMLINES_DICT[id1].append(key)
-    SEGMENT_TO_SEAMLINES_DICT[id2].append(key)
-SEGMENT_TO_SEAMLINES_DICT = {id_: tuple(keys) for id_, keys in SEGMENT_TO_SEAMLINES_DICT.items()}
+SEGMENT_TO_SEAMLINES_DICT = {
+    'regular': defaultdict(list),
+    'dress': defaultdict(list)
+}
+for garment_type in ['regular', 'dress']:
+    for key, (id1, id2) in SEAM_TO_PATCH_PAIRS[garment_type].items():
+        SEGMENT_TO_SEAMLINES_DICT[garment_type][id1].append(key)
+        SEGMENT_TO_SEAMLINES_DICT[garment_type][id2].append(key)
+    SEGMENT_TO_SEAMLINES_DICT[garment_type] = {id_: tuple(keys) for id_, keys in SEGMENT_TO_SEAMLINES_DICT[garment_type].items()}
 
 INIT_IDXS = {
-    'upper_front': 4173,
-    'upper_back': 4238,
-    'sleeve_front_left': 1429,
-    'sleeve_back_left': 2981,
-    'sleeve_front_right': 4816,
-    'sleeve_back_right': 6453,
-    'lower_front_right': 4952,
-    'lower_back_right': 4339,
-    'lower_front_left': 1479,
-    'lower_back_left': 897
+    'regular': {
+        'upper_front': 4173,
+        'upper_back': 4238,
+        'sleeve_front_left': 1429,
+        'sleeve_back_left': 2981,
+        'sleeve_front_right': 4816,
+        'sleeve_back_right': 6453,
+        'lower_front_right': 4952,
+        'lower_back_right': 4339,
+        'lower_front_left': 1479,
+        'lower_back_left': 897
+    },
+    'dress': {
+        'upper_front': 3059,
+        'upper_back': 752
+    }
 }
 
 SEGMENT_TO_DARTS = {x: {} for x in PATCH_LIST}
@@ -840,7 +922,7 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.30: 0,
         1.35: 0,
         1.40: 0
-    },
+    }
 }
 
 LOWER_ANGLE_OFFSETS_DICT = {
@@ -946,18 +1028,19 @@ LOWER_ANGLE_OFFSETS_DICT = {
 }
 
 
-def apply_angle_offset(pose_params, pose_label, upper_coef, lower_coef):
-    # Upper offset   
-    if pose_label == 'standard2_pose' or pose_label == 'standard3_pose':
-        pose_params[0, 15*3+1] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-        pose_params[0, 16*3+1] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-    else:
-        pose_params[0, 15*3+2] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-        pose_params[0, 16*3+2] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
-        
-    # Lower offset
-    pose_params[0, 0*3+2] += LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
-    pose_params[0, 1*3+2] -= LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
+def apply_angle_offset(pose_params, pose_label, upper_coef, lower_coef, optim_dress=False):
+    if not optim_dress:
+        # Upper offset   
+        if pose_label == 'standard2_pose' or pose_label == 'standard3_pose':
+            pose_params[0, 15*3+1] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+            pose_params[0, 16*3+1] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+        else:
+            pose_params[0, 15*3+2] += UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+            pose_params[0, 16*3+2] -= UPPER_ANGLE_OFFSETS_DICT[pose_label][upper_coef]
+            
+        # Lower offset
+        pose_params[0, 0*3+2] += LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
+        pose_params[0, 1*3+2] -= LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
     
     return pose_params
     

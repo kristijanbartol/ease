@@ -414,7 +414,8 @@ def print_stretch_statistics(stats_dict, precision=4):
         print(f"{key:20}: {value:.{precision}f}")
         
         
-def _map_garment_stretch_to_color(stretch, tightness_max=0.3, looseness_max=0.4):
+#def _map_garment_stretch_to_color(stretch, tightness_max=0.3, looseness_max=0.4):
+def _map_garment_stretch_to_color(stretch, tightness_max=0.3, looseness_max=1.5):
     if stretch > 1.0:
         # Blue range for loose areas (darker blue = more loose)
         normalized_stretch = min(1.0, (stretch - 1.0) / looseness_max)

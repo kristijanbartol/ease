@@ -10,7 +10,7 @@ from tailorlang.sim.utils import (
 )
 
 
-def postprocess(experiment_name):
+def postprocess(experiment_name, optim_dress=False):
     # Copy latest patches to the current experiment folder (results/pattern/latest/ -> results/pattern/<experiment>/)
     pattern_2d_dir = 'results/pattern/'
     latest_dir = os.path.join(pattern_2d_dir, 'latest/')
@@ -28,7 +28,8 @@ def postprocess(experiment_name):
         'upper': [],
         'lower': []    
     } 
-    for patch_label in PATCH_LIST:
+    garment_type = 'dress' if optim_dress else 'regular'
+    for patch_label in PATCH_LIST[garment_type]:
         embedded_mesh_path = f'data/embedded/{patch_label}/ref.ply'
         embedded_mesh = trimesh.load(embedded_mesh_path)
         embedded_mesh_plydata = PlyData.read(embedded_mesh_path)
@@ -54,12 +55,13 @@ def postprocess(experiment_name):
             mesh_3d_list=embedded_mesh_list_dict['upper'],
             mesh_2d_list=param_2d_mesh_list_dict['upper'],
             garment_part='upper'
-        ),
-        'lower': ParamMeshUV(
+        )
+    }
+    if not optim_dress:
+        param_mesh_dict['lower'] = ParamMeshUV(
             mesh_3d_list=embedded_mesh_list_dict['lower'],
             mesh_2d_list=param_2d_mesh_list_dict['lower'],
             garment_part='lower'
         )
-    }
         
     return param_mesh_dict
