@@ -1,6 +1,6 @@
-# TailorLang
+# LOOM (core project)
 
-TailorLang is the root project based on the "Locally-Scaled Embedded Garment Meshes for Computational Fit" (currently under review). The preprint is uploaded to this repository (`assets/preprint_review.pdf`).
+LOOM is the root project based on the "Locally-Scaled Embedded Garment Meshes for Optimized Fit" (currently under review). The preprint is uploaded to this repository (`assets/preprint_review.pdf`).
 
 ## Installation
 
