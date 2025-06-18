@@ -141,7 +141,18 @@ def add_uv_coordinates(mesh_3d, uv_coordinates, output_path):
     new_plydata.write(output_path)
 
 
-def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef, optim_dress=False):
+def process_preloaded_body(body_mesh):
+    # TODO: implement an automatic joint angle offsetting method
+    body_mesh.vertices *= 10.
+    body_mesh.apply_transform(trimesh.transformations.rotation_matrix(
+        angle=np.pi/2,
+        direction=[1, 0, 0] 
+    ))
+    
+    return body_mesh
+
+
+def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef):
     pose_label = str.replace(body_pose, '-', '_')
     smpl_model = SMPL(model_path=os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender)
     pose_params = getattr(const, pose_label)()
@@ -169,6 +180,16 @@ def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_c
     return body_mesh
 
 
+def process_garment_mesh_for_simulation(garment_mesh):
+    garment_mesh.vertices *= 10.
+    garment_mesh.apply_transform(trimesh.transformations.rotation_matrix(
+        angle=np.pi/2,
+        direction=[1, 0, 0] 
+    ))
+    garment_mesh.subdivide()
+    return garment_mesh
+
+
 def process_base_for_simulation(param_mesh: ParamMeshUV):
     param_mesh.mesh_3d_with_duplicates.vertices *= 10.
     param_mesh.mesh_3d_with_duplicates.apply_transform(trimesh.transformations.rotation_matrix(
@@ -177,6 +198,15 @@ def process_base_for_simulation(param_mesh: ParamMeshUV):
     ))
     param_mesh.subdivide()
     return param_mesh
+
+
+def postprocess_3d_after_simulation(sim_mesh, output_path):
+    sim_mesh.apply_transform(trimesh.transformations.rotation_matrix(
+        angle=-np.pi/2,
+        direction=[1, 0, 0] 
+    ))
+    sim_mesh /= 10.
+    sim_mesh.export(output_path)
 
 
 def postprocess_base_after_simulation(
@@ -236,6 +266,24 @@ def store_garments_for_simulation(
             lower_param_mesh.export(lower_path_with_uv)     # mesh with UV and duplicates for mid-result and rendering
     
     return upper_path, lower_path
+
+
+def update_3d_after_simulation(
+        sim_dir, 
+        garment_mesh_dict
+    ):
+    # Update simulation results to include uv coordinates as well + apply inverse transformations
+    upper_mesh = trimesh.load(os.path.join(sim_dir, 'base_upper.ply'))
+    lower_mesh = trimesh.load(os.path.join(sim_dir, 'base_lower.ply'))
+    
+    postprocess_3d_after_simulation(
+        sim_mesh=upper_mesh, 
+        output_path=os.path.join(sim_dir, 'upper.ply')
+    )
+    postprocess_3d_after_simulation(
+        sim_mesh=lower_mesh, 
+        output_path=os.path.join(sim_dir, 'lower.ply')
+    )
 
 
 def update_meshes_after_simulation(
