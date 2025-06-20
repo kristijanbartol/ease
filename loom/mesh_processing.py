@@ -10,8 +10,8 @@ from smplx import SMPL
 import trimesh
 from scipy.spatial import KDTree
 
-from tailorlang import const
-from tailorlang.const import (
+from loom import const
+from loom.const import (
     SMPL_DIR,
     COMPONENT_SIGN_DICT,
     DART_ORIENTS,
@@ -39,17 +39,17 @@ from tailorlang.const import (
     PATCH_TO_PRE_SEAMS_DICT,
     GARMENT_LENGTHS_WRT_SHAPE
 )
-from tailorlang.garment import (
+from loom.garment import (
     BodySet,
     Garment,
     DesignParameters
 )
-from tailorlang.geometry import (
+from loom.geometry import (
     modify_mesh_with_plane_cut,
     point_side,
     update_face
 )
-from tailorlang.io import (
+from loom.io import (
     export,
     export_body_mesh,
     load_preselected,
@@ -57,13 +57,13 @@ from tailorlang.io import (
     save_seamline_pairs_file,
     store_preselected
 )
-from tailorlang.pybind import apply_remesh
-from tailorlang.submodules import run_parameterization
-from tailorlang.geo.dart_extractor import select_faces_in_dart
+from loom.pybind import apply_remesh
+from loom.submodules import run_parameterization
+from loom.geo.dart_extractor import select_faces_in_dart
 
 
 
-from tailorlang.eval.stretch_utils import color_code_stretches
+from loom.eval.stretch_utils import color_code_stretches
 
 
 class MeshProcessor:

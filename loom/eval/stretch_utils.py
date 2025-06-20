@@ -4,9 +4,9 @@ import trimesh
 import numpy as np
 from scipy import stats
 
-from tailorlang.const import PATCH_LIST
-from tailorlang.eval.const import GLOBAL_IMG_SCALE
-from tailorlang.eval.box_plot_utils import compute_box_plot_stats
+from loom.const import PATCH_LIST
+from loom.eval.const import GLOBAL_IMG_SCALE
+from loom.eval.box_plot_utils import compute_box_plot_stats
 
 
 def extract_stretches(V_2d, V_3d, F, DU_bary, DV_bary, target_scale_vec_u, target_scale_vec_v):

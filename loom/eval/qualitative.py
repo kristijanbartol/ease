@@ -10,10 +10,10 @@ from eval.vis import (
     mesh_to_image,
     draw_mesh_on_canvas
 )
-from tailorlang.eval.stretch_utils import (
+from loom.eval.stretch_utils import (
     mesh_to_stretch_image
 )
-from tailorlang.eval.const import MESH_OFFSETS_DICT
+from loom.eval.const import MESH_OFFSETS_DICT
 
 
 '''

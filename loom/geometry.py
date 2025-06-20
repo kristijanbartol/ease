@@ -4,12 +4,12 @@ import trimesh
 import torch
 import random
 
-from tailorlang.const import (
+from loom.const import (
     PLANE_ORIENT_DICT,
     THRESH_TO_SEAMS_DICT,
     THRESH_TO_SEGMENT_DICT
 )
-from tailorlang.seams import extract_parameterized_seams
+from loom.seams import extract_parameterized_seams
 
 
 def compute_vertex_normals(verts, faces):

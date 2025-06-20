@@ -3,7 +3,7 @@ import os
 from shutil import rmtree
 import json
 
-from tailorlang.mesh_processing import (
+from loom.mesh_processing import (
     initialize_smpl_models,
     initialize_modified_smpl_models,
     modify_body_mesh,
@@ -19,12 +19,12 @@ from tailorlang.mesh_processing import (
     process_garment_set,
     preselect
 )
-from tailorlang.pybind import apply_remesh
-from tailorlang.seams import (
+from loom.pybind import apply_remesh
+from loom.seams import (
     determine_all_seams
 )
-from tailorlang.submodules import run_parameterization
-from tailorlang.io import (
+from loom.submodules import run_parameterization
+from loom.io import (
     export,
     export_edge_lengths,
     export_stretch_arrays,

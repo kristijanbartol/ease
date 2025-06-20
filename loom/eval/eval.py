@@ -1,9 +1,9 @@
-from tailorlang.eval.qualitative import qualitative_evaluation
-from tailorlang.eval.quantitative import quantitative_evaluation
-from tailorlang.render.simple_renderer import render_simple
-from tailorlang.utils import construct_experiment_name
-from tailorlang.eval.postprocess import postprocess
-from tailorlang.sim.runner import simulate_garment_set
+from loom.eval.qualitative import qualitative_evaluation
+from loom.eval.quantitative import quantitative_evaluation
+from loom.render.simple_renderer import render_simple
+from loom.utils import construct_experiment_name
+from loom.eval.postprocess import postprocess
+from loom.sim.runner import simulate_garment_set
 
 
 def evaluate_experiment(config, design_params, body_set):

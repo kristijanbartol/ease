@@ -5,8 +5,8 @@ from copy import deepcopy
 from smplx import SMPL
 from plyfile import PlyData, PlyElement
 
-from tailorlang import const
-from tailorlang.const import apply_angle_offset
+from loom import const
+from loom.const import apply_angle_offset
 
 
 class ParamMeshUV():

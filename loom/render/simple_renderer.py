@@ -3,7 +3,7 @@ import pyrender
 import numpy as np
 import os
 
-from tailorlang.const import PATCH_LIST
+from loom.const import PATCH_LIST
 
 
 VIS_DESIGN_PIPELINE = False

@@ -4,7 +4,7 @@ from scipy.spatial import KDTree
 from collections import defaultdict
 from smplx import SMPL
 
-from tailorlang.const import (
+from loom.const import (
     LEFT_ARMPIT2,
     RIGHT_ARMPIT2,
     LEFT_SHOULDER,

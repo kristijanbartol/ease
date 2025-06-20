@@ -2,12 +2,12 @@ import os
 import trimesh
 import numpy as np
 
-from tailorlang.const import (
+from loom.const import (
     ID_TO_PATCH,
     PATCH_LIST,
     SEAM_TO_PATCH_PAIRS
 )
-from tailorlang.eval.box_plot_utils import compute_box_plot_stats
+from loom.eval.box_plot_utils import compute_box_plot_stats
 
 
 def read_seamline(seam_fpath):

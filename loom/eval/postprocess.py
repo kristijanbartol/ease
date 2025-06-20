@@ -3,8 +3,8 @@ import shutil
 import trimesh
 from plyfile import PlyData
 
-from tailorlang.const import PATCH_LIST
-from tailorlang.sim.utils import (
+from loom.const import PATCH_LIST
+from loom.sim.utils import (
     add_uv_coordinates,
     ParamMeshUV
 )

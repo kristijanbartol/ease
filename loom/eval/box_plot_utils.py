@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from tailorlang.eval.table_utils import StatisticsTable
+from loom.eval.table_utils import StatisticsTable
 
 
 def compute_box_plot_stats(values):

@@ -1,6 +1,6 @@
 
-from tailorlang.anthropometry.landmark_definitions import *
-from tailorlang.anthropometry.joint_definitions import *
+from loom.anthropometry.landmark_definitions import *
+from loom.anthropometry.joint_definitions import *
 
 STANDARD_LABELS = {
         'A': 'head circumference',

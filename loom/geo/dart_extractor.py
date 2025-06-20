@@ -1,7 +1,7 @@
 import numpy as np
 import trimesh
 
-from tailorlang.eval.stretch_utils import color_code_stretches
+from loom.eval.stretch_utils import color_code_stretches
 
 
 def extract_submesh(vertices, faces, face_fractions_dict):

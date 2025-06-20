@@ -3,7 +3,7 @@ import trimesh
 import os
 import numpy as np
 
-from tailorlang.const import (
+from loom.const import (
     COLOR_MAP,
     DISPLACEMENTS,
     PATCH_LIST,

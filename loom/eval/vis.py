@@ -8,8 +8,8 @@ import svgwrite
 import numpy as np
 import cv2
 
-from tailorlang.eval.stretch_utils import extract_stretch_ratios
-from tailorlang.eval.const import (
+from loom.eval.stretch_utils import extract_stretch_ratios
+from loom.eval.const import (
     GLOBAL_IMG_SCALE,
     IMG_OFFSETS_DICT
 )

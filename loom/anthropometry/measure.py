@@ -9,21 +9,21 @@ import os
 import argparse
 from smplx import SMPL
 
-from tailorlang.anthropometry.measurement_definitions import (
+from loom.anthropometry.measurement_definitions import (
     MEASUREMENT_TYPES,
     STANDARD_LABELS,
     MeasurementType,
     SMPLMeasurementDefinitions
 )
-from tailorlang.anthropometry.landmark_definitions import (
+from loom.anthropometry.landmark_definitions import (
     SMPL_LANDMARK_INDICES
 )
-from tailorlang.anthropometry.joint_definitions import (
+from loom.anthropometry.joint_definitions import (
     SMPL_JOINT2IND,
     SMPL_NUM_JOINTS,
     get_joint_regressor
 )
-from tailorlang.anthropometry.utils import (
+from loom.anthropometry.utils import (
     filter_body_part_slices,
     convex_hull_from_3D_points,
     load_face_segmentation

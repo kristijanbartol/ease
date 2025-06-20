@@ -3,8 +3,8 @@ import trimesh
 import os
 import shutil
 
-from tailorlang.utils import modify_experiment_name_for_refit
-from tailorlang.sim.utils import (
+from loom.utils import modify_experiment_name_for_refit
+from loom.sim.utils import (
     process_body_for_simulation,
     process_base_for_simulation,
     process_refit_for_simulation,
@@ -15,7 +15,7 @@ from tailorlang.sim.utils import (
     update_meshes_after_simulation,
     ParamMeshUV
 )
-from tailorlang.sim.blender_caller import simulate_pose
+from loom.sim.blender_caller import simulate_pose
 
 from anisotropic_simulations.evaluation_frame_based import get_non_skintight_garment
 

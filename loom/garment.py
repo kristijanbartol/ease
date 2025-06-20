@@ -4,11 +4,11 @@ import trimesh
 import os
 from collections import defaultdict
 
-from tailorlang.geometry import (
+from loom.geometry import (
     apply_offset_to_verts,
     modify_mesh_with_plane_cut
 )
-from tailorlang.const import (
+from loom.const import (
     COMPONENT_SIGN_DICT,
     FIXED_POINTS_DICT,
     PLANE_ORIENT_DICT,
@@ -16,7 +16,7 @@ from tailorlang.const import (
     SEAM_TO_SEAM_IDX_DICT,
     DART_ORIENTS
 )
-from tailorlang.io import (
+from loom.io import (
     save_seamline_pairs_file,
     save_darts_files
 )

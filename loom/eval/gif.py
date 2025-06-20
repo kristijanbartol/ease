@@ -3,7 +3,7 @@ import imageio
 import os
 from pathlib import Path
 
-from tailorlang.utils import (
+from loom.utils import (
     get_experiment_names_for_grid,
     prepare_configuration,
     print_configuration

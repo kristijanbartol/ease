@@ -2,16 +2,16 @@ import os
 import json
 import numpy as np
 
-from tailorlang.const import PATCH_LIST
-from tailorlang.utils import (
+from loom.const import PATCH_LIST
+from loom.utils import (
     construct_configs,
     construct_experiment_name,
     prepare_configuration,
     print_configuration
 )
-from tailorlang.eval.stretch_utils import get_stretch_statistics
-from tailorlang.eval.seamline_utils import get_seamline_statistics
-from tailorlang.eval.table_utils import StatisticsTable
+from loom.eval.stretch_utils import get_stretch_statistics
+from loom.eval.seamline_utils import get_seamline_statistics
+from loom.eval.table_utils import StatisticsTable
 
 
 def save_statistics(experiment_name, stats_dict, base_dir):

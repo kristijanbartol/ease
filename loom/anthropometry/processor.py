@@ -5,8 +5,8 @@ import numpy as np
 from copy import deepcopy
 from smplx import SMPL
 
-from tailorlang.const import SMPL_DIR
-from tailorlang.anthropometry.measure import MeasureSMPL
+from loom.const import SMPL_DIR
+from loom.anthropometry.measure import MeasureSMPL
 
 
 SEARCH_GRID = [

@@ -2,7 +2,7 @@ import mitsuba as mi
 import drjit as dr
 import numpy as np
 from mitsuba.scalar_rgb import Transform4f, load_dict
-from tailorlang.render.materials import (
+from loom.render.materials import (
     create_asian_skin_bsdf,
     create_caucasian_skin_bsdf,
     create_cotton_bsdf,

@@ -1,8 +1,8 @@
 import json
 
-from tailorlang.eval.eval import evaluate_experiment
-from tailorlang.utils import prepare_configuration
-from tailorlang.garment import (
+from loom.eval.eval import evaluate_experiment
+from loom.utils import prepare_configuration
+from loom.garment import (
     BodySet,
     DesignParameters
 )

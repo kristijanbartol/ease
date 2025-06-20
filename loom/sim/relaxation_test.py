@@ -8,7 +8,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d import Axes3D
 
-from tailorlang.const import PATCH_LIST
+from loom.const import PATCH_LIST
 
 
 class MeshVisualizer:

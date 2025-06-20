@@ -6,7 +6,7 @@ import json
 from pprint import pformat
 from copy import deepcopy
 
-from tailorlang.const import EXPERIMENT_GROUPS
+from loom.const import EXPERIMENT_GROUPS
 
 
 def construct_experiment_name(config):
