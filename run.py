@@ -1,5 +1,5 @@
 from loom.mesh_processing import MeshState
-from loom.eval.eval import evaluate_experiment
+from loom.eval.experiment import evaluate_experiment
 from loom.utils import (
     construct_configs,
     construct_experiment_name,

@@ -1,6 +1,6 @@
 import json
 
-from loom.eval.eval import evaluate_experiment
+from loom.sim.simulator_3d_pipeline import simulate_3d
 from loom.utils import prepare_configuration
 from loom.garment import (
     BodySet,
@@ -19,7 +19,8 @@ def run_pipeline():
         set_dict = json.load(json_file)
     body_set = BodySet(set_dict)
     
-    evaluate_experiment(config, design_params, body_set)
+    simulate_3d(config, design_params, body_set)
+
 
 if __name__ == '__main__':
     run_pipeline()

@@ -3,7 +3,7 @@ from loom.eval.quantitative import quantitative_evaluation
 from loom.render.simple_renderer import render_simple
 from loom.utils import construct_experiment_name
 from loom.eval.postprocess import postprocess
-from loom.sim.runner import simulate_garment_set
+from loom.sim.default_simulator import simulate_garment_set
 
 
 def evaluate_experiment(config, design_params, body_set):

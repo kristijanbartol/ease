@@ -13,3 +13,4 @@ anisotropic-parameterization/build/
 tailorlang/lib/*.so
 tailorlang/lib/*.pyd
 tailorlang/tailorlang.egg-info
+**egg-info

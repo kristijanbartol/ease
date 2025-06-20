@@ -1,5 +1,4 @@
 import os
-import cv2
 import trimesh
 import numpy as np
 from scipy import stats
@@ -659,57 +658,3 @@ def interpolate_color(p, triangle_points, vertex_colors):
     # Interpolate colors using barycentric coordinates
     color = u * vertex_colors[0] + v * vertex_colors[1] + w * vertex_colors[2]
     return color.astype(np.uint8)
-
-def mesh_to_stretch_image(mesh, face_stretches, image_size=(800, 800), 
-                         min_stretch=0.85, max_stretch=1.15):
-    """
-    Create a smoothly interpolated visualization of stretch values.
-    
-    Args:
-        mesh: Trimesh object containing the mesh
-        face_stretches: Array of stretch values per face
-        image_size: Size of output image
-        min_stretch/max_stretch: Range for color mapping
-    
-    Returns:
-        Image array with smooth stretch visualization
-    """
-    # Project vertices to 2D as in your original code
-    points = np.array(mesh.vertices)
-    min_bounds = points.min(axis=0)
-    max_bounds = points.max(axis=0)
-    points[:, :2] = (points[:, :2] - min_bounds[:2]) * GLOBAL_IMG_SCALE
-    
-    # Calculate vertex colors
-    vertex_colors = calculate_vertex_colors(mesh, face_stretches, min_stretch, max_stretch)
-    
-    # Create output image
-    image = np.zeros((*image_size, 4), dtype=np.uint8)
-    
-    # For each triangle
-    for face_idx, face in enumerate(mesh.faces):
-        # Get 2D coordinates of triangle vertices
-        tri_points = points[face, :2].astype(int)
-        
-        # Get bounding box of triangle
-        min_x = max(tri_points[:, 0].min(), 0)
-        max_x = min(tri_points[:, 0].max() + 1, image_size[0])
-        min_y = max(tri_points[:, 1].min(), 0)
-        max_y = min(tri_points[:, 1].max() + 1, image_size[1])
-        
-        # For each pixel in bounding box
-        for y in range(min_y, max_y):
-            for x in range(min_x, max_x):
-                point = np.array([x, y])
-                
-                # Check if point is inside triangle
-                if cv2.pointPolygonTest(tri_points, (x, y), False) >= 0:
-                    # Interpolate color
-                    color = interpolate_color(
-                        point, 
-                        tri_points, 
-                        vertex_colors[face]
-                    )
-                    image[y, x] = color
-    
-    return image[::-1]
