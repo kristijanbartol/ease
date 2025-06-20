@@ -8,7 +8,7 @@ from tailorlang.garment import (
 )
 
 
-if __name__ == '__main__':
+def run_pipeline():
     config = prepare_configuration()
 
     with open(f'config/designs/{config.design}.json', 'r') as json_file:
@@ -20,3 +20,6 @@ if __name__ == '__main__':
     body_set = BodySet(set_dict)
     
     evaluate_experiment(config, design_params, body_set)
+
+if __name__ == '__main__':
+    run_pipeline()
