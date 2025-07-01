@@ -12,9 +12,9 @@ from loom.sim.utils import (
     process_preloaded_body,
     store_garments_for_simulation,
     update_3d_after_simulation,
-    update_meshes_after_simulation,
-    ParamMeshUV
+    update_meshes_after_simulation
 )
+from loom.sim.param_mesh_uv import ParamMeshUV
 from loom.sim.blender_caller import simulate_pose
 
 from anisotropic_simulations.evaluation_frame_based import get_non_skintight_garment
@@ -127,8 +127,7 @@ def simulate_garment_set(
         body_output=os.path.join(sim_dir, 'base_body.ply'),
         shirt_output=os.path.join(sim_dir, 'base_upper.ply'),
         pant_output='' if optim_dress else os.path.join(sim_dir, 'base_lower.ply'),
-        blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
-        scripts_dir=f'{config.project_dir}/tailorlang/blender/'
+        scripts_dir=f'{config.project_dir}/loom/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply
     
     qualitative_dir = f'results/qualitative/sim/{base_experiment}/'

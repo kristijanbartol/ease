@@ -376,6 +376,7 @@ class MeshState:
         self.use_darts = config.use_darts
         self.apply_remesh = config.apply_remesh
         self.optim_dress = config.optim_dress
+        self.garment_type = 'dress' if self.optim_dress else 'regular'
         
         # Patch-threshold dictionaries
         self.threshold_dict = {}
@@ -426,16 +427,17 @@ class MeshState:
             'faces': self.smpl_model.faces,
             'color': (0.7, 0.7, 0.7, 1.0)  # Gray
         }
+        os.makedirs('data/body/', exist_ok=True)
         np.save('data/body/ref-betas.npy', ref_shape_fun().cpu().detach().numpy())
         self.active_mesh = self.canonical_mesh.copy()   # set immediately (since the initial design is applied)
         self.bary_coords_for_active_cuts_dict = {}      # component: bary_coords
         
         self.target_bodies_verts = []
         
-        trimesh.Trimesh(
-            vertices=self.canonical_mesh['vertices'],
-            faces=self.canonical_mesh['faces'],
-        ).export('/Users/kristijanbartol/TailorLang/canonical.ply')
+        #trimesh.Trimesh(
+        #    vertices=self.canonical_mesh['vertices'],
+        #    faces=self.canonical_mesh['faces'],
+        #).export('/Users/kristijanbartol/TailorLang/canonical.ply')
         
         # Patch-to-(pre-)seamlines dictionary
         # TODO: Seamlines should also become seamline INDICES!
@@ -543,8 +545,8 @@ class MeshState:
                     sleeve_side=component_label.split('_')[1] if component_label[:6] == 'sleeve' else None
                 )
         else:
-            #skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/m_body-skirtified.ply')
-            skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/ss_body-skirtified.ply')
+            skirtified_mesh = trimesh.load(os.path.join(self.config.project_dir, 'data/skirtified/m_body-skirtified.ply'))
+            #skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/ss_body-skirtified.ply')
             #skirtified_mesh = trimesh.load('/Users/kristijanbartol/TailorLang/ll_body-skirtified.ply')
             self.active_mesh['vertices'] = np.array(skirtified_mesh.vertices, dtype=np.float32)
             self.active_mesh['faces'] = np.array(skirtified_mesh.faces)
@@ -594,8 +596,7 @@ class MeshState:
             self.vertex_adjacency_list = MeshProcessor.build_vertex_adjacency_list(self.active_mesh['faces'])
         
         # Collect individual garment patches (initial).
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in INIT_IDXS[garment_type]:
+        for patch_label in INIT_IDXS[self.garment_type]:
             patch_type = patch_label.split('_')[0]
             if patch_type == 'sleeve':
                 sleeve_side = patch_label.split('_')[-1]
@@ -614,8 +615,8 @@ class MeshState:
                 
             patch_vert_idxs = self.flood_fill(
                 vertex_positions=self.active_mesh['vertices'],
-                boundary_vertices=sum(PATCH_TO_PRE_SEAMS_DICT[garment_type][patch_label].values(), []),
-                start_vertex=INIT_IDXS[garment_type][patch_label],
+                boundary_vertices=sum(PATCH_TO_PRE_SEAMS_DICT[self.garment_type][patch_label].values(), []),
+                start_vertex=INIT_IDXS[self.garment_type][patch_label],
                 threshold_params=params
             )
             self.full_patch_idxs_dict[patch_label] = np.array(patch_vert_idxs, dtype=np.int16)
@@ -772,8 +773,7 @@ class MeshState:
         trimesh.Trimesh(vertices=self.active_mesh['vertices'], faces=self.active_mesh['faces']).export('active_mesh.ply')
         #trimesh.Trimesh(vertices=target_posed_verts_list[0], faces=self.active_mesh['faces']).export('target_mesh.ply')
         
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in PATCH_LIST[garment_type]:
+        for patch_label in PATCH_LIST[self.garment_type]:
             patch_vert_idxs = self.masked_patch_idxs_dict[patch_label]
             patch_faces = self._select_active_faces(patch_vert_idxs)
             self.old_to_new_idx_dict[patch_label] = self._extract_old_to_new_vert_idxs_map(patch_vert_idxs)
@@ -817,17 +817,16 @@ class MeshState:
         The `map_old_to_new_indices` function selects only the vertex indices that are previously
         selected for that patch.
         '''
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in PATCH_LIST[garment_type]:
-            patch_id = SEGMENT_TO_ID[garment_type][patch_label]
-            for seam_label in SEGMENT_TO_SEAMLINES_DICT[garment_type][patch_id]:
+        for patch_label in PATCH_LIST[self.garment_type]:
+            patch_id = SEGMENT_TO_ID[self.garment_type][patch_label]
+            for seam_label in SEGMENT_TO_SEAMLINES_DICT[self.garment_type][patch_id]:
                 if seam_label not in self.seam_to_segment_vertex_pairs:
                     self.seam_to_segment_vertex_pairs[seam_label] = {
-                        patch_id: self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[garment_type][seam_label])
+                        patch_id: self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[self.garment_type][seam_label])
                     }
                 else:
                     self.seam_to_segment_vertex_pairs[seam_label][patch_id] = \
-                        self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[garment_type][seam_label])
+                        self.map_old_to_new_indices(patch_label, SEAM_TO_SEAM_IDX_DICT[self.garment_type][seam_label])
                         
     def _create_darts(self):
         for patch_label in PATCH_LIST:
@@ -872,16 +871,14 @@ class MeshState:
                 )
         
     def _extract_uv_unit_directions(self):
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in PATCH_LIST[garment_type]:
+        for patch_label in PATCH_LIST[self.garment_type]:
             self.uv_unit_directions_dict[patch_label] = MeshProcessor.compute_triangle_directions(
                 vertices=self.ref_patch_verts_dict[patch_label],
                 faces=self.ref_patch_faces_dict[patch_label]
             )
     
     def _extract_reference_local_stretches(self):
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in PATCH_LIST[garment_type]:
+        for patch_label in PATCH_LIST[self.garment_type]:
             self.local_stretches_dict[patch_label] = MeshProcessor.extract_local_stretches(
                 verts=self.ref_patch_verts_dict[patch_label],
                 faces=self.ref_patch_faces_dict[patch_label],
@@ -1016,8 +1013,7 @@ class MeshState:
         trimesh.Trimesh(
             vertices=self.ref_body_verts, faces=self.active_mesh['faces']).export(os.path.join(body_dir, 'ref.ply'))
         
-        garment_type = 'dress' if self.optim_dress else 'regular'
-        for patch_label in PATCH_LIST[garment_type]:
+        for patch_label in PATCH_LIST[self.garment_type]:
             # Store reference embedded garment meshes (mesh data)
             embedded_subdir = os.path.join(mesh_dir, patch_label)
             os.makedirs(embedded_subdir, exist_ok=True)
@@ -1072,7 +1068,7 @@ class MeshState:
         
     def optimize(self):
         pattern_dir = 'results/pattern/'
-        for patch_label in PATCH_LIST:
+        for patch_label in PATCH_LIST[self.garment_type]:
             os.makedirs(os.path.join(pattern_dir, 'latest', patch_label), exist_ok=True)
             
         run_parameterization(

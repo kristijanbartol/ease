@@ -1,6 +1,6 @@
 {
-    "project_dir": "/home/kristijan/LOOM/",
-    "smpl_dir": "/home/kristijan/data/smpl/models/",
+    "project_dir": "/Users/kristijanbartol/TailorLang/",
+    "smpl_dir": "/Users/kristijanbartol/data/smpl/models/",
     "body_set": "solo-female",
     "design": "default",
     "refit_pose": "",

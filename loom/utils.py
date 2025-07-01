@@ -6,7 +6,10 @@ import json
 from pprint import pformat
 from copy import deepcopy
 
-from loom.const import EXPERIMENT_GROUPS
+from loom.const import (
+    EXPERIMENT_GROUPS,
+    PROJECT_DIR
+)
 
 
 def construct_experiment_name(config):
@@ -155,7 +158,7 @@ def prepare_configuration() -> SimpleNamespace:
     cli_args, specified_args = parse_arguments()
     
     # Load configuration file
-    config_file_dict = load_config_file(cli_args.setup_config, cli_args.project_dir)
+    config_file_dict = load_config_file(cli_args.setup_config, PROJECT_DIR)
     
     # Only include CLI arguments that were explicitly set
     cli_dict = {k: v for k, v in vars(cli_args).items() 

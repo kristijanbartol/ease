@@ -1,11 +1,15 @@
 import os
 import subprocess
+from sys import platform
 
 
 def run_parameterization(config):
     # Get absolute paths
     current_dir = os.getcwd()
-    cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/cmake-build-debug/optimize_set_with_seamlines")
+    if platform == 'darwin':
+        cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/cmake-build-debug/optimize_set_with_seamlines")
+    else:
+        cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/build/optimize_set_with_seamlines")
     root_project_path_arg = os.path.abspath(config.project_dir)
     
     # Ensure the executable exists

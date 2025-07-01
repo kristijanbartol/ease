@@ -4,7 +4,7 @@ import trimesh
 from plyfile import PlyData
 
 from loom.const import PATCH_LIST
-from loom.sim.utils import (
+from loom.sim.param_mesh_uv import (
     add_uv_coordinates,
     ParamMeshUV
 )

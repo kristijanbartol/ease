@@ -4,6 +4,7 @@ import os
 import numpy as np
 from copy import deepcopy
 from smplx import SMPL
+from sys import platform
 
 from loom.const import SMPL_DIR
 from loom.anthropometry.measure import MeasureSMPL
@@ -84,4 +85,5 @@ if __name__ == '__main__':
         'thigh circumference': 46,
         'calf circumference': 37
     }
-    get_smpl_from_measures('/Users/kristijanbartol/Tailorlang/', subject_measure_dict)
+    project_dir = '/Users/kristijanbartol/LOOM/' if platform == 'darwin' else '/home/kristijan/LOOM/'
+    get_smpl_from_measures(project_dir, subject_measure_dict)

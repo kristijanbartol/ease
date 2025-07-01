@@ -1,9 +1,10 @@
 import subprocess
 import os
+from sys import platform
 
 def simulate_pose(body_path, shirt_path, pant_path, 
                   body_output, shirt_output, pant_output,
-                  blender_path, scripts_dir):
+                  scripts_dir):
     """
     Run the cloth simulation in Blender
     
@@ -16,6 +17,11 @@ def simulate_pose(body_path, shirt_path, pant_path,
         pant_output (str): Output path for pant mesh
         blender_path (str): Path to Blender executable
     """
+    if platform == 'darwin':
+        blender_path = '/Applications/Blender.app/Contents/MacOS/Blender'
+    else:
+        blender_path = '/snap/bin/blender'
+
     # Construct the command
     cmd = [
         blender_path,
@@ -35,8 +41,8 @@ def simulate_pose(body_path, shirt_path, pant_path,
         result = subprocess.run(
             cmd,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            #stdout=subprocess.PIPE,
+            #stderr=subprocess.PIPE,
             text=True
         )
         print("Simulation completed successfully!")
@@ -46,14 +52,16 @@ def simulate_pose(body_path, shirt_path, pant_path,
         print(e.stderr)
         raise
 
+
 if __name__ == "__main__":
+    project_dir = '/Users/kristijanbartol/LOOM/' if platform == 'darwin' else '/home/kristijan/LOOM/'
+
     simulate_pose(
-        body_path="/Users/kristijanbartol/TailorLang/data/body/target-00_x10.ply",
-        shirt_path="/Users/kristijanbartol/TailorLang/results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_upper.ply",
-        pant_path="/Users/kristijanbartol/TailorLang/results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_lower.ply",
-        body_output="/Users/kristijanbartol/TailorLang/results/sim/body.ply",
-        shirt_output="/Users/kristijanbartol/TailorLang/results/sim/shirt.ply",
-        pant_output="/Users/kristijanbartol/TailorLang/results/sim/pant.ply",
-        blender_path="/Applications/Blender.app/Contents/MacOS/Blender",
-        scripts_dir='/Users/kristijanbartol/TailorLang/tailorlang/blender/'
+        body_path=os.path.join(project_dir, 'data/body/target-00_x10.ply'),
+        shirt_path=os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_upper.ply'),
+        pant_path=os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_lower.ply'),
+        body_output=os.path.join(project_dir, 'results/sim/body.ply'),
+        shirt_output=os.path.join(project_dir, 'results/sim/shirt.ply'),
+        pant_output=os.path.join(project_dir, 'results/sim/pant.ply'),
+        scripts_dir=os.path.join(project_dir, 'loom/blender/')
     )

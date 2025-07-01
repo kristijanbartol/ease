@@ -3,10 +3,17 @@ from smplx import SMPL
 from collections import defaultdict
 import torch
 import trimesh
+from sys import platform
 
 
 SEGMENTS_DIR = 'config/segments/'
-SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
+
+if platform == 'darwin':
+    PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
+    SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
+else:
+    PROJECT_DIR = '/home/kristijan/LOOM/'
+    SMPL_DIR = '/home/kristijan/data/smpl/models/'
 
 FIXED_POINTS_DICT = {
     'regular': {

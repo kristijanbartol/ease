@@ -8,6 +8,7 @@ from pprint import pprint
 import os
 import argparse
 from smplx import SMPL
+from sys import platform
 
 from loom.anthropometry.measurement_definitions import (
     MEASUREMENT_TYPES,
@@ -351,7 +352,11 @@ class MeasureSMPL(Measurer):
         
 
 class MeasureBody():
-    def __new__(cls, project_dir='/Users/kristijanbartol/TailorLang', smpl_dir='/Users/kristijanbartol/data/smpl/models/', model_type='smpl'):
+
+    PROJECT_DIR = '/Users/kristijanbartol/LOOM/' if platform == 'darwin' else '/home/kristijan/LOOM/'
+    SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/' if platform == 'darwin' else '/home/kristijan/LOOM/'
+
+    def __new__(cls, project_dir=PROJECT_DIR, smpl_dir=SMPL_DIR, model_type='smpl'):
         model_type = model_type.lower()
         if model_type == 'smpl':
             return MeasureSMPL(project_dir, smpl_dir)

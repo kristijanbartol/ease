@@ -18,7 +18,7 @@ def process_preloaded_body(body_mesh):
     return body_mesh
 
 
-def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef):
+def process_body_for_simulation(smpl_dir, gender, body_pose, body_shape, upper_coef, lower_coef, optim_dress):
     pose_label = str.replace(body_pose, '-', '_')
     smpl_model = SMPL(model_path=os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), gender=gender)
     pose_params = getattr(const, pose_label)()

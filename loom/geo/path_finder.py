@@ -1,3 +1,5 @@
+# NOTE: deprecated module, will remove soon...
+
 import os
 import numpy as np
 from scipy.spatial import KDTree

@@ -12,8 +12,6 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "--project_dir", "/Users/kristijanbartol/TailorLang/",
-                "--smpl_dir", "/Users/kristijanbartol/data/smpl/models/",
                 "--setup_config", "default",
                 //"--run_grid",
                 //"--body_set", "solo-female",

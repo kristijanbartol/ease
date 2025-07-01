@@ -2,15 +2,18 @@ import bpy
 import bmesh
 import argparse
 import sys
+import os
 
 if 'bpy' in sys.modules and not '--' in sys.argv:
+    project_dir = '/Users/kristijanbartol/LOOM/' if sys.platform == 'darwin' else '/home/kristijan/LOOM/'
+
     # Paths to the meshes
-    body_path = "/Users/kristijanbartol/TailorLang/data/body/target-00_x10.ply"
-    shirt_path = "/Users/kristijanbartol/TailorLang/results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_upper.ply"
-    pant_path = "/Users/kristijanbartol/TailorLang/results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_lower.ply"
-    body_output_path = "/Users/kristijanbartol/TailorLang/results/sim/body.ply"
-    shirt_output_path = "/Users/kristijanbartol/TailorLang/results/sim/shirt.ply"
-    pant_output_path = "/Users/kristijanbartol/TailorLang/results/sim/pant.ply"
+    body_path = os.path.join(project_dir, 'data/body/target-00_x10.ply')
+    shirt_path = os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_upper.ply')
+    pant_path = os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_lower.ply')
+    body_output_path = os.path.join(project_dir, 'results/sim/body.ply')
+    shirt_output_path = os.path.join(project_dir, 'results/sim/shirt.ply')
+    pant_output_path = os.path.join(project_dir, 'results/sim/pant.ply')
 else:
     # Get command line arguments after "--"
     argv = sys.argv
