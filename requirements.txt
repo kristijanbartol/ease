@@ -12,6 +12,7 @@ trimesh
 rtree
 torch
 torchvision
+#testing
 pytest
 # ui
 PyQt6

@@ -7,3 +7,6 @@
 [submodule "anisotropic_simulations"]
 	path = anisotropic_simulations
 	url = https://github.com/kristijanbartol/anisotropic_simulations.git
+[submodule "potpourri3d"]
+	path = potpourri3d
+	url = https://github.com/kristijanbartol/potpourri3d.git
