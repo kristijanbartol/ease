@@ -454,8 +454,10 @@ def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels,
     seamlines_dict = defaultdict(list)
     for boundary_indices in boundary_indices_array:
         for vidx in boundary_indices:
+            if vidx == 5290:
+                print('')
             v_labels = v_labels_dict[vidx]
-            filtered_labels = set(v_labels) & valid_patch_labels
+            filtered_labels = sorted(set(v_labels) & valid_patch_labels)
             patch_pairs = list(combinations(filtered_labels, 2))
 
             for patch_pair in patch_pairs:
@@ -479,6 +481,13 @@ def cut_paths(mesh, keypoints_batch):
     v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
     patches, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
     seamlines_dict = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
+
+    for patch_pair in seamlines_dict:
+        first_indices = [seamlines_dict[patch_pair][x][0] for x in range(len(seamlines_dict[patch_pair]))]
+        second_indices = [seamlines_dict[patch_pair][x][1] for x in range(len(seamlines_dict[patch_pair]))]
+        
+        trimesh.PointCloud(vertices=patches[patch_pair[0]].vertices[first_indices]).export(f'seamlines_{patch_pair[0]}_{patch_pair[1]}_0.obj')
+        trimesh.PointCloud(vertices=patches[patch_pair[1]].vertices[second_indices]).export(f'seamlines_{patch_pair[0]}_{patch_pair[1]}_1.obj')
 
     return trimesh.Trimesh(vertices=newV, faces=newF), patches, valid_patch_labels
 
