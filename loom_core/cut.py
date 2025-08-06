@@ -14,50 +14,7 @@ from scipy.spatial import cKDTree
 import igl
 import heapq
 
-from utils import insert_midline_point, horizontal_plane_cut
-
-
-'''
-// A map that specified the polyline category for the polylinesBatch<*> vectors.
-std::map<std::string, std::vector<size_t>> categoryToPolylinesMap = {
-    { "seamlines", {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} },
-    { "boundaries", {12, 13, 14, 15} }
-};
-
-std::vector<bool> isLoop = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,true};
-
-// The upper and lower vector specifying keypoints for extracting the geodesic polylines.
-std::vector<std::vector<size_t>> polylinesBatchUpper = {
-    // "seamlines"
-        {4767, 4962, 4310},         // right armpit         0
-        {1285, 1323, 823},          // left armpit          1
-        {6469, 4305},               // right shoulder       2
-        {3010, 817},                // left shoulder        3
-        {6469, 5085, 5480},         // right sleeve up      4
-        {4767, 5099, 5568},         // right sleeve down    5
-        {3010, 1915, 2019},         // left sleeve up       6
-        {1285, 1917, 2060},         // left sleeve down     7
-        {4767, 4162, 6469},         // right front arm      8
-        {1285, 674, 3010},          // left front arm       9
-        {6469, 5345, 4200, 4767},   // right back arm       10
-        {3011, 1891, 713, 1285},    // left back arm        11
-        
-    // "boundaries",
-        {4305, 4058, 570, 817},     // front neck           12
-        {817, 1219, 4301, 4305},    // back neck            13
-        {4310, 823},                // lower boundary (front): extracted using right and left armpit keypoints                          14
-        {823, 3484, 4310}           // lower boundary (back): need to pick another (middle) vertex to force traverseing the back side   15
-};
-
-std::vector<std::vector<size_t>> polylinesBatchLowerMap = {
-    {6378, 4460, 4943, 6869},           // right outer pant
-    {2919, 979, 1117, 3469},            // left outer pant
-    {1208, 4439, 4591, 6833},           // right inner pant
-    {1208, 1028, 1122, 3433},           // left inner pant
-    {3507, 3510, 1208},                 // front inner pant
-    {1784, 3119, 1476, 3170, 1208}      // right sleeve down
-};
-'''
+from utils import insert_midline_point
 
 
 # NOTE: Using three coordinates for some polylines to direct the path to the correct side.
@@ -111,34 +68,53 @@ class TraversalType(Enum):
 
 # NOTE: for symmetric designs, all keypoints are given on one side, otherwise, they are considered assymetric
 ref_keypoints_dict1 = {
-    'mid': [3168, 3500],
-    'neck': [4294, 5310],
-    'shoulder': [5282, 5335],
-    'armpit': [5326, 4891],
+    'upper': {
+        'mid': [3168, 3500],
+        'neck': [4294, 5310],
+        'shoulder': [5282, 5335],
+        'side': [5326, 4891],
 
-    'sleeve': None,
-    'bottom': None
+        'sleeve': None,
+        'bottom': None
+    },
+    'lower': {
+        'side': [4164, 4303],
+        'between': [1208, 1364],
+
+        'bottom_side': None,
+        'bottom_inner': None
+    }
 }
 
 params1 = {
-    'mid': 0.3,         # [0., 1.]
-    'neck': 0.5,        # [0., 1.]
-    'shoulder': 0.5,    # [0., 1.]
-    'armpit': 0.5,      # [0., 1.]
+    'upper': {
+        'mid': 1.0,         # [0., 1.]
+        'neck': 0.1,        # [0., 1.]
+        'shoulder': 0.7,    # [0., 1.]
+        'side': 0.5,      # [0., 1.]
 
-    'sleeve': 0.2,      # [cm]
-    'bottom': 0.25        # [cm]
+        'sleeve': 0.5,      # [m]
+        'bottom': 0.25      # [m]
+    },
+    'lower': {
+        'side': 0.5,         # [0., 1.]
+        'between': 0.7,     # [0., 1.]
+
+        'bottom': 0.6       # [m]
+    }
 }
 
+'''
 traversal_types1 = {
     'mid': TraversalType.GEODESIC,
     'neck': TraversalType.SHORTEST_PATH,
     'shoulder': TraversalType.CIRCULAR,
-    'armpit': TraversalType.GEODESIC,
+    'side': TraversalType.GEODESIC,
 
     'sleeve': TraversalType.GEODESIC,
     'bottom': TraversalType.PLANE_CUT
 }
+'''
 
 exclude_patch_vidxs = [
     1999,                    # left hand
@@ -179,7 +155,8 @@ def _side_to_full_keypoints(mesh, ref_keypoints_batch):
             symm_idx = _extract_symm_idx(tree, mesh.vertices[kpt_idx], kpt_idx)
             symm_keypoints.append(symm_idx)
         full_keypoints_batch.append(ref_keypoints)
-        full_keypoints_batch.append(symm_keypoints)
+        if ref_keypoints != symm_keypoints:     # when the ref keypoints are exactly along the middle line, don't duplicate
+            full_keypoints_batch.append(symm_keypoints)
 
     return full_keypoints_batch
 
@@ -229,7 +206,7 @@ def _astar_geodesic_path(mesh, start_vertex, end_vertex):
 def _extract_keypoint_along_path(mesh, range_idx1, range_idx2, interp: float):
     path = _astar_geodesic_path(mesh, range_idx1, range_idx2)
     # TODO: Also implement selecting the vertex using specified distance [cm].
-    return path[int(interp * float((len(path))))]
+    return path[min(int(interp * float((len(path)))), len(path) - 1)]
 
 
 def _extract_parametric_keypoint(mesh, starting_idx, dir_vector, offset, length: float):
@@ -239,26 +216,51 @@ def _extract_parametric_keypoint(mesh, starting_idx, dir_vector, offset, length:
     return closest_vertex_index
 
 
-def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict):
+def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
     core_idx_dict = {}
     for k in ref_keypoints_dict:
         if ref_keypoints_dict[k]:
             core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
-    
+
+    # bottom - mandatory
+    core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), np.zeros(3,), params_dict['bottom'])
+
     # sleeves - optional
     if params_dict['sleeve'] and core_idx_dict['shoulder']:
         dir_vector = np.array([-1, 0, 0])
         sleeve_length = params_dict['sleeve']
         core_idx_dict['sleeve_up'] = _extract_parametric_keypoint(mesh, core_idx_dict['shoulder'], dir_vector, np.array([0., 0.00, 0.]), sleeve_length)
-        core_idx_dict['sleeve_down'] = _extract_parametric_keypoint(mesh, core_idx_dict['armpit'], dir_vector, np.zeros(3,), sleeve_length)
-
-    # bottom - mandatory
-    core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['armpit'], np.array([0, -1, 0]), np.zeros(3,), params_dict['bottom'])
+        core_idx_dict['sleeve_down'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], dir_vector, np.zeros(3,), sleeve_length)
 
     return core_idx_dict
 
 
-def _core_to_side_keypoints(mesh, core_idxs_dict):
+def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
+    # TODO: implement extraction of parametric keypoint on the line between two keypoints (i.e., the second keypoint should be found more robustly)
+    # precisely: I should have a fixed, reference keypoint that I use to get the correct direction
+    core_idx_dict = {}
+    for k in ref_keypoints_dict:
+        if ref_keypoints_dict[k]:
+            core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
+
+    # side-bottom, but also used for inner-bottom
+    inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1])
+    core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), np.zeros(3,), length=params_dict['bottom'])
+    #core_idx_dict['bottom_side'] = 6607
+    core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), np.array([-0.025, 0., 0.]), length=inner_length)
+    #core_idx_dict['bottom_inner'] = 6598
+
+    return core_idx_dict
+
+
+def _param_to_core_keypoints(garment_part, mesh, ref_keypoints_dict, params_dict):
+    if garment_part == 'upper':
+        return _param_to_core_keypoints_upper(mesh, ref_keypoints_dict[garment_part], params_dict[garment_part])
+    else:
+        return _param_to_core_keypoints_lower(mesh, ref_keypoints_dict[garment_part], params_dict[garment_part])
+
+
+def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
     side_keypoints_batch = []
 
     # close sleeve boundary
@@ -269,8 +271,8 @@ def _core_to_side_keypoints(mesh, core_idxs_dict):
         side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
         side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
 
-        side_keypoints_batch.append([core_idxs_dict['shoulder'], core_idxs_dict['sleeve_up']])
-        side_keypoints_batch.append([core_idxs_dict['armpit'], core_idxs_dict['sleeve_down']])
+        side_keypoints_batch.append([core_idxs_dict['sleeve_up'], core_idxs_dict['shoulder']])
+        side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['sleeve_down']])
 
     # mid-neck
     side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['mid']])
@@ -283,14 +285,14 @@ def _core_to_side_keypoints(mesh, core_idxs_dict):
     side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['shoulder']])
 
     # shoulder loop
-    kpt_idx1, kpt_idx2 = core_idxs_dict['shoulder'], core_idxs_dict['armpit']
+    kpt_idx1, kpt_idx2 = core_idxs_dict['shoulder'], core_idxs_dict['side']
     front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.05)
     back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.1)
-    side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
-    side_keypoints_batch.append([kpt_idx1, back_idx, kpt_idx2])
+    side_keypoints_batch.append([kpt_idx2, front_idx, kpt_idx1])
+    side_keypoints_batch.append([kpt_idx2, back_idx, kpt_idx1])
 
     # armpit-bottom
-    side_keypoints_batch.append([core_idxs_dict['armpit'], core_idxs_dict['bottom']])
+    side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom']])
 
     # bottom
     V, F, mid_front_idx = insert_midline_point(V, F, core_idxs_dict['bottom'], front=True)
@@ -303,9 +305,45 @@ def _core_to_side_keypoints(mesh, core_idxs_dict):
     return side_keypoints_batch, V, F
 
 
-def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict):
-    core_idxs_dict = _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict)
-    side_keypoints_batch, newV, newF = _core_to_side_keypoints(mesh, core_idxs_dict)
+def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
+    side_keypoints_batch = []
+
+    # armpit-bottom
+    side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
+
+    # top (waistline)
+    V, F, mid_front_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
+    V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['side'], front=False)
+    side_keypoints_batch.append([core_idxs_dict['side'], mid_front_idx])
+    side_keypoints_batch.append([mid_back_idx, core_idxs_dict['side']])
+
+    # mid (front/back) - between
+    side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+    side_keypoints_batch.append([mid_back_idx, core_idxs_dict['between']])
+
+    # between-bottom
+    side_keypoints_batch.append([core_idxs_dict['between'], core_idxs_dict['bottom_inner']])
+
+    # connect bottoms
+    kpt_idx1, kpt_idx2 = core_idxs_dict['bottom_side'], core_idxs_dict['bottom_inner']
+    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
+    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.05)
+    side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
+    side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
+
+    return side_keypoints_batch, V, F
+
+ 
+def _core_to_side_keypoints(garment_part, mesh, core_idxs_dict):
+    if garment_part == 'upper':
+        return _core_to_side_keypoints_upper(mesh, core_idxs_dict)
+    else:
+        return _core_to_side_keypoints_lower(mesh, core_idxs_dict)
+
+
+def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part):
+    core_idxs_dict = _param_to_core_keypoints(garment_part, mesh, ref_keypoints_dict, params_dict)
+    side_keypoints_batch, newV, newF = _core_to_side_keypoints(garment_part, mesh, core_idxs_dict)
 
     new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
     full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
@@ -353,58 +391,155 @@ def flood_fill_vertex_patches_with_multilabels(V, F, boundary_verts, polylines):
     # Assign multi-labels to boundary vertices.
     for bv in boundary_verts:
         neighbor_labels = set()
+        if bv == 8432:
+            print('')
         for face_id in mesh.vertex_faces[bv]:
-            for vi in F[face_id]:
-                if vi not in boundary_set:
-                    neighbor_labels.update(final_labels[vi])
+            if face_id != -1:   # avoid using -1 indices - weird trimesh behavior
+                for vi in F[face_id]:
+                    if vi not in boundary_set:
+                        neighbor_labels.update(final_labels[vi])
+        if len(neighbor_labels) == 1:
+            for face_id in mesh.vertex_faces[bv]:
+                if face_id != -1:   # avoid using -1 indices - weird trimesh behavior
+                    for vi in F[face_id]:
+                        neighbor_labels.update(final_labels[vi])
         final_labels[bv] = sorted(neighbor_labels)
 
-    # TODO: Process boundary vertices that appear in more than one seamline (T- and X-junctions).
+    # Process boundary vertices that appear in more than one seamline (T- and X-junctions).
     bv_counter = {v: 0 for v in boundary_verts}
     for polyline_verts in polylines:
         for bv in polyline_verts:
             bv_counter[bv] += 1
 
-    for bv in bv_counter:
-        if bv_counter[bv] > 1:
-            neighbor_labels = set()
-            for face_id in mesh.vertex_faces[bv]:
-                for vi in F[face_id]:
-                    neighbor_labels.update(final_labels[vi])
-            final_labels[bv] = sorted(neighbor_labels)
+    bv_junctions = {bv: c for bv, c in bv_counter.items() if c > 1}
+
+    for bv in bv_junctions:
+        neighbor_labels = set()
+        for face_id in mesh.vertex_faces[bv]:
+            for vi in F[face_id]:
+                neighbor_labels.update(final_labels[vi])
+        final_labels[bv] = sorted(neighbor_labels)
 
     return final_labels
 
 
-def extract_and_save_patch_meshes(V, F, vertex_labels, prefix='patch'):
-    os.makedirs('patches/', exist_ok=True)
+def flood_fill_vertex_patches_with_multilabels_updated(V, F, boundary_verts, polylines):
+    boundary_set = set(boundary_verts)
 
-    # Face → label mapping: assign face to a patch if **all 3 vertices share that label**
+    adjacency = defaultdict(set)
+    for face in F:
+        for i in range(3):
+            vi = face[i]
+            vj = face[(i + 1) % 3]
+            adjacency[vi].add(vj)
+            adjacency[vj].add(vi)
+
+    labels_dict = defaultdict(set)
+    current_label = 0
+    excluded_labels = set()
+
+    for v_start in range(len(V)):
+        neighbor_labels = [labels_dict[n] for n in adjacency[v_start]]
+        all_same_singleton_label = all(lab == neighbor_labels[0] and len(lab) == 1 for lab in neighbor_labels)
+        if v_start in boundary_set or len(labels_dict[v_start]) > 0 or all_same_singleton_label:
+            continue
+        queue = deque([v_start])
+        labels_dict[v_start].add(current_label)
+        touched_polylines = []
+        patch_vidxs = [v_start]
+
+        while queue:
+            v = queue.popleft()
+            for nbr in adjacency[v]:
+                if nbr in boundary_set:
+                    touched_polylines_idxs = []
+                    for polyline_idx, polyline in enumerate(polylines):
+                        if nbr in polyline:
+                            touched_polylines_idxs.append(polyline_idx)
+                    if len(touched_polylines_idxs) == 1:                        
+                        touched_polylines.append(polylines[touched_polylines_idxs[0]])
+                    continue
+                if len(labels_dict[nbr]) == 0:
+                    queue.append(nbr)
+                    labels_dict[nbr].add(current_label)
+                    patch_vidxs.append(nbr)
+                    
+        for touched_polyline in touched_polylines:
+            for tv in touched_polyline:
+                labels_dict[tv].add(current_label)
+
+        for excluded_vidx in exclude_patch_vidxs:
+            if excluded_vidx in patch_vidxs:
+                excluded_labels.add(current_label)
+
+        current_label += 1
+
+    for v in range(len(V)):
+        if len(labels_dict[v]) == 0:
+            nbr = next(iter(adjacency[v]))
+            labels_dict[v].add(nbr)
+
+    return labels_dict, excluded_labels
+
+
+def extract_and_save_patch_meshes(V, F, vertex_labels_dict):
     patch_faces = defaultdict(list)
 
-    for face in F:
+    for face_idx, face in enumerate(F):
         v0, v1, v2 = face
-        # Find common labels across the 3 vertices
-        common_labels = set(vertex_labels[v0]) & set(vertex_labels[v1]) & set(vertex_labels[v2])
+        common_labels = set(vertex_labels_dict[v0]) & set(vertex_labels_dict[v1]) & set(vertex_labels_dict[v2])
         for lbl in common_labels:
             patch_faces[lbl].append(face)
 
-    # Write out each patch
+    patches = [trimesh.Trimesh()] * len(patch_faces)
+    excluded_patch_idxs = []
+
     for patch_id, face_list in patch_faces.items():
         face_array = np.array(face_list)
-        # Find unique vertex indices
         unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
 
-        excluded_patch = False
         for excl_v in exclude_patch_vidxs:
             if excl_v in unique_verts:
-                excluded_patch = True
+                excluded_patch_idxs.append(patch_id)
 
-        #if not excluded_patch:
         V_patch = V[unique_verts]
         F_patch = inverse_indices.reshape((-1, 3))
         mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
-        mesh_patch.export(os.path.join(f"patches/{prefix}_{patch_id}.ply"))
+        patches[patch_id] = mesh_patch
+    
+    return patches, excluded_patch_idxs
+
+
+def extract_and_save_patch_meshes_updated(V, F, vertex_labels_dict, excluded_labels):
+    patch_faces = defaultdict(list)
+
+    for face_idx, face in enumerate(F):
+        v0, v1, v2 = face
+        common_labels = set(vertex_labels_dict[v0]) & set(vertex_labels_dict[v1]) & set(vertex_labels_dict[v2])
+        if len(common_labels) > 1:
+            for excluded_label in excluded_labels:
+                if excluded_label in common_labels:
+                    patch_faces[excluded_label].append(face)
+                    break
+        else:
+            for lbl in common_labels:
+                patch_faces[lbl].append(face)
+
+    patches = [trimesh.Trimesh()] * len(patch_faces)
+
+    for patch_id, face_list in patch_faces.items():
+        if len(face_list) < 10:
+            excluded_labels.add(patch_id)
+
+        face_array = np.array(face_list)
+        unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
+
+        V_patch = V[unique_verts]
+        F_patch = inverse_indices.reshape((-1, 3))
+        mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
+        patches[patch_id] = mesh_patch
+    
+    return patches, list(excluded_labels)
 
 
 def cut_paths(mesh, keypoints_batch):
@@ -418,16 +553,18 @@ def cut_paths(mesh, keypoints_batch):
     newV, newF, geodesic_indices = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
 
     flat_indices = [x for xs in geodesic_indices for x in xs]
-    v_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, flat_indices, geodesic_indices)
-    extract_and_save_patch_meshes(newV, newF, v_labels)
+    #v_labels_dict = flood_fill_vertex_patches_with_multilabels(newV, newF, flat_indices, geodesic_indices)
+    v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels_updated(newV, newF, flat_indices, geodesic_indices)
+    #patches, excluded_patch_idxs = extract_and_save_patch_meshes(newV, newF, v_labels_dict)
+    patches, excluded_patch_idxs = extract_and_save_patch_meshes_updated(newV, newF, v_labels_dict, excluded_labels)
 
     trimesh.PointCloud(vertices=newV[flat_indices]).export('cuts.ply')
     for i, geodesic_idxs in enumerate(geodesic_indices):
         trimesh.PointCloud(vertices=newV[geodesic_idxs]).export(f'cuts_{i}.ply')
 
-    return trimesh.Trimesh(vertices=newV, faces=newF)
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, excluded_patch_idxs
 
-
+ 
 def _barycentric_coordinates(P, A, B, C):
     # Compute vectors
     v0 = B - A
@@ -515,35 +652,48 @@ if __name__ == '__main__':
         model_path=os.path.join(SMPL_DIR, f'SMPL_FEMALE.pkl'), 
         gender='female'
     )
-    orig_verts = smpl_model(
-        betas=torch.zeros((1, 10))
-    ).vertices[0].cpu().detach().numpy()
-    shaped_verts = smpl_model(
-        betas=torch.ones((1, 10))
-    ).vertices[0].cpu().detach().numpy()
-    posed_verts = smpl_model(
-        betas=torch.zeros((1, 10)),
-        body_pose=standard5_pose()
-    ).vertices[0].cpu().detach().numpy()
 
-    smpl_faces = smpl_model.faces
-    orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
-    shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-    posed_mesh = trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)
+    for garment_part in ['upper', 'lower']:
+        pose = torch.zeros((1, 23 * 3))
+        #pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
+        #pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
 
-    #subdiv_verts, subdiv_faces = trimesh.remesh.subdivide_loop(orig_verts, smpl_faces, iterations=1)
-    #subdiv_mesh = trimesh.Trimesh(subdiv_verts, subdiv_faces)
-    full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, ref_keypoints_dict1, params1)
+        orig_verts = smpl_model(
+            body_pose=pose,
+            betas=torch.zeros((1, 10))
+        ).vertices[0].cpu().detach().numpy()
+        shaped_verts = smpl_model(
+            betas=torch.ones((1, 10))
+        ).vertices[0].cpu().detach().numpy()
+        posed_verts = smpl_model(
+            betas=torch.zeros((1, 10)),
+            body_pose=standard5_pose()
+        ).vertices[0].cpu().detach().numpy()
 
-    #full_keypoints_batch = _side_to_full_keypoints(orig_mesh, keypoints_batch1)
-    cut_mesh = cut_paths(new_mesh, full_keypoints_batch)
+        smpl_faces = smpl_model.faces
+        orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
+        shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
+        posed_mesh = trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)
 
-    transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
-    transfer_pose = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
 
-    orig_mesh.export('orig_mesh.ply')
-    new_mesh.export('new_mesh.ply')
-    #subdiv_mesh.export('subdiv_mesh.ply')
-    cut_mesh.export('cut_mesh.ply')
-    transfer_shape.export('transfer_shape.ply')
-    transfer_pose.export('transfer_pose.ply')
+        full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, ref_keypoints_dict1, params1, garment_part)
+
+
+        mesh_dir = 'data/meshes/'
+        os.makedirs(mesh_dir, exist_ok=True)
+        orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
+        new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
+
+        cut_mesh, patches, excluded_patch_idxs = cut_paths(new_mesh, full_keypoints_batch)
+        
+
+        transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
+        transfer_pose = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
+
+        cut_mesh.export(os.path.join(mesh_dir, f'{garment_part}_cut.ply'))
+        transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
+        transfer_pose.export(os.path.join(mesh_dir, f'{garment_part}_target-pose.ply'))
+
+        os.makedirs(f'data/patches/{garment_part}/', exist_ok=True)
+        for patch_idx, patch in enumerate(patches):
+            patch.export(f'data/patches/{garment_part}/patch_{patch_idx}.ply')
