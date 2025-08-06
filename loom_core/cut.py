@@ -13,6 +13,7 @@ from collections import deque, defaultdict
 from scipy.spatial import cKDTree
 import igl
 import heapq
+from itertools import combinations
 
 from utils import insert_midline_point
 
@@ -88,12 +89,12 @@ ref_keypoints_dict1 = {
 
 params1 = {
     'upper': {
-        'mid': 1.0,         # [0., 1.]
+        'mid': 0.7,         # [0., 1.]
         'neck': 0.1,        # [0., 1.]
         'shoulder': 0.7,    # [0., 1.]
-        'side': 0.5,      # [0., 1.]
+        'side': 0.3,      # [0., 1.]
 
-        'sleeve': 0.5,      # [m]
+        'sleeve': 0.25,      # [m]
         'bottom': 0.25      # [m]
     },
     'lower': {
@@ -350,81 +351,8 @@ def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part)
     return full_keypoints_batch, new_mesh
 
 
-def flood_fill_vertex_patches_with_multilabels(V, F, boundary_verts, polylines):
-    mesh = trimesh.Trimesh(vertices=V, faces=F, process=False)
-    boundary_set = set(boundary_verts)
-
-    # Build adjacency excluding boundaries
-    adjacency = {i: set() for i in range(len(V))}
-    for face in F:
-        for i in range(3):
-            vi = face[i]
-            vj = face[(i + 1) % 3]
-            if vi in boundary_set or vj in boundary_set:
-                continue
-            adjacency[vi].add(vj)
-            adjacency[vj].add(vi)
-
-    labels = -1 * np.ones(len(V), dtype=int)
-    current_label = 0
-
-    for v_start in range(len(V)):
-        if v_start in boundary_set or labels[v_start] != -1:
-            continue
-        queue = deque([v_start])
-        labels[v_start] = current_label
-
-        while queue:
-            v = queue.popleft()
-            for nbr in adjacency[v]:
-                if labels[nbr] == -1:
-                    labels[nbr] = current_label
-                    queue.append(nbr)
-        current_label += 1
-
-    # Assign final labels ("ordinary" + boundary).
-    final_labels = [[] for _ in range(len(V))]
-    for i, lbl in enumerate(labels):
-        if lbl != -1:
-            final_labels[i].append(lbl)
-
-    # Assign multi-labels to boundary vertices.
-    for bv in boundary_verts:
-        neighbor_labels = set()
-        if bv == 8432:
-            print('')
-        for face_id in mesh.vertex_faces[bv]:
-            if face_id != -1:   # avoid using -1 indices - weird trimesh behavior
-                for vi in F[face_id]:
-                    if vi not in boundary_set:
-                        neighbor_labels.update(final_labels[vi])
-        if len(neighbor_labels) == 1:
-            for face_id in mesh.vertex_faces[bv]:
-                if face_id != -1:   # avoid using -1 indices - weird trimesh behavior
-                    for vi in F[face_id]:
-                        neighbor_labels.update(final_labels[vi])
-        final_labels[bv] = sorted(neighbor_labels)
-
-    # Process boundary vertices that appear in more than one seamline (T- and X-junctions).
-    bv_counter = {v: 0 for v in boundary_verts}
-    for polyline_verts in polylines:
-        for bv in polyline_verts:
-            bv_counter[bv] += 1
-
-    bv_junctions = {bv: c for bv, c in bv_counter.items() if c > 1}
-
-    for bv in bv_junctions:
-        neighbor_labels = set()
-        for face_id in mesh.vertex_faces[bv]:
-            for vi in F[face_id]:
-                neighbor_labels.update(final_labels[vi])
-        final_labels[bv] = sorted(neighbor_labels)
-
-    return final_labels
-
-
-def flood_fill_vertex_patches_with_multilabels_updated(V, F, boundary_verts, polylines):
-    boundary_set = set(boundary_verts)
+def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
+    boundary_set = set([x for xs in polylines for x in xs])
 
     adjacency = defaultdict(set)
     for face in F:
@@ -482,35 +410,7 @@ def flood_fill_vertex_patches_with_multilabels_updated(V, F, boundary_verts, pol
     return labels_dict, excluded_labels
 
 
-def extract_and_save_patch_meshes(V, F, vertex_labels_dict):
-    patch_faces = defaultdict(list)
-
-    for face_idx, face in enumerate(F):
-        v0, v1, v2 = face
-        common_labels = set(vertex_labels_dict[v0]) & set(vertex_labels_dict[v1]) & set(vertex_labels_dict[v2])
-        for lbl in common_labels:
-            patch_faces[lbl].append(face)
-
-    patches = [trimesh.Trimesh()] * len(patch_faces)
-    excluded_patch_idxs = []
-
-    for patch_id, face_list in patch_faces.items():
-        face_array = np.array(face_list)
-        unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
-
-        for excl_v in exclude_patch_vidxs:
-            if excl_v in unique_verts:
-                excluded_patch_idxs.append(patch_id)
-
-        V_patch = V[unique_verts]
-        F_patch = inverse_indices.reshape((-1, 3))
-        mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
-        patches[patch_id] = mesh_patch
-    
-    return patches, excluded_patch_idxs
-
-
-def extract_and_save_patch_meshes_updated(V, F, vertex_labels_dict, excluded_labels):
+def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
     patch_faces = defaultdict(list)
 
     for face_idx, face in enumerate(F):
@@ -526,20 +426,44 @@ def extract_and_save_patch_meshes_updated(V, F, vertex_labels_dict, excluded_lab
                 patch_faces[lbl].append(face)
 
     patches = [trimesh.Trimesh()] * len(patch_faces)
+    vertex_patch_index_map = dict()
 
     for patch_id, face_list in patch_faces.items():
-        if len(face_list) < 10:
+        if len(face_list) < 20:
             excluded_labels.add(patch_id)
 
         face_array = np.array(face_list)
         unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
 
+        for local_idx, original_idx in enumerate(unique_verts):
+            if original_idx not in vertex_patch_index_map:
+                vertex_patch_index_map[original_idx] = {}
+            vertex_patch_index_map[original_idx][patch_id] = local_idx
+
         V_patch = V[unique_verts]
         F_patch = inverse_indices.reshape((-1, 3))
         mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
         patches[patch_id] = mesh_patch
+
+    valid_patch_labels = set(range(len(patch_faces))) - set(excluded_labels)
     
-    return patches, list(excluded_labels)
+    return patches, valid_patch_labels, vertex_patch_index_map
+
+
+def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map):
+    seamlines_dict = defaultdict(list)
+    for boundary_indices in boundary_indices_array:
+        for vidx in boundary_indices:
+            v_labels = v_labels_dict[vidx]
+            filtered_labels = set(v_labels) & valid_patch_labels
+            patch_pairs = list(combinations(filtered_labels, 2))
+
+            for patch_pair in patch_pairs:
+                patch1_idx = vertex_patch_index_map[vidx][patch_pair[0]]
+                patch2_idx = vertex_patch_index_map[vidx][patch_pair[1]]
+
+                seamlines_dict[patch_pair].append((patch1_idx, patch2_idx))
+    return seamlines_dict
 
 
 def cut_paths(mesh, keypoints_batch):
@@ -550,19 +474,13 @@ def cut_paths(mesh, keypoints_batch):
     keypoint_coordinates = []
     for pair in keypoints_batch:
         keypoint_coordinates.append([V[pair[0]], V[pair[-1]]])
-    newV, newF, geodesic_indices = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
+    newV, newF, boundary_indices_array = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
 
-    flat_indices = [x for xs in geodesic_indices for x in xs]
-    #v_labels_dict = flood_fill_vertex_patches_with_multilabels(newV, newF, flat_indices, geodesic_indices)
-    v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels_updated(newV, newF, flat_indices, geodesic_indices)
-    #patches, excluded_patch_idxs = extract_and_save_patch_meshes(newV, newF, v_labels_dict)
-    patches, excluded_patch_idxs = extract_and_save_patch_meshes_updated(newV, newF, v_labels_dict, excluded_labels)
+    v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
+    patches, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
+    seamlines_dict = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
 
-    trimesh.PointCloud(vertices=newV[flat_indices]).export('cuts.ply')
-    for i, geodesic_idxs in enumerate(geodesic_indices):
-        trimesh.PointCloud(vertices=newV[geodesic_idxs]).export(f'cuts_{i}.ply')
-
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, excluded_patch_idxs
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, valid_patch_labels
 
  
 def _barycentric_coordinates(P, A, B, C):
