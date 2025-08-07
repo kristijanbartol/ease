@@ -451,21 +451,34 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
 
 
 def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map):
-    seamlines_dict = defaultdict(list)
+    '''
+    vertex_patch_index_map: {vidx: {label: patch_vidx}}, e.g., {115: {3: 312, 4: 1117, 6: 2}}
+    '''
+    seamlines_dict_list = []
     for boundary_indices in boundary_indices_array:
+        seamlines_dict = defaultdict(list)
+        is_seamline = True
+
         for vidx in boundary_indices:
-            if vidx == 5290:
-                print('')
             v_labels = v_labels_dict[vidx]
             filtered_labels = sorted(set(v_labels) & valid_patch_labels)
+            if len(filtered_labels) == 1:    # then it's a boundary, not a seamline
+                is_seamline = False
+                break
             patch_pairs = list(combinations(filtered_labels, 2))
 
             for patch_pair in patch_pairs:
                 patch1_idx = vertex_patch_index_map[vidx][patch_pair[0]]
                 patch2_idx = vertex_patch_index_map[vidx][patch_pair[1]]
-
                 seamlines_dict[patch_pair].append((patch1_idx, patch2_idx))
-    return seamlines_dict
+
+        for patch_pair in list(seamlines_dict.keys()):
+            if len(seamlines_dict[patch_pair]) <= 2:
+                del(seamlines_dict[patch_pair])
+
+        if is_seamline:
+            seamlines_dict_list.append(seamlines_dict)
+    return seamlines_dict_list
 
 
 def cut_paths(mesh, keypoints_batch):
@@ -480,16 +493,9 @@ def cut_paths(mesh, keypoints_batch):
 
     v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
     patches, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
-    seamlines_dict = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
+    seamlines_dict_list = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
 
-    for patch_pair in seamlines_dict:
-        first_indices = [seamlines_dict[patch_pair][x][0] for x in range(len(seamlines_dict[patch_pair]))]
-        second_indices = [seamlines_dict[patch_pair][x][1] for x in range(len(seamlines_dict[patch_pair]))]
-        
-        trimesh.PointCloud(vertices=patches[patch_pair[0]].vertices[first_indices]).export(f'seamlines_{patch_pair[0]}_{patch_pair[1]}_0.obj')
-        trimesh.PointCloud(vertices=patches[patch_pair[1]].vertices[second_indices]).export(f'seamlines_{patch_pair[0]}_{patch_pair[1]}_1.obj')
-
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, valid_patch_labels
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, seamlines_dict_list, valid_patch_labels
 
  
 def _barycentric_coordinates(P, A, B, C):
@@ -611,9 +617,18 @@ if __name__ == '__main__':
         orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
         new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
-        cut_mesh, patches, excluded_patch_idxs = cut_paths(new_mesh, full_keypoints_batch)
-        
+        cut_mesh, patches, seamlines_dict_list, excluded_patch_idxs = cut_paths(new_mesh, full_keypoints_batch)
 
+        '''
+        for seam_idx, seamlines_dict in enumerate(seamlines_dict_list):
+            for patch_pair in seamlines_dict:
+                first_indices = [seamlines_dict[patch_pair][x][0] for x in range(len(seamlines_dict[patch_pair]))]
+                second_indices = [seamlines_dict[patch_pair][x][1] for x in range(len(seamlines_dict[patch_pair]))]
+                
+                trimesh.PointCloud(vertices=patches[patch_pair[0]].vertices[first_indices]).export(f'{garment_part}_{seam_idx}_seamlines_{patch_pair[0]}_{patch_pair[1]}_0.obj')
+                trimesh.PointCloud(vertices=patches[patch_pair[1]].vertices[second_indices]).export(f'{garment_part}_{seam_idx}_seamlines_{patch_pair[0]}_{patch_pair[1]}_1.obj')
+        '''
+        
         transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
         transfer_pose = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
 
@@ -624,3 +639,12 @@ if __name__ == '__main__':
         os.makedirs(f'data/patches/{garment_part}/', exist_ok=True)
         for patch_idx, patch in enumerate(patches):
             patch.export(f'data/patches/{garment_part}/patch_{patch_idx}.ply')
+
+        os.makedirs(f'data/seamlines/{garment_part}/', exist_ok=True)
+        for seamline_idx, seamline_dict in enumerate(seamlines_dict_list):
+            for patch_pair in seamline_dict:
+                fpath = f'data/seamlines/{garment_part}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
+                with open(fpath, mode='w') as seam_f:
+                    seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
+                    for vidx_pair in seamline_dict[patch_pair]:
+                        seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
