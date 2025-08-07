@@ -648,3 +648,14 @@ if __name__ == '__main__':
                     seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
                     for vidx_pair in seamline_dict[patch_pair]:
                         seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
+
+        os.makedirs(f'data/scales/{garment_part}/', exist_ok=True)
+        for patch_id, patch in enumerate(patches):
+            fpath_u = f'data/scales/{garment_part}/patch{patch_id}_u.txt'
+            fpath_v = f'data/scales/{garment_part}/patch{patch_id}_v.txt'
+            with open(fpath_u, 'w') as f_u:
+                for _ in patch.faces:
+                    f_u.write("1.0\n")
+            with open(fpath_v, 'w') as f_v:
+                for _ in patch.faces:
+                    f_v.write("1.0\n")
