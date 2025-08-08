@@ -18,48 +18,6 @@ from itertools import combinations
 from utils import insert_midline_point
 
 
-# NOTE: Using three coordinates for some polylines to direct the path to the correct side.
-#       The third coordinates are changing the extract geodesic path.
-polylines_upper_batch = [
-    [4767, 4310],               # right armpit                  0
-    [1285, 823],                # left armpit                   1
-    [6469, 4305],               # right shoulder                2
-    [3010, 817],                # left shoulder                 3
-    [6469, 5480],               # right sleeve up               4
-    [3010, 2019],               # left sleeve up                5
-    [4767, 5568],               # right sleeve down             6
-    [1285, 2060],               # left sleeve down              7
-    [4767, 6469],               # right front arm               8
-    [1285, 3011],               # left front arm                9
-    [6469, 5345, 4767],         # right back arm                10
-    [3011, 713, 1285],          # left back arm                 11
-
-    [4305, 3060, 817],          # front neck                    12
-    [817, 1219, 4305],          # back neck                     13
-    [4310, 823],                # lower boundary (front)        14
-    [823, 3484, 4310],          # lower boundary (back)         15
-    [5480, 5568],               # right sleeve boundary         16
-    [2019, 2060],               # left sleeve boundary          17
-    [5480, 5695, 5568],         # right sleeve boundary (up)    18
-    [2019, 2234, 2060]          # left sleeve boundary (up)     19
-]
-
-
-keypoints_batch1 = [
-    [4767, 4310],
-    [6469, 4305],
-    [6469, 5480],
-    [4767, 5568],
-    [4767, 6469],
-    [6469, 5345, 4767],
-
-    [4305, 3060],
-    [817, 1219],
-    [4310],
-    [5480, 5695, 5568]
-]
-
-
 class TraversalType(Enum):
     GEODESIC = auto()
     SHORTEST_PATH = auto()
@@ -352,8 +310,17 @@ def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part)
 
 
 def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
+    '''
+    Flood fill algorithm for (multi-)labeling vertices.
+
+    Given a set of polylines ("list of lists of vertex indices"), floods the unvisited patches.
+    The unvisited patch is found by iterating through all the vertices of the mesh, checking
+    whether the vertex is already visited OR whether it's a boundary vertex, and if not,
+    traverses the patch in a BFS fashion.
+    '''
     boundary_set = set([x for xs in polylines for x in xs])
 
+    # The adjacency dictionary is used for faster and more convenient traversal.
     adjacency = defaultdict(set)
     for face in F:
         for i in range(3):
@@ -362,46 +329,61 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
             adjacency[vi].add(vj)
             adjacency[vj].add(vi)
 
-    labels_dict = defaultdict(set)
-    current_label = 0
-    excluded_labels = set()
+    labels_dict = defaultdict(set)  # for each vertex, store a set of corresponding patch labels
+    current_label = 0               # start with label=0 and increment when unexplored patch is found
+    excluded_labels = set()         # the excluded patches are the ones that contain excluded vertices (predefined and fixed)
+
+    # Some vertices remain unreached by traversal, yet surrounded by already-labeled vertices (boundaries).
+    # To find such vertices, we check whether all the neighboring labels are the same.
+    # Afterward, these vertices are labeled using the labels of their neighbors in a separate for loop below.
+    def is_surrounded(v_start):
+        neighbor_labels = [labels_dict[n] for n in adjacency[v_start]]
+        return all(lab == neighbor_labels[0] and len(lab) == 1 for lab in neighbor_labels)
 
     for v_start in range(len(V)):
-        neighbor_labels = [labels_dict[n] for n in adjacency[v_start]]
-        all_same_singleton_label = all(lab == neighbor_labels[0] and len(lab) == 1 for lab in neighbor_labels)
-        if v_start in boundary_set or len(labels_dict[v_start]) > 0 or all_same_singleton_label:
+        # if on the boundary, or already labeled, or "surrounded", do not process (continue)
+        if v_start in boundary_set or len(labels_dict[v_start]) > 0 or is_surrounded(v_start):
             continue
         queue = deque([v_start])
         labels_dict[v_start].add(current_label)
-        touched_polylines = []
-        patch_vidxs = [v_start]
+        touched_polylines = []      # record which polylines are "touched" so that we add the corresponding idxs later
+        patch_vidxs = [v_start]     # separately record patch idxs to check whether it contains the excluded idxs
 
         while queue:
             v = queue.popleft()
             for nbr in adjacency[v]:
+                # For the boundary vertices, do not label them now. Instead, record the whole polyline as "touched".
                 if nbr in boundary_set:
                     touched_polylines_idxs = []
                     for polyline_idx, polyline in enumerate(polylines):
                         if nbr in polyline:
                             touched_polylines_idxs.append(polyline_idx)
+                    # However, if the boundary vertex belongs to more than one polyline, do not label as "touched".
+                    # Note that this is not a problem, since the polyline will be touched at some other location.
                     if len(touched_polylines_idxs) == 1:                        
                         touched_polylines.append(polylines[touched_polylines_idxs[0]])
                     continue
+
+                # For the "normal" (non-boundary) neighbors, label them right away and add to the queue for traversal.
                 if len(labels_dict[nbr]) == 0:
                     queue.append(nbr)
                     labels_dict[nbr].add(current_label)
                     patch_vidxs.append(nbr)
                     
+        # For each touched polyline, label the corresponding vertices along the polylines (with the current label).
+        # Note that, when done for multiple patches (labels), the boundary vertices will "naturally" have multiple labels.
         for touched_polyline in touched_polylines:
             for tv in touched_polyline:
                 labels_dict[tv].add(current_label)
 
+        # Finally, if the excluded vertex index is part of the patch, label the whole patch as excluded.
         for excluded_vidx in exclude_patch_vidxs:
             if excluded_vidx in patch_vidxs:
                 excluded_labels.add(current_label)
 
         current_label += 1
 
+    # After the "regular" vertices are processed, the edge cases are the "surrounded" vertices that are now labeled.
     for v in range(len(V)):
         if len(labels_dict[v]) == 0:
             nbr = next(iter(adjacency[v]))
@@ -411,11 +393,19 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
 
 
 def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
+    '''
+    Extract and save patches based on the flood fill vertex labels.
+
+    In principle, the idea is to collect all the faces that belong to each patch label.
+    Based on the selected faces, we find unique vertices and select the patch meshes.
+    '''
     patch_faces = defaultdict(list)
 
     for face_idx, face in enumerate(F):
         v0, v1, v2 = face
         common_labels = set(vertex_labels_dict[v0]) & set(vertex_labels_dict[v1]) & set(vertex_labels_dict[v2])
+        # When the face with multiple common labels is found, it certainly belongs to excluded patches (edge case).
+        # In this case, we use an inner for loop and if statement to find any excluded label to use for this face.
         if len(common_labels) > 1:
             for excluded_label in excluded_labels:
                 if excluded_label in common_labels:
@@ -429,12 +419,14 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
     vertex_patch_index_map = dict()
 
     for patch_id, face_list in patch_faces.items():
+        # Another edge case. This solution works for the current designs but is not general and could fail in the future.
         if len(face_list) < 20:
             excluded_labels.add(patch_id)
 
         face_array = np.array(face_list)
         unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
 
+        # From the vertex indices from old to new, i.e., main mesh to patches.
         for local_idx, original_idx in enumerate(unique_verts):
             if original_idx not in vertex_patch_index_map:
                 vertex_patch_index_map[original_idx] = {}
@@ -445,6 +437,7 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
         mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
         patches[patch_id] = mesh_patch
 
+    # Finally, store valid patch labels for later processing.
     valid_patch_labels = set(range(len(patch_faces))) - set(excluded_labels)
     
     return patches, valid_patch_labels, vertex_patch_index_map
@@ -452,7 +445,13 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
 
 def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map):
     '''
+    Extract seamline indices as pairs of corresponding vertices in the neighboring patches.
+
+    Each seamline is a separate entry and always belongs to a single pair of patches (although not vice versa).
+    The boundaries (other) are on the border of the garment and connect with the excluded patches (e.g., head etc.).
+    
     vertex_patch_index_map: {vidx: {label: patch_vidx}}, e.g., {115: {3: 312, 4: 1117, 6: 2}}
+    seamlines_dict_list: [{(patch_idx1, patch_idx2): [(vidx_patch1, vidx_patch2)]}]
     '''
     seamlines_dict_list = []
     for boundary_indices in boundary_indices_array:
@@ -472,19 +471,19 @@ def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels,
                 patch2_idx = vertex_patch_index_map[vidx][patch_pair[1]]
                 seamlines_dict[patch_pair].append((patch1_idx, patch2_idx))
 
+        # After collecting all the seamlines, there are tips of seamlines, connected via either one or two vertices.
+        # Although these are logically valid connections, they are not useful for the energy minimization.
         for patch_pair in list(seamlines_dict.keys()):
             if len(seamlines_dict[patch_pair]) <= 2:
                 del(seamlines_dict[patch_pair])
 
+        # Finally, add only the seamlines (not other boundaries).
         if is_seamline:
             seamlines_dict_list.append(seamlines_dict)
     return seamlines_dict_list
 
 
-def cut_paths(mesh, keypoints_batch):
-    V = mesh.vertices
-    F = mesh.faces
-
+def cut_paths(V, F, keypoints_batch):
     path_solver = pp3d.ExtendedEdgeFlipGeodesicSolver(V, F)
     keypoint_coordinates = []
     for pair in keypoints_batch:
@@ -588,8 +587,6 @@ if __name__ == '__main__':
 
     for garment_part in ['upper', 'lower']:
         pose = torch.zeros((1, 23 * 3))
-        #pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
-        #pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
 
         orig_verts = smpl_model(
             body_pose=pose,
@@ -608,26 +605,14 @@ if __name__ == '__main__':
         shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
         posed_mesh = trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)
 
-
         full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, ref_keypoints_dict1, params1, garment_part)
-
 
         mesh_dir = 'data/meshes/'
         os.makedirs(mesh_dir, exist_ok=True)
         orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
         new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
-        cut_mesh, patches, seamlines_dict_list, excluded_patch_idxs = cut_paths(new_mesh, full_keypoints_batch)
-
-        '''
-        for seam_idx, seamlines_dict in enumerate(seamlines_dict_list):
-            for patch_pair in seamlines_dict:
-                first_indices = [seamlines_dict[patch_pair][x][0] for x in range(len(seamlines_dict[patch_pair]))]
-                second_indices = [seamlines_dict[patch_pair][x][1] for x in range(len(seamlines_dict[patch_pair]))]
-                
-                trimesh.PointCloud(vertices=patches[patch_pair[0]].vertices[first_indices]).export(f'{garment_part}_{seam_idx}_seamlines_{patch_pair[0]}_{patch_pair[1]}_0.obj')
-                trimesh.PointCloud(vertices=patches[patch_pair[1]].vertices[second_indices]).export(f'{garment_part}_{seam_idx}_seamlines_{patch_pair[0]}_{patch_pair[1]}_1.obj')
-        '''
+        cut_mesh, patches, seamlines_dict_list, excluded_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
         
         transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
         transfer_pose = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
