@@ -14,6 +14,7 @@ from scipy.spatial import cKDTree
 import igl
 import heapq
 from itertools import combinations
+import shutil
 
 from utils import insert_midline_point
 
@@ -392,6 +393,17 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
     return labels_dict, excluded_labels
 
 
+def extract_patch(V, face_list):
+    face_array = np.array(face_list)
+    unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
+
+    V_patch = V[unique_verts]
+    F_patch = inverse_indices.reshape((-1, 3))
+    patch_mesh = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
+
+    return patch_mesh, unique_verts
+
+
 def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
     '''
     Extract and save patches based on the flood fill vertex labels.
@@ -423,8 +435,8 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
         if len(face_list) < 20:
             excluded_labels.add(patch_id)
 
-        face_array = np.array(face_list)
-        unique_verts, inverse_indices = np.unique(face_array.flatten(), return_inverse=True)
+        patch_mesh, unique_verts = extract_patch(V, face_list)
+        patches[patch_id] = patch_mesh
 
         # From the vertex indices from old to new, i.e., main mesh to patches.
         for local_idx, original_idx in enumerate(unique_verts):
@@ -432,15 +444,10 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
                 vertex_patch_index_map[original_idx] = {}
             vertex_patch_index_map[original_idx][patch_id] = local_idx
 
-        V_patch = V[unique_verts]
-        F_patch = inverse_indices.reshape((-1, 3))
-        mesh_patch = trimesh.Trimesh(vertices=V_patch, faces=F_patch, process=False)
-        patches[patch_id] = mesh_patch
-
     # Finally, store valid patch labels for later processing.
     valid_patch_labels = set(range(len(patch_faces))) - set(excluded_labels)
     
-    return patches, valid_patch_labels, vertex_patch_index_map
+    return patches, patch_faces, valid_patch_labels, vertex_patch_index_map
 
 
 def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map):
@@ -491,10 +498,18 @@ def cut_paths(V, F, keypoints_batch):
     newV, newF, boundary_indices_array = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
 
     v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
-    patches, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
+    patches, patch_faces, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
     seamlines_dict_list = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
 
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, seamlines_dict_list, valid_patch_labels
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, valid_patch_labels
+
+
+def extract_target_patches(target_mesh, ref_patches, patch_faces):
+    target_patches = []
+    for patch_idx, ref_patch in enumerate(ref_patches):
+        patch_mesh, _ = extract_patch(target_mesh.vertices, patch_faces[patch_idx])
+        target_patches.append(patch_mesh)
+    return target_patches
 
  
 def _barycentric_coordinates(P, A, B, C):
@@ -603,7 +618,7 @@ if __name__ == '__main__':
         smpl_faces = smpl_model.faces
         orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
         shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-        posed_mesh = trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)
+        posed_meshes = [trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)]
 
         full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, ref_keypoints_dict1, params1, garment_part)
 
@@ -612,35 +627,53 @@ if __name__ == '__main__':
         orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
         new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
-        cut_mesh, patches, seamlines_dict_list, excluded_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
+        cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
         
+        target_patches_list = []
+        for posed_mesh in posed_meshes:
+            target_pose_mesh = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
+            target_patches = extract_target_patches(target_pose_mesh, patches, patch_faces)
+            target_patches_list.append(target_patches)
+
+        # TODO: integrate target shapes into the pipeline
+        # simply run the optimization etc. again for the same local scales but target shape(s)
         transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
-        transfer_pose = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
-
-        cut_mesh.export(os.path.join(mesh_dir, f'{garment_part}_cut.ply'))
         transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
-        transfer_pose.export(os.path.join(mesh_dir, f'{garment_part}_target-pose.ply'))
 
-        os.makedirs(f'data/patches/{garment_part}/', exist_ok=True)
+        garment_patches_dir = f'data/patches/{garment_part}/'
+        shutil.rmtree(garment_patches_dir)
+        os.makedirs(garment_patches_dir)
         for patch_idx, patch in enumerate(patches):
-            patch.export(f'data/patches/{garment_part}/patch_{patch_idx}.ply')
+            if patch_idx in valid_patch_idxs:
+                patch_dir = f'{garment_patches_dir}/patch_{patch_idx}/'
+                os.makedirs(patch_dir)
+                for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
+                    patch.export(f'{patch_dir}/ref.{ext}')
+                    for target_idx in range(len(target_patches_list)):
+                        target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
 
-        os.makedirs(f'data/seamlines/{garment_part}/', exist_ok=True)
+        seamline_dir = f'data/seamlines/{garment_part}/'
+        shutil.rmtree(seamline_dir)
+        os.makedirs(seamline_dir)
         for seamline_idx, seamline_dict in enumerate(seamlines_dict_list):
             for patch_pair in seamline_dict:
-                fpath = f'data/seamlines/{garment_part}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
+                fpath = f'{seamline_dir}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
                 with open(fpath, mode='w') as seam_f:
                     seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
                     for vidx_pair in seamline_dict[patch_pair]:
                         seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
 
-        os.makedirs(f'data/scales/{garment_part}/', exist_ok=True)
+        scales_dir = f'data/scales/{garment_part}/'
+        shutil.rmtree(scales_dir)
+        os.makedirs(scales_dir)
         for patch_id, patch in enumerate(patches):
-            fpath_u = f'data/scales/{garment_part}/patch{patch_id}_u.txt'
-            fpath_v = f'data/scales/{garment_part}/patch{patch_id}_v.txt'
-            with open(fpath_u, 'w') as f_u:
-                for _ in patch.faces:
-                    f_u.write("1.0\n")
-            with open(fpath_v, 'w') as f_v:
-                for _ in patch.faces:
-                    f_v.write("1.0\n")
+            if patch_idx in valid_patch_idxs:
+                fpath_u = f'{scales_dir}/patch{patch_id}_u.txt'
+                fpath_v = f'{scales_dir}/patch{patch_id}_v.txt'
+
+                with open(fpath_u, 'w') as f_u:
+                    for _ in patch.faces:
+                        f_u.write("1.0\n")
+                with open(fpath_v, 'w') as f_v:
+                    for _ in patch.faces:
+                        f_v.write("1.0\n")
