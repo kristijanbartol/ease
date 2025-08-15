@@ -16,7 +16,9 @@ import heapq
 from itertools import combinations
 import shutil
 
+from loom.const import standard5_pose
 from utils import insert_midline_point
+from loom.submodules import run_loom_optimization
 
 
 class TraversalType(Enum):
@@ -24,6 +26,9 @@ class TraversalType(Enum):
     SHORTEST_PATH = auto()
     CIRCULAR = auto()
     PLANE_CUT = auto()
+
+
+SHOULDER_KPT_IDX = 5335
 
 
 # NOTE: for symmetric designs, all keypoints are given on one side, otherwise, they are considered assymetric
@@ -330,23 +335,23 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
             adjacency[vi].add(vj)
             adjacency[vj].add(vi)
 
-    labels_dict = defaultdict(set)  # for each vertex, store a set of corresponding patch labels
-    current_label = 0               # start with label=0 and increment when unexplored patch is found
-    excluded_labels = set()         # the excluded patches are the ones that contain excluded vertices (predefined and fixed)
+    patch_idxs_dict = defaultdict(set)  # for each vertex, store a set of corresponding patch labels
+    current_patch_idx = 0               # start with label=0 and increment when unexplored patch is found
+    excluded_patch_idxs = set()         # the excluded patches are the ones that contain excluded vertices (predefined and fixed)
 
     # Some vertices remain unreached by traversal, yet surrounded by already-labeled vertices (boundaries).
     # To find such vertices, we check whether all the neighboring labels are the same.
     # Afterward, these vertices are labeled using the labels of their neighbors in a separate for loop below.
     def is_surrounded(v_start):
-        neighbor_labels = [labels_dict[n] for n in adjacency[v_start]]
-        return all(lab == neighbor_labels[0] and len(lab) == 1 for lab in neighbor_labels)
+        neighbor_patch_idxs = [patch_idxs_dict[n] for n in adjacency[v_start]]
+        return all(idx == neighbor_patch_idxs[0] and len(idx) == 1 for idx in neighbor_patch_idxs)
 
     for v_start in range(len(V)):
         # if on the boundary, or already labeled, or "surrounded", do not process (continue)
-        if v_start in boundary_set or len(labels_dict[v_start]) > 0 or is_surrounded(v_start):
+        if v_start in boundary_set or len(patch_idxs_dict[v_start]) > 0 or is_surrounded(v_start):
             continue
         queue = deque([v_start])
-        labels_dict[v_start].add(current_label)
+        patch_idxs_dict[v_start].add(current_patch_idx)
         touched_polylines = []      # record which polylines are "touched" so that we add the corresponding idxs later
         patch_vidxs = [v_start]     # separately record patch idxs to check whether it contains the excluded idxs
 
@@ -366,31 +371,31 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
                     continue
 
                 # For the "normal" (non-boundary) neighbors, label them right away and add to the queue for traversal.
-                if len(labels_dict[nbr]) == 0:
+                if len(patch_idxs_dict[nbr]) == 0:
                     queue.append(nbr)
-                    labels_dict[nbr].add(current_label)
+                    patch_idxs_dict[nbr].add(current_patch_idx)
                     patch_vidxs.append(nbr)
                     
         # For each touched polyline, label the corresponding vertices along the polylines (with the current label).
         # Note that, when done for multiple patches (labels), the boundary vertices will "naturally" have multiple labels.
         for touched_polyline in touched_polylines:
             for tv in touched_polyline:
-                labels_dict[tv].add(current_label)
+                patch_idxs_dict[tv].add(current_patch_idx)
 
         # Finally, if the excluded vertex index is part of the patch, label the whole patch as excluded.
         for excluded_vidx in exclude_patch_vidxs:
             if excluded_vidx in patch_vidxs:
-                excluded_labels.add(current_label)
+                excluded_patch_idxs.add(current_patch_idx)
 
-        current_label += 1
+        current_patch_idx += 1
 
     # After the "regular" vertices are processed, the edge cases are the "surrounded" vertices that are now labeled.
     for v in range(len(V)):
-        if len(labels_dict[v]) == 0:
+        if len(patch_idxs_dict[v]) == 0:
             nbr = next(iter(adjacency[v]))
-            labels_dict[v].add(nbr)
+            patch_idxs_dict[v].add(nbr)
 
-    return labels_dict, excluded_labels
+    return patch_idxs_dict, excluded_patch_idxs
 
 
 def extract_patch(V, face_list):
@@ -404,7 +409,7 @@ def extract_patch(V, face_list):
     return patch_mesh, unique_verts
 
 
-def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
+def extract_and_save_patch_meshes(V, F, vertex_to_patch_idxs_dict, excluded_patch_idxs):
     '''
     Extract and save patches based on the flood fill vertex labels.
 
@@ -415,16 +420,16 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
 
     for face_idx, face in enumerate(F):
         v0, v1, v2 = face
-        common_labels = set(vertex_labels_dict[v0]) & set(vertex_labels_dict[v1]) & set(vertex_labels_dict[v2])
+        common_patch_idxs = set(vertex_to_patch_idxs_dict[v0]) & set(vertex_to_patch_idxs_dict[v1]) & set(vertex_to_patch_idxs_dict[v2])
         # When the face with multiple common labels is found, it certainly belongs to excluded patches (edge case).
         # In this case, we use an inner for loop and if statement to find any excluded label to use for this face.
-        if len(common_labels) > 1:
-            for excluded_label in excluded_labels:
-                if excluded_label in common_labels:
-                    patch_faces[excluded_label].append(face)
+        if len(common_patch_idxs) > 1:
+            for excluded_patch_idx in excluded_patch_idxs:
+                if excluded_patch_idx in common_patch_idxs:
+                    patch_faces[excluded_patch_idx].append(face)
                     break
         else:
-            for lbl in common_labels:
+            for lbl in common_patch_idxs:
                 patch_faces[lbl].append(face)
 
     patches = [trimesh.Trimesh()] * len(patch_faces)
@@ -433,7 +438,7 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
     for patch_id, face_list in patch_faces.items():
         # Another edge case. This solution works for the current designs but is not general and could fail in the future.
         if len(face_list) < 20:
-            excluded_labels.add(patch_id)
+            excluded_patch_idxs.add(patch_id)
 
         patch_mesh, unique_verts = extract_patch(V, face_list)
         patches[patch_id] = patch_mesh
@@ -445,12 +450,12 @@ def extract_and_save_patch_meshes(V, F, vertex_labels_dict, excluded_labels):
             vertex_patch_index_map[original_idx][patch_id] = local_idx
 
     # Finally, store valid patch labels for later processing.
-    valid_patch_labels = set(range(len(patch_faces))) - set(excluded_labels)
+    valid_patch_idxs = set(range(len(patch_faces))) - set(excluded_patch_idxs)
     
-    return patches, patch_faces, valid_patch_labels, vertex_patch_index_map
+    return patches, patch_faces, valid_patch_idxs, vertex_patch_index_map
 
 
-def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map):
+def extract_seamlines(boundary_indices_array, v_to_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map):
     '''
     Extract seamline indices as pairs of corresponding vertices in the neighboring patches.
 
@@ -466,12 +471,12 @@ def extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels,
         is_seamline = True
 
         for vidx in boundary_indices:
-            v_labels = v_labels_dict[vidx]
-            filtered_labels = sorted(set(v_labels) & valid_patch_labels)
-            if len(filtered_labels) == 1:    # then it's a boundary, not a seamline
+            v_patch_idxs = v_to_patch_idxs_dict[vidx]
+            filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs)
+            if len(filtered_patch_idxs) == 1:    # then it's a boundary, not a seamline
                 is_seamline = False
                 break
-            patch_pairs = list(combinations(filtered_labels, 2))
+            patch_pairs = list(combinations(filtered_patch_idxs, 2))
 
             for patch_pair in patch_pairs:
                 patch1_idx = vertex_patch_index_map[vidx][patch_pair[0]]
@@ -497,11 +502,41 @@ def cut_paths(V, F, keypoints_batch):
         keypoint_coordinates.append([V[pair[0]], V[pair[-1]]])
     newV, newF, boundary_indices_array = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
 
-    v_labels_dict, excluded_labels = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
-    patches, patch_faces, valid_patch_labels, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_labels_dict, excluded_labels)
-    seamlines_dict_list = extract_seamlines(boundary_indices_array, v_labels_dict, valid_patch_labels, vertex_patch_index_map)
+    v_patch_idxs_dict, excluded_patch_idxs = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
+    patches, patch_faces, valid_patch_idxs, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_patch_idxs_dict, excluded_patch_idxs)
+    seamlines_dict_list = extract_seamlines(boundary_indices_array, v_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map)
 
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, valid_patch_labels
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, valid_patch_idxs
+
+
+def assign_patch_labels(patches, garment_part, valid_patch_idxs, ref_point):
+    symm_ref_point = ref_point.copy()
+    symm_ref_point[0] *= -1    # reflect across X
+
+    # the right point is the one with the smaller X coordinate and vice versa
+    ref_point_right = ref_point if ref_point[0] < symm_ref_point[0] else symm_ref_point
+    ref_point_left  = ref_point if ref_point[0] > symm_ref_point[0] else symm_ref_point
+
+    patch_labels = defaultdict(list)
+    for patch_idx, patch in enumerate(patches):
+        if patch_idx in valid_patch_idxs:
+            # check whether the patch is part of the sleeve
+            if garment_part == 'upper':
+                count_right = (patch.vertices[:, 0] < ref_point_right[0]).sum()
+                is_majority_right = count_right > (len(patch.vertices) / 2)
+                count_left = (patch.vertices[:, 0] > ref_point_left[0]).sum()
+                is_majority_left = count_left > (len(patch.vertices) / 2)
+
+                if is_majority_right or is_majority_left:
+                    patch_labels['sleeve'].append(patch_idx)
+            
+            # check whether the patch is a back patch
+            count_back = (patch.vertices[:, 2] < ref_point[2]).sum()
+            is_majority_back = count_back > (len(patch.vertices) / 2)
+            if is_majority_back:
+                patch_labels['back'].append(patch_idx)
+
+    return patch_labels
 
 
 def extract_target_patches(target_mesh, ref_patches, patch_faces):
@@ -585,8 +620,6 @@ def transfer_topology(orig_mesh, cut_mesh, target_mesh):
     return trimesh.Trimesh(vertices=V_Bp, faces=F_Bp, process=False)
 
 
-from loom.const import standard5_pose
-
 if __name__ == '__main__':
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
@@ -628,6 +661,7 @@ if __name__ == '__main__':
         new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
         cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
+        patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, orig_mesh.vertices[SHOULDER_KPT_IDX])
         
         target_patches_list = []
         for posed_mesh in posed_meshes:
@@ -640,12 +674,12 @@ if __name__ == '__main__':
         transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
         transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
 
-        garment_patches_dir = f'data/patches/{garment_part}/'
-        shutil.rmtree(garment_patches_dir)
-        os.makedirs(garment_patches_dir)
+        part_patches_dir = f'data/patches/{garment_part}/'
+        if os.path.isdir(part_patches_dir):
+            shutil.rmtree(part_patches_dir)
         for patch_idx, patch in enumerate(patches):
             if patch_idx in valid_patch_idxs:
-                patch_dir = f'{garment_patches_dir}/patch_{patch_idx}/'
+                patch_dir = f'{part_patches_dir}/patch_{patch_idx:02d}/'
                 os.makedirs(patch_dir)
                 for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
                     patch.export(f'{patch_dir}/ref.{ext}')
@@ -653,7 +687,8 @@ if __name__ == '__main__':
                         target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
 
         seamline_dir = f'data/seamlines/{garment_part}/'
-        shutil.rmtree(seamline_dir)
+        if os.path.isdir(seamline_dir):
+            shutil.rmtree(seamline_dir)
         os.makedirs(seamline_dir)
         for seamline_idx, seamline_dict in enumerate(seamlines_dict_list):
             for patch_pair in seamline_dict:
@@ -663,13 +698,16 @@ if __name__ == '__main__':
                     for vidx_pair in seamline_dict[patch_pair]:
                         seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
 
-        scales_dir = f'data/scales/{garment_part}/'
-        shutil.rmtree(scales_dir)
-        os.makedirs(scales_dir)
-        for patch_id, patch in enumerate(patches):
+        part_scales_dir = f'data/scales/{garment_part}/'
+        if os.path.isdir(part_scales_dir):
+            shutil.rmtree(part_scales_dir)
+        for patch_idx, patch in enumerate(patches):
             if patch_idx in valid_patch_idxs:
-                fpath_u = f'{scales_dir}/patch{patch_id}_u.txt'
-                fpath_v = f'{scales_dir}/patch{patch_id}_v.txt'
+                patch_scales_dir = os.path.join(part_scales_dir, f'patch_{patch_idx:02d}')
+                os.makedirs(patch_scales_dir)
+
+                fpath_u = f'{patch_scales_dir}/scales_u.txt'
+                fpath_v = f'{patch_scales_dir}/scales_v.txt'
 
                 with open(fpath_u, 'w') as f_u:
                     for _ in patch.faces:
@@ -677,3 +715,15 @@ if __name__ == '__main__':
                 with open(fpath_v, 'w') as f_v:
                     for _ in patch.faces:
                         f_v.write("1.0\n")
+
+        part_labels_dir = f'data/labels/{garment_part}/'
+        if os.path.isdir(part_labels_dir):
+            shutil.rmtree(part_labels_dir)
+        os.makedirs(part_labels_dir)
+        for label in patch_labels_dict:
+            fpath = os.path.join(part_labels_dir, f'{label}.txt')
+            with open(fpath, 'w') as f:
+                for patch_idx in patch_labels_dict[label]:
+                    f.write(f'{patch_idx} ')
+
+    run_loom_optimization()
