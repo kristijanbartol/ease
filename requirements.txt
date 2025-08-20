@@ -30,3 +30,5 @@ scikit-sparse
 pyrender
 # postprocess
 plyfile
+# anthropometry
+shapely

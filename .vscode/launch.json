@@ -52,8 +52,8 @@
                 "PYTHONPATH": "${workspaceFolder}"
             },
             "args": [
-                "--project_dir", "/Users/kristijanbartol/TailorLang/",
-                "--setup_config", "default"
+                //"--project_dir", "/Users/kristijanbartol/TailorLang/",
+                //"--setup_config", "default"
             ]
         }
     ]

@@ -290,7 +290,7 @@ class MeasureSMPL(Measurer):
 
         self.faces = smplx.SMPL(smpl_dir, gender='male', ext="pkl").faces
         face_segmentation_path = os.path.join(project_dir,
-                                              'tailorlang/anthropometry/data/'
+                                              'loom/anthropometry/data/'
                                               f"{self.model_type}_body_parts_2_faces.json")
         self.face_segmentation = load_face_segmentation(face_segmentation_path)
 

@@ -6,7 +6,7 @@ from copy import deepcopy
 from smplx import SMPL
 from sys import platform
 
-from loom.const import SMPL_DIR
+from loom.const import SMPL_DIR, a_pose
 from loom.anthropometry.measure import MeasureSMPL
 
 
@@ -74,6 +74,14 @@ def get_smpl_from_measures(project_dir, subject_measure_dict):
 
 
 if __name__ == '__main__':
+    best_betas = torch.tensor([[ 0.8100,  0.8800, -0.7100,  0.2424,  0.0000,  0.0000,  0.0000,  0.0000, 0.0000,  0.0000]])
+    model = SMPL(
+        model_path=os.path.join(SMPL_DIR, f'SMPL_MALE.pkl'), 
+        gender='male'
+    )
+    smpl_output = model(betas=best_betas, body_pose=a_pose())
+    trimesh.Trimesh(vertices=smpl_output.vertices.detach().cpu().numpy().squeeze(), faces=model.faces).export('subject_mesh.ply')
+
     subject_measure_dict = {
         'height': 172,
         'weight': 65.5,

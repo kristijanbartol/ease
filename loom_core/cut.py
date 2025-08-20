@@ -65,7 +65,7 @@ params1 = {
         'side': 0.5,         # [0., 1.]
         'between': 0.7,     # [0., 1.]
 
-        'bottom': 0.6       # [m]
+        'bottom': 0.7       # [m]
     }
 }
 
@@ -725,5 +725,11 @@ if __name__ == '__main__':
             with open(fpath, 'w') as f:
                 for patch_idx in patch_labels_dict[label]:
                     f.write(f'{patch_idx} ')
+
+        latest_pattern_result_dir = f'results/pattern/latest/{garment_part}/'
+        if os.path.isdir(latest_pattern_result_dir):
+            shutil.rmtree(latest_pattern_result_dir)
+        for patch_idx in valid_patch_idxs:
+            os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx}'))
 
     run_loom_optimization()
