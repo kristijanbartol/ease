@@ -32,3 +32,4 @@ pyrender
 plyfile
 # anthropometry
 shapely
+pyvista
