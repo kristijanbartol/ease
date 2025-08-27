@@ -1,0 +1,18 @@
+{
+    "pos": {
+        "mid": 0.3,
+        "neck": 0.1,
+        "shoulder": 0.7,
+        "side": 0.3
+    },
+    "length": {
+        "bottom": 0.25
+    },
+    "flag": {
+        "use_shoulder": true,
+        "use_mid": true,
+        "use_sleeve": false,
+        "is_dress": false,
+        "is_assymetric": false
+    }
+}

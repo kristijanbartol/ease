@@ -30,44 +30,7 @@ class TraversalType(Enum):
 
 SHOULDER_KPT_IDX = 5335
 
-
-# NOTE: for symmetric designs, all keypoints are given on one side, otherwise, they are considered assymetric
-ref_keypoints_dict1 = {
-    'upper': {
-        'mid': [3168, 3500],
-        'neck': [4294, 5310],
-        'shoulder': [5282, 5335],
-        'side': [5326, 4891],
-
-        'sleeve': None,
-        'bottom': None
-    },
-    'lower': {
-        'side': [4164, 4303],
-        'between': [1208, 1364],
-
-        'bottom_side': None,
-        'bottom_inner': None
-    }
-}
-
-params1 = {
-    'upper': {
-        'mid': 0.7,         # [0., 1.]
-        'neck': 0.1,        # [0., 1.]
-        'shoulder': 0.7,    # [0., 1.]
-        'side': 0.3,      # [0., 1.]
-
-        'sleeve': 0.25,      # [m]
-        'bottom': 0.25      # [m]
-    },
-    'lower': {
-        'side': 0.5,         # [0., 1.]
-        'between': 0.7,     # [0., 1.]
-
-        'bottom': 0.7       # [m]
-    }
-}
+UNIFORM_SCALE = 0.9
 
 '''
 traversal_types1 = {
@@ -218,11 +181,11 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     return core_idx_dict
 
 
-def _param_to_core_keypoints(garment_part, mesh, ref_keypoints_dict, params_dict):
+def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict):
     if garment_part == 'upper':
-        return _param_to_core_keypoints_upper(mesh, ref_keypoints_dict[garment_part], params_dict[garment_part])
+        return _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict)
     else:
-        return _param_to_core_keypoints_lower(mesh, ref_keypoints_dict[garment_part], params_dict[garment_part])
+        return _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict)
 
 
 def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
@@ -299,16 +262,16 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     return side_keypoints_batch, V, F
 
  
-def _core_to_side_keypoints(garment_part, mesh, core_idxs_dict):
+def _core_to_side_keypoints(mesh, core_idxs_dict):
     if garment_part == 'upper':
         return _core_to_side_keypoints_upper(mesh, core_idxs_dict)
     else:
         return _core_to_side_keypoints_lower(mesh, core_idxs_dict)
 
 
-def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part):
-    core_idxs_dict = _param_to_core_keypoints(garment_part, mesh, ref_keypoints_dict, params_dict)
-    side_keypoints_batch, newV, newF = _core_to_side_keypoints(garment_part, mesh, core_idxs_dict)
+def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict):
+    core_idxs_dict = _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict)
+    side_keypoints_batch, newV, newF = _core_to_side_keypoints(mesh, core_idxs_dict)
 
     new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
     full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
@@ -620,6 +583,159 @@ def transfer_topology(orig_mesh, cut_mesh, target_mesh):
     return trimesh.Trimesh(vertices=V_Bp, faces=F_Bp, process=False)
 
 
+def prepare_body_meshes(smpl_dir, gender):
+    if platform == 'darwin':
+        PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
+        SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
+    else:
+        PROJECT_DIR = '/home/kristijan/LOOM/'
+        SMPL_DIR = '/home/kristijan/data/smpl/models/'
+    GENDER = 'female'
+
+    smpl_model = SMPL(
+        model_path=os.path.join(SMPL_DIR, f'SMPL_{gender.upper()}.pkl'), 
+        gender=gender
+    )
+    pose = torch.zeros((1, 23 * 3))
+    orig_verts = smpl_model(
+        body_pose=pose,
+        betas=torch.zeros((1, 10))
+    ).vertices[0].cpu().detach().numpy()
+
+    shaped_verts = smpl_model(
+        betas=torch.ones((1, 10))
+    ).vertices[0].cpu().detach().numpy()
+    posed_verts = smpl_model(
+        betas=torch.zeros((1, 10)),
+        body_pose=standard5_pose()
+    ).vertices[0].cpu().detach().numpy()
+
+    smpl_faces = smpl_model.faces
+    orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
+    shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
+    posed_meshes = [trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)]
+
+    return smpl_model, {
+        'orig': orig_mesh,
+        'shapes': [shaped_mesh],
+        'poses': posed_meshes
+    }
+
+
+from params import REF_KPTS
+from params import process_config
+import json
+import polyscope as ps
+
+
+def prepare_ref(design_params, orig_mesh, garment_part):
+    params_dict = {k: v for key in ['pos', 'length'] for k, v in design_params[garment_part][key].items()}
+    full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, REF_KPTS[garment_part], params_dict)
+
+    mesh_dir = 'data/meshes/'
+    os.makedirs(mesh_dir, exist_ok=True)
+    orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_orig.ply'))
+    new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
+
+    cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
+    patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, orig_mesh.vertices[SHOULDER_KPT_IDX])
+
+    return cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict
+
+
+def get_pose_adapted(orig_mesh, cut_mesh, patches, patch_faces):
+    # NOTE: orig_mesh = meshes_dict['orig]
+    target_patches_list = []
+    for posed_mesh in meshes_dict['poses']:
+        target_pose_mesh = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
+        target_patches = extract_target_patches(target_pose_mesh, patches, patch_faces)
+        target_patches_list.append(target_patches)
+    return target_patches_list
+
+
+def get_shape_transferred():
+    # TODO: integrate target shapes into the pipeline
+    # simply run the optimization etc. again for the same local scales but target shape(s)
+    # TODO: add for loop
+    transfer_shape = transfer_topology(meshes_dict['orig'], cut_mesh, meshes_dict['shapes'][0])
+
+    # TODO: export logic in another function
+    #transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
+
+
+def export_patches(patches, valid_patch_idxs, garment_part):
+    part_patches_dir = f'data/patches/{garment_part}/'
+    if os.path.isdir(part_patches_dir):
+        shutil.rmtree(part_patches_dir)
+    for patch_idx, patch in enumerate(patches):
+        if patch_idx in valid_patch_idxs:
+            patch_dir = f'{part_patches_dir}/patch_{patch_idx:02d}/'
+            os.makedirs(patch_dir)
+            for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
+                patch.export(f'{patch_dir}/ref.{ext}')
+
+                # TODO: implement later
+                #for target_idx in range(len(target_patches_list)):
+                #    target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
+
+
+def export_seamlines(seamlines_dict_list, garment_part):
+    seamline_dir = f'data/seamlines/{garment_part}/'
+    if os.path.isdir(seamline_dir):
+        shutil.rmtree(seamline_dir)
+    os.makedirs(seamline_dir)
+    for seamline_idx, seamline_dict in enumerate(seamlines_dict_list):
+        for patch_pair in seamline_dict:
+            fpath = f'{seamline_dir}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
+            with open(fpath, mode='w') as seam_f:
+                seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
+                for vidx_pair in seamline_dict[patch_pair]:
+                    seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
+
+
+def export_scales(patches, valid_patch_idxs, garment_part):
+    part_scales_dir = f'data/scales/{garment_part}/'
+    if os.path.isdir(part_scales_dir):
+        shutil.rmtree(part_scales_dir)
+    for patch_idx, patch in enumerate(patches):
+        if patch_idx in valid_patch_idxs:
+            patch_scales_dir = os.path.join(part_scales_dir, f'patch_{patch_idx:02d}')
+            os.makedirs(patch_scales_dir)
+
+            fpath_u = f'{patch_scales_dir}/scales_u.txt'
+            fpath_v = f'{patch_scales_dir}/scales_v.txt'
+
+            with open(fpath_u, 'w') as f_u:
+                for _ in patch.faces:
+                    f_u.write(f"{UNIFORM_SCALE}\n")
+            with open(fpath_v, 'w') as f_v:
+                for _ in patch.faces:
+                    f_v.write("1.0\n")
+
+
+def export_patch_labels(patch_labels_dict, garment_part):
+    part_labels_dir = f'data/labels/{garment_part}/'
+    if os.path.isdir(part_labels_dir):
+        shutil.rmtree(part_labels_dir)
+    os.makedirs(part_labels_dir)
+    for label in patch_labels_dict:
+        fpath = os.path.join(part_labels_dir, f'{label}.txt')
+        with open(fpath, 'w') as f:
+            for patch_idx in patch_labels_dict[label]:
+                f.write(f'{patch_idx} ')
+
+
+def create_latest_dir(valid_patch_idxs, garment_part):
+    latest_pattern_result_dir = f'results/pattern/latest/{garment_part}/'
+    if os.path.isdir(latest_pattern_result_dir):
+        shutil.rmtree(latest_pattern_result_dir)
+    for patch_idx in valid_patch_idxs:
+        os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx}'))
+
+
+import imageio
+
+
 if __name__ == '__main__':
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
@@ -627,109 +743,85 @@ if __name__ == '__main__':
     else:
         PROJECT_DIR = '/home/kristijan/LOOM/'
         SMPL_DIR = '/home/kristijan/data/smpl/models/'
+    GENDER = 'female'
 
-    smpl_model = SMPL(
-        model_path=os.path.join(SMPL_DIR, f'SMPL_FEMALE.pkl'), 
-        gender='female'
-    )
+    with open('config/setup/loom.json') as config_f:
+        config = json.load(config_f)
 
-    for garment_part in ['upper', 'lower']:
-        pose = torch.zeros((1, 23 * 3))
+    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
+    experiment_name, design_params, hyperparams = process_config(config)
 
-        orig_verts = smpl_model(
-            body_pose=pose,
-            betas=torch.zeros((1, 10))
-        ).vertices[0].cpu().detach().numpy()
-        shaped_verts = smpl_model(
-            betas=torch.ones((1, 10))
-        ).vertices[0].cpu().detach().numpy()
-        posed_verts = smpl_model(
-            betas=torch.zeros((1, 10)),
-            body_pose=standard5_pose()
-        ).vertices[0].cpu().detach().numpy()
+    # Initialize polyscope
+    ps.init()
+    gif_images = []
 
-        smpl_faces = smpl_model.faces
-        orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
-        shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-        posed_meshes = [trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)]
+    for param_value in np.arange(0.0, 1.0, 0.2):
+        screenshot_dir = f'results/screenshots/upper_side/'
+        screenshot_path = os.path.join(screenshot_dir, f'{param_value:.2f}.png')
+        if os.path.exists(screenshot_path):
+            gif_images.append(imageio.imread(screenshot_path))
+        else:
+            ps.remove_all_structures()
 
-        full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, ref_keypoints_dict1, params1, garment_part)
+            ps_body_mesh = ps.register_surface_mesh("body", meshes_dict['orig'].vertices, meshes_dict['orig'].faces, smooth_shade=True)
+            ps_body_mesh.set_enabled(False)
 
-        mesh_dir = 'data/meshes/'
-        os.makedirs(mesh_dir, exist_ok=True)
-        orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
-        new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
+            design_params['upper']['pos']['side'] = param_value
 
-        cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
-        patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, orig_mesh.vertices[SHOULDER_KPT_IDX])
-        
-        target_patches_list = []
-        for posed_mesh in posed_meshes:
-            target_pose_mesh = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
-            target_patches = extract_target_patches(target_pose_mesh, patches, patch_faces)
-            target_patches_list.append(target_patches)
+            for garment_part in ['upper', 'lower']:
+                cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
 
-        # TODO: integrate target shapes into the pipeline
-        # simply run the optimization etc. again for the same local scales but target shape(s)
-        transfer_shape = transfer_topology(orig_mesh, cut_mesh, shaped_mesh)
-        transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
+                export_patches(patches, valid_patch_idxs, garment_part)
+                export_seamlines(seamlines_dict_list, garment_part)
+                export_scales(patches, valid_patch_idxs, garment_part)
+                export_patch_labels(patch_labels_dict, garment_part)
+                create_latest_dir(valid_patch_idxs, garment_part)
 
-        part_patches_dir = f'data/patches/{garment_part}/'
-        if os.path.isdir(part_patches_dir):
-            shutil.rmtree(part_patches_dir)
-        for patch_idx, patch in enumerate(patches):
-            if patch_idx in valid_patch_idxs:
-                patch_dir = f'{part_patches_dir}/patch_{patch_idx:02d}/'
-                os.makedirs(patch_dir)
-                for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
-                    patch.export(f'{patch_dir}/ref.{ext}')
-                    for target_idx in range(len(target_patches_list)):
-                        target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
+                garment_mesh = trimesh.util.concatenate([patches[idx] for idx in valid_patch_idxs])
+                ps.register_surface_mesh(garment_part, garment_mesh.vertices, garment_mesh.faces, smooth_shade=True)
 
-        seamline_dir = f'data/seamlines/{garment_part}/'
-        if os.path.isdir(seamline_dir):
-            shutil.rmtree(seamline_dir)
-        os.makedirs(seamline_dir)
-        for seamline_idx, seamline_dict in enumerate(seamlines_dict_list):
-            for patch_pair in seamline_dict:
-                fpath = f'{seamline_dir}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
-                with open(fpath, mode='w') as seam_f:
-                    seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
-                    for vidx_pair in seamline_dict[patch_pair]:
-                        seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
+                # Add a scalar function and a vector function defined on the mesh
+                # vertex_scalar is a length V numpy array of values
+                # face_vectors is an Fx3 array of vectors per face
 
-        part_scales_dir = f'data/scales/{garment_part}/'
-        if os.path.isdir(part_scales_dir):
-            shutil.rmtree(part_scales_dir)
-        for patch_idx, patch in enumerate(patches):
-            if patch_idx in valid_patch_idxs:
-                patch_scales_dir = os.path.join(part_scales_dir, f'patch_{patch_idx:02d}')
-                os.makedirs(patch_scales_dir)
+                # TODO: Make visualization nicer
+                '''
+                # vertex scalar = z-height (normalized to [0,1] so colormap looks nice)
+                z = cut_mesh.vertices[:, 2]
+                vertex_scalar = (z - z.min()) / (z.max() - z.min() + 1e-12)
+                ps.get_surface_mesh("my mesh").add_scalar_quantity("my_scalar", 
+                        vertex_scalar, defined_on='vertices', cmap='blues')
+                
+                # face vectors = per-face normals (optionally scaled by area for arrow length)
+                e1 = cut_mesh.vertices[cut_mesh.faces[:, 1]] - cut_mesh.vertices[cut_mesh.faces[:, 0]]
+                e2 = cut_mesh.vertices[cut_mesh.faces[:, 2]] - cut_mesh.vertices[cut_mesh.faces[:, 0]]
+                fn = np.cross(e1, e2)                                 # unnormalized normals
+                area = 0.5 * np.linalg.norm(fn, axis=1)
+                n = fn / (np.linalg.norm(fn, axis=1, keepdims=True) + 1e-12)
+                face_vectors = n * area[:, None]                      # scale by area (optional)
+                ps.get_surface_mesh("my mesh").add_vector_quantity("my_vector", 
+                        face_vectors, defined_on='faces', color=(0.2, 0.5, 0.5))
+                '''
 
-                fpath_u = f'{patch_scales_dir}/scales_u.txt'
-                fpath_v = f'{patch_scales_dir}/scales_v.txt'
+            ps.reset_camera_to_home_view()
+            params = ps.get_view_camera_parameters()
+            center = ps.get_view_center()
+            pos = np.array(params.get_position())
+            new_pos = center + (pos - center) * 0.6   # 0.6x closer
+            ps.look_at(tuple(new_pos), tuple(center))
 
-                with open(fpath_u, 'w') as f_u:
-                    for _ in patch.faces:
-                        f_u.write("1.0\n")
-                with open(fpath_v, 'w') as f_v:
-                    for _ in patch.faces:
-                        f_v.write("1.0\n")
+            os.makedirs(screenshot_dir, exist_ok=True)
+            ps.screenshot(screenshot_path)
 
-        part_labels_dir = f'data/labels/{garment_part}/'
-        if os.path.isdir(part_labels_dir):
-            shutil.rmtree(part_labels_dir)
-        os.makedirs(part_labels_dir)
-        for label in patch_labels_dict:
-            fpath = os.path.join(part_labels_dir, f'{label}.txt')
-            with open(fpath, 'w') as f:
-                for patch_idx in patch_labels_dict[label]:
-                    f.write(f'{patch_idx} ')
+            gif_images.append(imageio.imread(screenshot_path))
 
-        latest_pattern_result_dir = f'results/pattern/latest/{garment_part}/'
-        if os.path.isdir(latest_pattern_result_dir):
-            shutil.rmtree(latest_pattern_result_dir)
-        for patch_idx in valid_patch_idxs:
-            os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx}'))
+            print(f'Processed {screenshot_path}')
+            
+            #screenshot_default_name = 'screenshot_000000.png'
+            
+            #shutil.move(os.path.join(PROJECT_DIR, screenshot_default_name), os.path.join(PROJECT_DIR, screenshot_dir, f'{experiment_name}.png'))
+            #ps.show()
 
-    run_loom_optimization()
+    #imageio.mimsave(os.path.join(screenshot_dir, 'animation.gif'), gif_images, format='GIF', loop=0)
+
+    #run_loom_optimization()
