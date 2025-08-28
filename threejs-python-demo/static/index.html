@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Minimal Config Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    button { padding: 6px 12px; border-radius: 8px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; }
+    button:hover { background: #eee; }
+    #status { margin-left: 12px; }
+    pre { background: #f5f5f5; padding: 12px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Minimal Config Viewer</h1>
+  <div>
+    <button id="runBtn">Load config via /run</button>
+    <span id="status"></span>
+  </div>
+  <h2>Result</h2>
+  <pre id="output">(click the button)</pre>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "/static/three.module.js"
+  }
+}
+</script>
+
+  <script type="module" src="/static/main.js"></script>
+
+  <!-- index.html (within <body>) -->
+<h2>Parameters</h2>
+<div id="panel" style="display:grid; gap:8px; max-width:680px;">
+  <!-- One row per parameter: label | slider | number -->
+  <div class="row"><label>mid</label>
+    <input type="range"  id="mid_range" min="0" max="1" step="0.01">
+    <input type="number" id="mid_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>neck</label>
+    <input type="range"  id="neck_range" min="0" max="1" step="0.01">
+    <input type="number" id="neck_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>shoulder</label>
+    <input type="range"  id="shoulder_range" min="0" max="1" step="0.01">
+    <input type="number" id="shoulder_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>upper_side</label>
+    <input type="range"  id="upper_side_range" min="0" max="1" step="0.01">
+    <input type="number" id="upper_side_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>lower_side</label>
+    <input type="range"  id="lower_side_range" min="0" max="1" step="0.01">
+    <input type="number" id="lower_side_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>between</label>
+    <input type="range"  id="between_range" min="0" max="1" step="0.01">
+    <input type="number" id="between_num"   min="0" max="1" step="0.01">
+  </div>
+
+  <div class="row"><label>sleeve</label>
+    <input type="range"  id="sleeve_range" min="0" max="0.35" step="0.01">
+    <input type="number" id="sleeve_num"   min="0" max="0.35" step="0.01">
+  </div>
+
+  <div class="row"><label>upper_bottom</label>
+    <input type="range"  id="upper_bottom_range" min="0.15" max="0.35" step="0.01">
+    <input type="number" id="upper_bottom_num"   min="0.15" max="0.35" step="0.01">
+  </div>
+
+  <div class="row"><label>lower_bottom</label>
+    <input type="range"  id="lower_bottom_range" min="0.4" max="0.9" step="0.01">
+    <input type="number" id="lower_bottom_num"   min="0.4" max="0.9" step="0.01">
+  </div>
+
+  <div class="row"><label>upper_scale</label>
+    <input type="range"  id="upper_scale_range" min="0.8" max="2.0" step="0.01">
+    <input type="number" id="upper_scale_num"   min="0.8" max="2.0" step="0.01">
+  </div>
+
+  <div class="row"><label>lower_scale</label>
+    <input type="range"  id="lower_scale_range" min="0.8" max="2.0" step="0.01">
+    <input type="number" id="lower_scale_num"   min="0.8" max="2.0" step="0.01">
+  </div>
+
+  <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+    <button id="runParamsBtn">Run with parameters</button>
+    <span id="paramsStatus"></span>
+  </div>
+</div>
+
+<style>
+  #panel .row { display:grid; grid-template-columns: 140px 1fr 100px; gap:8px; align-items:center; }
+  #panel label { font-weight:600; }
+  input[type="number"] { width: 100px; }
+</style>
+
+
+  <!-- index.html (inside <body>) -->
+  <h2>Body Viewer</h2>
+  <div id="viewer" style="width: 100%; height: 60vh; border: 1px solid #ddd; border-radius: 8px;"></div>
+
+  <div style="margin: 8px 0;">
+    <button id="loadGarmentsBtn">Load garments</button>
+    <span id="garmentsStatus"></span>
+  </div>
+  <div id="legend" style="font-size: 12px; color: #555;"></div>
+  
+
+  <!-- load our viewer code -->
+  <script type="module" src="/static/viewer.js"></script>
+
+</body>
+</html>

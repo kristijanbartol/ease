@@ -15,34 +15,79 @@ import igl
 import heapq
 from itertools import combinations
 import shutil
-
-from loom.const import standard5_pose
-from utils import insert_midline_point
-from loom.submodules import run_loom_optimization
+import json
+import subprocess
 
 
-class TraversalType(Enum):
-    GEODESIC = auto()
-    SHORTEST_PATH = auto()
-    CIRCULAR = auto()
-    PLANE_CUT = auto()
+def insert_midline_point(verts, faces, v_idx, front=True):
+    y = verts[v_idx, 1]
+    sign = 1.0 if front else -1.0
+    # unique undirected edges
+    edges = np.unique(
+        np.sort(np.vstack([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]]), axis=1),
+        axis=0
+    )
+
+    best = (np.inf, None, None, None)  # (score, point, i0, i1)
+    for i0, i1 in edges:
+        v0, v1 = verts[i0], verts[i1]
+        if v0[2] * sign <= 0 or v1[2] * sign <= 0:
+            continue
+        t = (y - v0[1]) / (v1[1] - v0[1])
+        if 0 <= t <= 1:
+            # minimize how far BOTH edge endpoints are from X=0
+            score = max(abs(v0[0]), abs(v1[0]))
+            if score < best[0]:
+                best = (score, v0 + t * (v1 - v0), i0, i1)
+
+    _, p, i0, i1 = best
+    verts_old = verts
+    verts = np.vstack((verts, p[None]))
+    new_idx = len(verts) - 1
+
+    def orient(tri, n_ref):  # keep original face orientation
+        a, b, c = tri
+        if np.dot(np.cross(verts[b] - verts[a], verts[c] - verts[a]), n_ref) < 0:
+            return [a, c, b]
+        return tri
+
+    new_faces = []
+    for f in faces:
+        if i0 in f and i1 in f:
+            n_ref = np.cross(verts_old[f[1]] - verts_old[f[0]], verts_old[f[2]] - verts_old[f[0]])
+            third = next(v for v in f if v not in (i0, i1))
+            new_faces.append(orient([i0, new_idx, third], n_ref))
+            new_faces.append(orient([new_idx, i1, third], n_ref))
+        else:
+            new_faces.append(f)
+
+    return verts, np.asarray(new_faces, int), new_idx
+
+
+
+REF_KPTS = {
+    'upper': {
+        'mid': [3168, 3500],
+        'neck': [4294, 5310],
+        'shoulder': [5282, 5335],
+        'side': [5326, 4891],
+
+        'sleeve': None,
+        'bottom': None
+    },
+    'lower': {
+        'side': [4164, 4303],
+        'between': [1208, 1364],
+
+        'bottom_side': None,
+        'bottom_inner': None
+    }
+}
 
 
 SHOULDER_KPT_IDX = 5335
 
 UNIFORM_SCALE = 0.9
-
-'''
-traversal_types1 = {
-    'mid': TraversalType.GEODESIC,
-    'neck': TraversalType.SHORTEST_PATH,
-    'shoulder': TraversalType.CIRCULAR,
-    'side': TraversalType.GEODESIC,
-
-    'sleeve': TraversalType.GEODESIC,
-    'bottom': TraversalType.PLANE_CUT
-}
-'''
 
 exclude_patch_vidxs = [
     1999,                    # left hand
@@ -51,6 +96,105 @@ exclude_patch_vidxs = [
     3255,                   # left foot
     6736                    # right foot
 ]
+
+DESIGN_TEMPLATE = {
+    'upper': {
+        'pos': {
+            'mid': 0.1,
+            'neck': 0.1,      # assym.
+            'shoulder': 0.7,  # assym.
+            'side': 0.3,      # assym.
+        },
+        'length': {
+            'sleeve': 0.25,
+            'bottom': 0.25,   # assym.
+        },
+        'flag': {
+            'use_shoulder': True,
+            'use_mid': False,
+            'use_sleeve': True,
+            'is_dress': False,
+            'is_assymetric': False
+        }
+    },
+    'lower': {
+        'pos': {
+            'side': 0.5,
+            'between': 0.7
+        },
+        'length': {
+            'bottom': 0.7
+        },
+        'flag': {
+            'is_dress': False
+        }
+    }
+}
+
+
+HYPERPARAMS_TEMPLATE = {
+    "stretch_coef": 2.0,
+    "edges_coef": 1.0,
+    "seams_coef": 0.0,
+    "material_stretch_coef": 1.0,
+    "seamline_strategy": "average",
+    "matching_mode": "strict",
+    "num_seam_iters": 1,
+    "max_stretch": 0.05,
+    "dart_coef": 50.0,
+    "equalize_seamline_lengths": False
+}
+
+
+def tree():
+    return defaultdict(tree)
+
+
+def process_config(config):
+    design_params = tree()
+    design_params['upper']['pos']['mid'] = config['mid']
+    design_params['upper']['pos']['neck'] = config['neck']
+    design_params['upper']['pos']['shoulder']= config['shoulder']
+    design_params['upper']['pos']['side'] = config['upper_side']
+
+    design_params['upper']['length']['sleeve'] = config['sleeve']
+    design_params['upper']['length']['bottom'] = config['upper_bottom']
+
+    design_params['lower']['pos']['side'] = config['lower_side']
+    design_params['lower']['pos']['between'] = config['between']
+
+    design_params['lower']['length']['bottom'] = config['lower_bottom']
+
+    design_params['upper_scale'] = config['upper_scale']
+    design_params['lower_scale'] = config['lower_scale']
+
+    '''
+    "stretch_coef": 2.0,
+    "edges_coef": 1.0,
+    "seams_coef": 100.0,
+    "material_stretch_coef": 1.0,
+    "seamline_strategy": "average",
+    "matching_mode": "strict",
+    "num_seam_iters": 1,
+    "max_stretch": 0.05,
+    "dart_coef": 50.0,
+    "equalize_seamline_lengths": false
+    '''
+    hyperparams = defaultdict()
+    hyperparams['stretch_coef'] = 2.0
+    hyperparams['edges_coef'] = 1.0
+    hyperparams['seams_coef'] = 100.0
+    hyperparams['material_stretch_coef'] = 1.0
+    hyperparams['seamline_strategy'] = 'average'
+    hyperparams['matching_mode'] = 'strict'
+    hyperparams['num_seam_iters'] = 1
+    hyperparams['max_stretch'] = 0.05
+    hyperparams['dart_coef'] = 50.0
+    hyperparams['equalize_seamline_lengths'] = False
+
+    # add pose & shape (pre-)selection (not individual parameters)
+
+    return design_params, hyperparams
 
 
 
@@ -174,9 +318,7 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     # side-bottom, but also used for inner-bottom
     inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1])
     core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), np.zeros(3,), length=params_dict['bottom'])
-    #core_idx_dict['bottom_side'] = 6607
     core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), np.array([-0.025, 0., 0.]), length=inner_length)
-    #core_idx_dict['bottom_inner'] = 6598
 
     return core_idx_dict
 
@@ -509,89 +651,8 @@ def extract_target_patches(target_mesh, ref_patches, patch_faces):
         target_patches.append(patch_mesh)
     return target_patches
 
- 
-def _barycentric_coordinates(P, A, B, C):
-    # Compute vectors
-    v0 = B - A
-    v1 = C - A
-    v2 = P - A
 
-    # Compute dot products
-    d00 = np.dot(v0, v0)
-    d01 = np.dot(v0, v1)
-    d11 = np.dot(v1, v1)
-    d20 = np.dot(v2, v0)
-    d21 = np.dot(v2, v1)
-
-    # Compute denominator
-    denom = d00 * d11 - d01 * d01
-    if denom == 0:
-        raise ValueError("Degenerate triangle")
-
-    # Compute barycentric coordinates
-    v = (d11 * d20 - d01 * d21) / denom
-    w = (d00 * d21 - d01 * d20) / denom
-    u = 1.0 - v - w
-
-    return np.array([u, v, w])
-
-
-
-def transfer_topology(orig_mesh, cut_mesh, target_mesh):
-    # Find how many new vertices were added
-    N_orig = len(orig_mesh.vertices)
-    N_new = len(cut_mesh.vertices)
-    assert N_new >= N_orig
-    new_vertex_indices = np.arange(N_orig, N_new)
-
-    # Get added vertices in A'
-    added_vertices_Ap = cut_mesh.vertices[new_vertex_indices]
-
-    # Use libigl to find closest triangle on A for each added vertex
-    # Convert to numpy
-    V_A = np.array(orig_mesh.vertices)
-    F_A = np.array(orig_mesh.faces, dtype=np.int32)
-
-    P = np.array(added_vertices_Ap)
-    sq_dists, closest_faces, closest_pts = igl.point_mesh_squared_distance(P, V_A, F_A)
-
-    # Now compute barycentric coordinates for each added vertex
-    bary_coords = []
-    for i, v in enumerate(P):
-        f_idx = closest_faces[i]
-        tri = V_A[F_A[f_idx]]
-        b = _barycentric_coordinates(v, tri[0], tri[1], tri[2])
-        bary_coords.append((f_idx, b))
-
-    # Interpolate new vertex positions on mesh_B
-    V_B = np.array(posed_mesh.vertices)
-    F_B = np.array(posed_mesh.faces, dtype=np.int32)
-    new_vertices_B = []
-
-    for f_idx, b in bary_coords:
-        tri_B = V_B[F_B[f_idx]]
-        new_v = b[0]*tri_B[0] + b[1]*tri_B[1] + b[2]*tri_B[2]
-        new_vertices_B.append(new_v)
-
-    new_vertices_B = np.array(new_vertices_B)
-
-    # Assemble full new vertex array for mesh_B'
-    V_Bp = np.vstack([V_B, new_vertices_B])
-    F_Bp = np.array(cut_mesh.faces, dtype=np.int32)
-
-    # Save the result
-    return trimesh.Trimesh(vertices=V_Bp, faces=F_Bp, process=False)
-
-
-def prepare_body_meshes(smpl_dir, gender):
-    if platform == 'darwin':
-        PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
-        SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
-    else:
-        PROJECT_DIR = '/home/kristijan/LOOM/'
-        SMPL_DIR = '/home/kristijan/data/smpl/models/'
-    GENDER = 'female'
-
+def prepare_body_meshes(gender):
     smpl_model = SMPL(
         model_path=os.path.join(SMPL_DIR, f'SMPL_{gender.upper()}.pkl'), 
         gender=gender
@@ -602,30 +663,10 @@ def prepare_body_meshes(smpl_dir, gender):
         betas=torch.zeros((1, 10))
     ).vertices[0].cpu().detach().numpy()
 
-    shaped_verts = smpl_model(
-        betas=torch.ones((1, 10))
-    ).vertices[0].cpu().detach().numpy()
-    posed_verts = smpl_model(
-        betas=torch.zeros((1, 10)),
-        body_pose=standard5_pose()
-    ).vertices[0].cpu().detach().numpy()
-
     smpl_faces = smpl_model.faces
     orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
-    shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-    posed_meshes = [trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)]
 
-    return smpl_model, {
-        'orig': orig_mesh,
-        'shapes': [shaped_mesh],
-        'poses': posed_meshes
-    }
-
-
-from params import REF_KPTS
-from params import process_config
-import json
-import polyscope as ps
+    return smpl_model, { 'orig': orig_mesh }
 
 
 def prepare_ref(design_params, orig_mesh, garment_part):
@@ -643,26 +684,6 @@ def prepare_ref(design_params, orig_mesh, garment_part):
     return cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict
 
 
-def get_pose_adapted(orig_mesh, cut_mesh, patches, patch_faces):
-    # NOTE: orig_mesh = meshes_dict['orig]
-    target_patches_list = []
-    for posed_mesh in meshes_dict['poses']:
-        target_pose_mesh = transfer_topology(orig_mesh, cut_mesh, posed_mesh)
-        target_patches = extract_target_patches(target_pose_mesh, patches, patch_faces)
-        target_patches_list.append(target_patches)
-    return target_patches_list
-
-
-def get_shape_transferred():
-    # TODO: integrate target shapes into the pipeline
-    # simply run the optimization etc. again for the same local scales but target shape(s)
-    # TODO: add for loop
-    transfer_shape = transfer_topology(meshes_dict['orig'], cut_mesh, meshes_dict['shapes'][0])
-
-    # TODO: export logic in another function
-    #transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
-
-
 def export_patches(patches, valid_patch_idxs, garment_part):
     part_patches_dir = f'data/patches/{garment_part}/'
     if os.path.isdir(part_patches_dir):
@@ -673,10 +694,6 @@ def export_patches(patches, valid_patch_idxs, garment_part):
             os.makedirs(patch_dir)
             for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
                 patch.export(f'{patch_dir}/ref.{ext}')
-
-                # TODO: implement later
-                #for target_idx in range(len(target_patches_list)):
-                #    target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
 
 
 def export_seamlines(seamlines_dict_list, garment_part):
@@ -733,74 +750,58 @@ def create_latest_dir(valid_patch_idxs, garment_part):
         os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx}'))
 
 
-def run_gif_series():
-    import imageio
-
+def run_optimization():
+    # Get absolute paths
+    current_dir = os.getcwd()
     if platform == 'darwin':
-        PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
-        SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
+        cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/cmake-build-debug/loom")
     else:
-        PROJECT_DIR = '/home/kristijan/LOOM/'
-        SMPL_DIR = '/home/kristijan/data/smpl/models/'
-    GENDER = 'female'
-
-    with open('config/setup/loom.json') as config_f:
-        config = json.load(config_f)
-
-    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
-    experiment_name, design_params, hyperparams = process_config(config)
-
-    # Initialize polyscope
-    ps.init()
-    gif_images = []
-
-    for param_value in np.arange(0.0, 1.0, 0.2):
-        screenshot_dir = f'results/screenshots/upper_side/'
-        screenshot_path = os.path.join(screenshot_dir, f'{param_value:.2f}.png')
-        if os.path.exists(screenshot_path):
-            gif_images.append(imageio.imread(screenshot_path))
-        else:
-            ps.remove_all_structures()
-
-            ps_body_mesh = ps.register_surface_mesh("body", meshes_dict['orig'].vertices, meshes_dict['orig'].faces, smooth_shade=True)
-            ps_body_mesh.set_enabled(False)
-
-            design_params['upper']['pos']['side'] = param_value
-
-            for garment_part in ['upper', 'lower']:
-                cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
-
-                export_patches(patches, valid_patch_idxs, garment_part)
-                export_seamlines(seamlines_dict_list, garment_part)
-                export_scales(patches, valid_patch_idxs, garment_part)
-                export_patch_labels(patch_labels_dict, garment_part)
-                create_latest_dir(valid_patch_idxs, garment_part)
-
-                garment_mesh = trimesh.util.concatenate([patches[idx] for idx in valid_patch_idxs])
-                ps.register_surface_mesh(garment_part, garment_mesh.vertices, garment_mesh.faces, smooth_shade=True)
-
-            ps.reset_camera_to_home_view()
-            params = ps.get_view_camera_parameters()
-            center = ps.get_view_center()
-            pos = np.array(params.get_position())
-            new_pos = center + (pos - center) * 0.6   # 0.6x closer
-            ps.look_at(tuple(new_pos), tuple(center))
-
-            os.makedirs(screenshot_dir, exist_ok=True)
-            ps.screenshot(screenshot_path)
-
-            gif_images.append(imageio.imread(screenshot_path))
-
-            print(f'Processed {screenshot_path}')
-            
-            #screenshot_default_name = 'screenshot_000000.png'
-            
-            #shutil.move(os.path.join(PROJECT_DIR, screenshot_default_name), os.path.join(PROJECT_DIR, screenshot_dir, f'{experiment_name}.png'))
-            #ps.show()
-
-    #imageio.mimsave(os.path.join(screenshot_dir, 'animation.gif'), gif_images, format='GIF', loop=0)
-
-    #run_loom_optimization()
+        cpp_program_path = os.path.join(current_dir, "anisotropic-parameterization/build/loom")
+    root_project_path_arg = os.path.abspath(current_dir)
+    
+    # Ensure the executable exists
+    if not os.path.exists(cpp_program_path):
+        raise FileNotFoundError(f"Executable not found at: {cpp_program_path}")
+    
+    # Start with base command and config file
+    command = [
+        cpp_program_path,
+        "--config", "anisotropic-parameterization/configs/default.json"
+    ]
+    
+    # Add other parameters with their values
+    param_mapping = {
+        "matching_mode": "--matching-mode",
+        "seamline_strategy": "--seamline-strategy",
+        "num_seam_iters": "--num-seam-iters",
+        "max_stretch": "--max-stretch",
+        "material_stretch_coef": "--material-stretch-coef",
+        "stretch_coef": "--stretch-coef",
+        "edges_coef": "--edges-coef",
+        "seams_coef": "--seams-coef",
+        "dart_coef": "--dart-coef"
+    }
+    
+    print(f"Running command: {' '.join(command)}")
+    
+    try:
+        result = subprocess.run(
+            command, 
+            check=True, 
+            capture_output=True, 
+            text=True,
+            env=os.environ.copy()
+        )
+        print(f"Program output: {result.stdout}")
+        return result
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred while running the C++ program: {e}")
+        print(f"Program output: {e.stdout}")
+        print(f"Error output: {e.stderr}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        raise
 
 
 if __name__ == '__main__':
@@ -813,14 +814,16 @@ if __name__ == '__main__':
 
     GENDER = 'female'
 
-    with open('config/setup/loom.json') as config_f:
+    with open('config/setup/loom_collapsed.json') as config_f:
         config = json.load(config_f)
 
-    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
-    experiment_name, design_params, hyperparams = process_config(config)
+    smpl_model, meshes_dict = prepare_body_meshes(gender=GENDER)
+    design_params, hyperparams = process_config(config)
 
     for garment_part in ['upper', 'lower']:
         cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+
+        cut_mesh.export('data/meshes/body.ply')
 
         export_patches(patches, valid_patch_idxs, garment_part)
         export_seamlines(seamlines_dict_list, garment_part)
@@ -830,4 +833,4 @@ if __name__ == '__main__':
 
         garment_mesh = trimesh.util.concatenate([patches[idx] for idx in valid_patch_idxs])
 
-    run_loom_optimization()
+    run_optimization()
