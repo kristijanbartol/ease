@@ -1,5 +1,6 @@
 {
     "upper_design_label": "decolte",
     "lower_design_label": "base",
-    "hyperparams_label": "default"
+    "hyperparams_label": "default",
+    "body_set": "solo-female"
 }

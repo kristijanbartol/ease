@@ -137,8 +137,16 @@ def _extract_keypoint_along_path(mesh, range_idx1, range_idx2, interp: float):
     return path[min(int(interp * float((len(path)))), len(path) - 1)]
 
 
-def _extract_parametric_keypoint(mesh, starting_idx, dir_vector, offset, length: float):
-    query_p = mesh.vertices[starting_idx] + offset + dir_vector * length
+def _extract_parametric_keypoint(mesh, starting_idx, direction_label, length: float, offset=None):
+    if type(direction_label) == int:
+        end_idx = direction_label
+        dir_vector = mesh.vertices[end_idx] - mesh.vertices[starting_idx]
+    else:   # np.ndarray
+        dir_vector = direction_label
+    if offset is not None:
+        query_p = mesh.vertices[starting_idx] + offset + dir_vector * length
+    else:
+        query_p = mesh.vertices[starting_idx] + dir_vector * length
     dists = np.linalg.norm(mesh.vertices - query_p, axis=1)
     closest_vertex_index = np.argmin(dists)
     return closest_vertex_index
@@ -151,14 +159,14 @@ def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
             core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # bottom - mandatory
-    core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), np.zeros(3,), params_dict['bottom'])
+    core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), params_dict['bottom'])
 
     # sleeves - optional
     if params_dict['sleeve'] and core_idx_dict['shoulder']:
         dir_vector = np.array([-1, 0, 0])
         sleeve_length = params_dict['sleeve']
-        core_idx_dict['sleeve_up'] = _extract_parametric_keypoint(mesh, core_idx_dict['shoulder'], dir_vector, np.array([0., 0.00, 0.]), sleeve_length)
-        core_idx_dict['sleeve_down'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], dir_vector, np.zeros(3,), sleeve_length)
+        core_idx_dict['sleeve_up'] = _extract_parametric_keypoint(mesh, core_idx_dict['shoulder'], dir_vector, sleeve_length)
+        core_idx_dict['sleeve_down'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], dir_vector, sleeve_length)
 
     return core_idx_dict
 
@@ -168,15 +176,15 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     # precisely: I should have a fixed, reference keypoint that I use to get the correct direction
     core_idx_dict = {}
     for k in ref_keypoints_dict:
-        if ref_keypoints_dict[k]:
+        if ref_keypoints_dict[k] and type(ref_keypoints_dict[k]) == list:
             core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # side-bottom, but also used for inner-bottom
-    inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1])
-    core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), np.zeros(3,), length=params_dict['bottom'])
-    #core_idx_dict['bottom_side'] = 6607
-    core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), np.array([-0.025, 0., 0.]), length=inner_length)
-    #core_idx_dict['bottom_inner'] = 6598
+    inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1]) * 0.6     # TODO: DO THIS PROPERLY !!!!
+    core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], ref_keypoints_dict['bottom_side_ref'], length=params_dict['bottom'])
+    #core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), length=params_dict['bottom'])
+    core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], length=inner_length)
+    #core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), length=inner_length, offset=np.array([-0.025, 0., 0.]))
 
     return core_idx_dict
 
@@ -418,7 +426,7 @@ def extract_and_save_patch_meshes(V, F, vertex_to_patch_idxs_dict, excluded_patc
     return patches, patch_faces, valid_patch_idxs, vertex_patch_index_map
 
 
-def extract_seamlines(boundary_indices_array, v_to_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map):
+def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map):
     '''
     Extract seamline indices as pairs of corresponding vertices in the neighboring patches.
 
@@ -455,7 +463,17 @@ def extract_seamlines(boundary_indices_array, v_to_patch_idxs_dict, valid_patch_
         # Finally, add only the seamlines (not other boundaries).
         if is_seamline:
             seamlines_dict_list.append(seamlines_dict)
-    return seamlines_dict_list
+        
+    symmetric_seamline_flags = [False] * len(seamlines_dict_list)
+    for seam_idx in range(len(seamlines_dict_list)):
+        patch_pair, vertex_pairs_list = next(iter(seamlines_dict_list[seam_idx].items()))    # take the one and only seam (using dictionary to have the label pair (patch1_idx, patch2_idx))
+        patch_element = 0   # use the first patch for fetching the vertex indices and using the patch idx
+        patch_idx = patch_pair[patch_element]
+        verts = np.array([patches[patch_idx].vertices[vertex_pair[patch_element]] for vertex_pair in vertex_pairs_list])
+        if np.mean(np.abs(verts[:, 0]) < 9e-3) > 0.9:
+            symmetric_seamline_flags[seam_idx] = True
+
+    return seamlines_dict_list, symmetric_seamline_flags
 
 
 def cut_paths(V, F, keypoints_batch):
@@ -467,9 +485,9 @@ def cut_paths(V, F, keypoints_batch):
 
     v_patch_idxs_dict, excluded_patch_idxs = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
     patches, patch_faces, valid_patch_idxs, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_patch_idxs_dict, excluded_patch_idxs)
-    seamlines_dict_list = extract_seamlines(boundary_indices_array, v_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map)
+    seamlines_dict_list, symmetric_seamline_flags = extract_seamlines(patches, boundary_indices_array, v_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map)
 
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, valid_patch_idxs
+    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs
 
 
 def assign_patch_labels(patches, garment_part, valid_patch_idxs, ref_point):
@@ -637,10 +655,10 @@ def prepare_ref(design_params, orig_mesh, garment_part):
     orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_orig.ply'))
     new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
-    cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
+    cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
     patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, orig_mesh.vertices[SHOULDER_KPT_IDX])
 
-    return cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict
+    return cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict
 
 
 def get_pose_adapted(orig_mesh, cut_mesh, patches, patch_faces):
@@ -679,7 +697,7 @@ def export_patches(patches, valid_patch_idxs, garment_part):
                 #    target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
 
 
-def export_seamlines(seamlines_dict_list, garment_part):
+def export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part):
     seamline_dir = f'data/seamlines/{garment_part}/'
     if os.path.isdir(seamline_dir):
         shutil.rmtree(seamline_dir)
@@ -688,6 +706,7 @@ def export_seamlines(seamlines_dict_list, garment_part):
         for patch_pair in seamline_dict:
             fpath = f'{seamline_dir}/seam-{seamline_idx}_{patch_pair[0]}-{patch_pair[1]}.txt'
             with open(fpath, mode='w') as seam_f:
+                seam_f.write('1\n' if symmetric_seamline_flags[seamline_idx] else '0\n')
                 seam_f.write(f'{patch_pair[0]}\n{patch_pair[1]}\n')
                 for vidx_pair in seamline_dict[patch_pair]:
                     seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
@@ -748,7 +767,7 @@ def run_gif_series():
         config = json.load(config_f)
 
     smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
-    experiment_name, design_params, hyperparams = process_config(config)
+    experiment_name, design_params, hyperparams, _ = process_config(config)
 
     # Initialize polyscope
     ps.init()
@@ -768,10 +787,10 @@ def run_gif_series():
             design_params['upper']['pos']['side'] = param_value
 
             for garment_part in ['upper', 'lower']:
-                cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+                cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
 
                 export_patches(patches, valid_patch_idxs, garment_part)
-                export_seamlines(seamlines_dict_list, garment_part)
+                export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
                 export_scales(patches, valid_patch_idxs, garment_part)
                 export_patch_labels(patch_labels_dict, garment_part)
                 create_latest_dir(valid_patch_idxs, garment_part)
@@ -803,6 +822,19 @@ def run_gif_series():
     #run_loom_optimization()
 
 
+def run_design(config):
+    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
+
+    for garment_part in ['upper', 'lower']:
+        cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+
+        export_patches(patches, valid_patch_idxs, garment_part)
+        export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
+        export_scales(patches, valid_patch_idxs, garment_part)
+        export_patch_labels(patch_labels_dict, garment_part)
+        create_latest_dir(valid_patch_idxs, garment_part)
+
+
 if __name__ == '__main__':
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
@@ -817,17 +849,15 @@ if __name__ == '__main__':
         config = json.load(config_f)
 
     smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
-    experiment_name, design_params, hyperparams = process_config(config)
+    experiment_name, design_params, hyperparams, _ = process_config(config)
 
     for garment_part in ['upper', 'lower']:
-        cut_mesh, patches, patch_faces, seamlines_dict_list, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+        cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
 
         export_patches(patches, valid_patch_idxs, garment_part)
-        export_seamlines(seamlines_dict_list, garment_part)
+        export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
         export_scales(patches, valid_patch_idxs, garment_part)
         export_patch_labels(patch_labels_dict, garment_part)
         create_latest_dir(valid_patch_idxs, garment_part)
 
-        garment_mesh = trimesh.util.concatenate([patches[idx] for idx in valid_patch_idxs])
-
-    run_loom_optimization()
+    run_loom_optimization(hyperparams)

@@ -1,7 +1,7 @@
 {
     "stretch_coef": 2.0,
     "edges_coef": 1.0,
-    "seams_coef": 100.0,
+    "seams_coef": 0.5,
     "material_stretch_coef": 1.0,
     "seamline_strategy": "average",
     "matching_mode": "strict",

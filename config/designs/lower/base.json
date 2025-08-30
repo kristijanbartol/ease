@@ -1,10 +1,10 @@
 {
     "pos": {
         "side": 0.5,
-        "between": 0.7
+        "between": 0.25
     },
     "length": {
-        "bottom": 0.7
+        "bottom": 0.9
     },
     "flag": {
         "is_dress": false

@@ -1,4 +1,19 @@
 import json
+import numpy as np
+import torch
+
+
+SUBJECT_BETAS = np.array([[1.09, 1.16, 1.51, 1.58, 2.1, -0.2, 0.2636, -2.3, -2.55, 0.8]])
+
+def subject_shape():
+    return torch.tensor(SUBJECT_BETAS)
+
+
+def a_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 16, -np.pi / (4 / 1.1)])
+    pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 16, np.pi / (4 / 1.1)])
+    return pose
 
 
 REF_KPTS = {
@@ -15,8 +30,8 @@ REF_KPTS = {
         'side': [4164, 4303],
         'between': [1208, 1364],
 
-        'bottom_side': None,
-        'bottom_inner': None
+        'bottom_side_ref': 6604,    # references for the direction of the cut
+        'bottom_inner_ref': 6833
     }
 }
 
@@ -79,7 +94,7 @@ HYPERPARAMS_TEMPLATE = {
 def process_config(config):
     # <upper_design>-<lower_design>_upper-<valX.Y>-..._lower-<valX.Y>-..._scaleX.Y_<scaleH>X.Y_<rigidH>X.Y_<seamsH>X.Y_<materialH>X.Y_FFF
     # for each value that differs from default, point it out explicitly
-    experiment_name = f'{config["upper_design_label"]}-{config["lower_design_label"]}_upper-'
+    experiment_name = f'{config["body_set"]}_{config["upper_design_label"]}-{config["lower_design_label"]}_upper-'
     
     design_params = {}
     with open(f'config/designs/upper/{config["upper_design_label"]}.json') as upper_f:
@@ -88,6 +103,8 @@ def process_config(config):
         design_params['lower'] = json.load(lower_f)
     with open(f'config/hyperparams/{config["hyperparams_label"]}.json') as hyper_f:
         hyperparams = json.load(hyper_f)
+    with open(f'config/body_sets/{config["body_set"]}.json') as body_set_f:
+        body_set = json.load(body_set_f)
 
     def _process_v(_v):
         value = _v
@@ -108,7 +125,7 @@ def process_config(config):
         if hyperparams[pname] != HYPERPARAMS_TEMPLATE[pname]:
             experiment_name += _process_v(hyperparams[pname])
 
-    return experiment_name, design_params, hyperparams
+    return experiment_name, design_params, hyperparams, body_set
 
 
 # Q: Why wouldn't I be able to simply define the keypoints in a row and cut the proper patches based on these
