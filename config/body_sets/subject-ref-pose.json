@@ -1,6 +1,6 @@
 {
     "poses": [
-        "sit_pose"
+        "t_pose_for_cutting"
     ],
     "shapes": [
         "subject_shape"

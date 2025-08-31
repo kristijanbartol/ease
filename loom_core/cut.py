@@ -17,7 +17,8 @@ from itertools import combinations
 import shutil
 
 from loom.const import standard5_pose
-from utils import insert_midline_point
+import params
+from utils import insert_midline_point, find_midline_point
 from loom.submodules import run_loom_optimization
 
 
@@ -63,15 +64,17 @@ def _extract_symm_idx(tree, kpt_pos, kpt_idx):
     return symm_idx
 
 
+def _get_closest_idx(verts, query_p):
+    dists = np.linalg.norm(verts - query_p, axis=1)
+    closest_vertex_index = np.argmin(dists)
+    return closest_vertex_index
+
+
 def _extract_side_idx(mesh, idx1, idx2, z_offset: float):
     mid_x = (mesh.vertices[idx1][0] + mesh.vertices[idx2][0]) / 2.
     ref_y = mesh.vertices[idx1][1]
-
     query_p = np.array([mid_x, ref_y, z_offset])
-
-    dists = np.linalg.norm(mesh.vertices - query_p, axis=1)
-    closest_vertex_index = np.argmin(dists)
-    return closest_vertex_index
+    return _get_closest_idx(mesh.vertices, query_p)
 
 
 def _side_to_full_keypoints(mesh, ref_keypoints_batch):
@@ -131,10 +134,54 @@ def _astar_geodesic_path(mesh, start_vertex, end_vertex):
     return path[::-1]
 
 
-def _extract_keypoint_along_path(mesh, range_idx1, range_idx2, interp: float):
-    path = _astar_geodesic_path(mesh, range_idx1, range_idx2)
+def midline_path(mesh, start, end):
+    """
+    V: (N,3) float array of vertices
+    F: (M,3) int array of triangle indices
+    start, end: vertex indices
+    """
+    if start == end: return [start]
+    n = len(mesh.vertices)
+    x = np.abs(mesh.vertices[:, 0])
+
+    # build adjacency
+    nbr = [set() for _ in range(n)]
+    for a, b, c in mesh.faces:
+        nbr[a].update((b, c)); nbr[b].update((a, c)); nbr[c].update((a, b))
+
+    # Dijkstra with "stay near X=0" cost: edge weight = average |x|
+    INF = float('inf')
+    dist, prev = [INF]*n, [-1]*n
+    dist[start] = 0.0
+    pq = [(0.0, start)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if u == end: break
+        if d != dist[u]: continue
+        for v in nbr[u]:
+            w = 0.5*(x[u] + x[v])
+            nd = d + w
+            if nd < dist[v]:
+                dist[v], prev[v] = nd, u
+                heapq.heappush(pq, (nd, v))
+
+    # reconstruct path
+    if prev[end] == -1: return []
+    path = []
+    u = end
+    while u != -1:
+        path.append(u)
+        u = prev[u]
+    return path[::-1]
+
+
+def _extract_keypoint_along_path(mesh, range_idx1, range_idx2, interp: float, shortest=True):
+    if shortest:
+        path = _astar_geodesic_path(mesh, range_idx1, range_idx2)
+    else:
+        path = midline_path(mesh, range_idx1, range_idx2)
     # TODO: Also implement selecting the vertex using specified distance [cm].
-    return path[min(int(interp * float((len(path)))), len(path) - 1)]
+    return path[min(int(interp * float((len(path)))), len(path) - 1)], path
 
 
 def _extract_parametric_keypoint(mesh, starting_idx, direction_label, length: float, offset=None):
@@ -147,16 +194,14 @@ def _extract_parametric_keypoint(mesh, starting_idx, direction_label, length: fl
         query_p = mesh.vertices[starting_idx] + offset + dir_vector * length
     else:
         query_p = mesh.vertices[starting_idx] + dir_vector * length
-    dists = np.linalg.norm(mesh.vertices - query_p, axis=1)
-    closest_vertex_index = np.argmin(dists)
-    return closest_vertex_index
+    return _get_closest_idx(mesh.vertices, query_p)
 
 
 def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
     core_idx_dict = {}
     for k in ref_keypoints_dict:
         if ref_keypoints_dict[k]:
-            core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
+            core_idx_dict[k], _ = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # bottom - mandatory
     core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), params_dict['bottom'])
@@ -171,19 +216,29 @@ def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
     return core_idx_dict
 
 
+def _get_same_height_idx(verts, start_idx, end_idx, height_ref_idx):
+    start = verts[start_idx]
+    end = verts[end_idx]
+    direction = end - start
+    t = (verts[height_ref_idx][1] - start[1]) / direction[1]
+    point_at_y = start + t * direction
+    return _get_closest_idx(verts, point_at_y)
+
+
 def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     # TODO: implement extraction of parametric keypoint on the line between two keypoints (i.e., the second keypoint should be found more robustly)
     # precisely: I should have a fixed, reference keypoint that I use to get the correct direction
     core_idx_dict = {}
     for k in ref_keypoints_dict:
         if ref_keypoints_dict[k] and type(ref_keypoints_dict[k]) == list:
-            core_idx_dict[k] = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
+            core_idx_dict[k], _ = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # side-bottom, but also used for inner-bottom
     inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1]) * 0.6     # TODO: DO THIS PROPERLY !!!!
     core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], ref_keypoints_dict['bottom_side_ref'], length=params_dict['bottom'])
     #core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), length=params_dict['bottom'])
-    core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], length=inner_length)
+    #core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], length=inner_length)
+    core_idx_dict['bottom_inner'] = _get_same_height_idx(mesh.vertices, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], core_idx_dict['bottom_side'])
     #core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), length=inner_length, offset=np.array([-0.025, 0., 0.]))
 
     return core_idx_dict
@@ -198,6 +253,7 @@ def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict):
 
 def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
     side_keypoints_batch = []
+    smpl_traversal_pairs = []
 
     # close sleeve boundary
     if 'sleeve_up' in core_idxs_dict:
@@ -214,7 +270,9 @@ def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
     side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['mid']])
 
     # back neck
-    V, F, mid_back_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
+    V, F = mesh.vertices, mesh.faces
+    #V, F, mid_back_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
+    mid_back_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
     side_keypoints_batch.append([core_idxs_dict['neck'], mid_back_idx])
 
     # neck-shoulder
@@ -231,30 +289,43 @@ def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
     side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom']])
 
     # bottom
-    V, F, mid_front_idx = insert_midline_point(V, F, core_idxs_dict['bottom'], front=True)
-    V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['bottom'], front=False)
+    #V, F, mid_front_idx = insert_midline_point(V, F, core_idxs_dict['bottom'], front=True)
+    mid_front_idx = find_midline_point(V, F, core_idxs_dict['bottom'], front=True)
+    #V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['bottom'], front=False)
+    mid_back_idx  = find_midline_point(V, F, core_idxs_dict['bottom'], front=False)
     side_keypoints_batch.append([core_idxs_dict['bottom'], mid_front_idx])
     side_keypoints_batch.append([core_idxs_dict['bottom'], mid_back_idx])
 
     #V, F, _ = horizontal_plane_cut(V, F, V[core_idxs_dict['bottom']][1])
 
-    return side_keypoints_batch, V, F
+    #return side_keypoints_batch, smpl_traversal_pairs, V, F
+    return side_keypoints_batch, smpl_traversal_pairs
 
 
 def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     side_keypoints_batch = []
+    smpl_traversal_pairs = []
 
     # armpit-bottom
     side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
 
     # top (waistline)
-    V, F, mid_front_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
-    V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['side'], front=False)
+    V, F = mesh.vertices, mesh.faces
+    #V, F, mid_front_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
+    mid_front_idx = find_midline_point(V, F, core_idxs_dict['side'], front=True)
+    #V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['side'], front=False)
+    mid_back_idx  = find_midline_point(V, F, core_idxs_dict['side'], front=False)
     side_keypoints_batch.append([core_idxs_dict['side'], mid_front_idx])
     side_keypoints_batch.append([mid_back_idx, core_idxs_dict['side']])
 
     # mid (front/back) - between
-    side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+    #smpl_traversal_pairs.append([mid_front_idx, core_idxs_dict['between']])   # traverse mid-between (front) directly on SMPL (very relevant for the male model)
+    #smpl_traversal_pairs.append([mid_back_idx, core_idxs_dict['between']])   # traverse mid-between (back) directly on SMPL (very relevant for the male model)
+    #side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+    side_keypoints_batch.append([mid_front_idx, 3145])
+    side_keypoints_batch.append([3145, 3149])
+    side_keypoints_batch.append([3149, 1208])
+    side_keypoints_batch.append([1208, core_idxs_dict['between']])
     side_keypoints_batch.append([mid_back_idx, core_idxs_dict['between']])
 
     # between-bottom
@@ -263,11 +334,12 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     # connect bottoms
     kpt_idx1, kpt_idx2 = core_idxs_dict['bottom_side'], core_idxs_dict['bottom_inner']
     front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
-    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.05)
+    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.08)
     side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
     side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
 
-    return side_keypoints_batch, V, F
+    #return side_keypoints_batch, smpl_traversal_pairs, V, F
+    return side_keypoints_batch, smpl_traversal_pairs
 
  
 def _core_to_side_keypoints(mesh, core_idxs_dict):
@@ -277,16 +349,18 @@ def _core_to_side_keypoints(mesh, core_idxs_dict):
         return _core_to_side_keypoints_lower(mesh, core_idxs_dict)
 
 
-def param_to_full_keypoints(mesh, ref_keypoints_dict, params_dict):
-    core_idxs_dict = _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict)
-    side_keypoints_batch, newV, newF = _core_to_side_keypoints(mesh, core_idxs_dict)
+def param_to_full_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict):
+    core_idxs_dict = _param_to_core_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict)
+    #side_keypoints_batch, smpl_traversal_pairs, newV, newF = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict)
+    side_keypoints_batch, smpl_traversal_pairs = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict)
 
-    new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
-    full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
-    return full_keypoints_batch, new_mesh
+    #new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
+    #full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
+    full_keypoints_batch = _side_to_full_keypoints(t_pose_mesh, side_keypoints_batch)
+    return full_keypoints_batch, smpl_traversal_pairs
 
 
-def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
+def flood_fill_vertex_patches_with_multilabels(mesh, polylines):
     '''
     Flood fill algorithm for (multi-)labeling vertices.
 
@@ -296,6 +370,7 @@ def flood_fill_vertex_patches_with_multilabels(V, F, polylines):
     traverses the patch in a BFS fashion.
     '''
     boundary_set = set([x for xs in polylines for x in xs])
+    V, F = mesh.vertices, mesh.faces
 
     # The adjacency dictionary is used for faster and more convenient traversal.
     adjacency = defaultdict(set)
@@ -380,13 +455,14 @@ def extract_patch(V, face_list):
     return patch_mesh, unique_verts
 
 
-def extract_and_save_patch_meshes(V, F, vertex_to_patch_idxs_dict, excluded_patch_idxs):
+def extract_and_save_patch_meshes(mesh, vertex_to_patch_idxs_dict, excluded_patch_idxs):
     '''
     Extract and save patches based on the flood fill vertex labels.
 
     In principle, the idea is to collect all the faces that belong to each patch label.
     Based on the selected faces, we find unique vertices and select the patch meshes.
     '''
+    V, F = mesh.vertices, mesh.faces
     patch_faces = defaultdict(list)
 
     for face_idx, face in enumerate(F):
@@ -476,18 +552,28 @@ def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, val
     return seamlines_dict_list, symmetric_seamline_flags
 
 
-def cut_paths(V, F, keypoints_batch):
-    path_solver = pp3d.ExtendedEdgeFlipGeodesicSolver(V, F)
-    keypoint_coordinates = []
-    for pair in keypoints_batch:
-        keypoint_coordinates.append([V[pair[0]], V[pair[-1]]])
-    newV, newF, boundary_indices_array = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
+def cut_paths(template_mesh, ref_mesh, keypoints_batch, smpl_traversal_pairs):
+    path_solver = pp3d.ExtendedEdgeFlipGeodesicSolver(template_mesh.vertices, template_mesh.faces)
 
-    v_patch_idxs_dict, excluded_patch_idxs = flood_fill_vertex_patches_with_multilabels(newV, newF, boundary_indices_array)
-    patches, patch_faces, valid_patch_idxs, vertex_patch_index_map = extract_and_save_patch_meshes(newV, newF, v_patch_idxs_dict, excluded_patch_idxs)
+    keypoint_coordinates = []
+    for kpts in keypoints_batch:
+        keypoint_coordinates.append([template_mesh.vertices[kpts[0]], template_mesh.vertices[kpts[-1]]])
+
+    cutV, cutF, boundary_indices_array = path_solver.apply_cuts(keypoints_batch, keypoint_coordinates)
+    cut_mesh = trimesh.Trimesh(vertices=cutV, faces=cutF)
+    cut_mesh.export('cut_mesh.ply')
+
+    if not np.allclose(template_mesh.vertices, ref_mesh.vertices):
+        ref_mesh_with_cuts = transfer_topology(template_mesh, cut_mesh, ref_mesh)
+    else:
+        ref_mesh_with_cuts = cut_mesh
+
+    v_patch_idxs_dict, excluded_patch_idxs = flood_fill_vertex_patches_with_multilabels(cut_mesh, boundary_indices_array)
+    patches, patch_faces, valid_patch_idxs, vertex_patch_index_map = extract_and_save_patch_meshes(ref_mesh_with_cuts, v_patch_idxs_dict, excluded_patch_idxs)
+
     seamlines_dict_list, symmetric_seamline_flags = extract_seamlines(patches, boundary_indices_array, v_patch_idxs_dict, valid_patch_idxs, vertex_patch_index_map)
 
-    return trimesh.Trimesh(vertices=newV, faces=newF), patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs
+    return trimesh.Trimesh(vertices=cutV, faces=cutF), patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs
 
 
 def assign_patch_labels(patches, garment_part, valid_patch_idxs, ref_point):
@@ -582,8 +668,8 @@ def transfer_topology(orig_mesh, cut_mesh, target_mesh):
         bary_coords.append((f_idx, b))
 
     # Interpolate new vertex positions on mesh_B
-    V_B = np.array(posed_mesh.vertices)
-    F_B = np.array(posed_mesh.faces, dtype=np.int32)
+    V_B = np.array(target_mesh.vertices)
+    F_B = np.array(target_mesh.faces, dtype=np.int32)
     new_vertices_B = []
 
     for f_idx, b in bary_coords:
@@ -601,42 +687,65 @@ def transfer_topology(orig_mesh, cut_mesh, target_mesh):
     return trimesh.Trimesh(vertices=V_Bp, faces=F_Bp, process=False)
 
 
-def prepare_body_meshes(smpl_dir, gender):
+def prepare_body_meshes(smpl_dir, body_set):
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
         SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
     else:
         PROJECT_DIR = '/home/kristijan/LOOM/'
         SMPL_DIR = '/home/kristijan/data/smpl/models/'
-    GENDER = 'female'
+    gender = body_set['genders'][0]
+    gender = 'male'
 
     smpl_model = SMPL(
         model_path=os.path.join(SMPL_DIR, f'SMPL_{gender.upper()}.pkl'), 
         gender=gender
     )
-    pose = torch.zeros((1, 23 * 3))
-    orig_verts = smpl_model(
+    pose = getattr(params, body_set['poses'][0])()
+    betas = getattr(params, body_set['shapes'][0])()
+
+    zero_verts = smpl_model(
+        body_pose=params.t_pose(),
+        betas=betas
+    ).vertices[0].cpu().detach().numpy()
+    template_verts = smpl_model(
+        body_pose=params.t_pose_for_cutting(),
+        betas=betas
+    ).vertices[0].cpu().detach().numpy()
+    ref_verts = smpl_model(
         body_pose=pose,
-        betas=torch.zeros((1, 10))
+        betas=betas
     ).vertices[0].cpu().detach().numpy()
 
+    # TODO: enable more than one target pose
+    target_poses = [getattr(params, body_set['poses'][idx]) for idx in range(1, len(body_set['poses']))]
+    target_verts_list = []
+    for target_pose in target_poses:
+        posed_verts = smpl_model(
+            betas=torch.zeros((1, 10)),
+            body_pose=target_poses[0]()
+        ).vertices[0].cpu().detach().numpy()
+        target_verts_list.append(posed_verts)
+
+    # TODO: update target shapes
     shaped_verts = smpl_model(
         betas=torch.ones((1, 10))
     ).vertices[0].cpu().detach().numpy()
-    posed_verts = smpl_model(
-        betas=torch.zeros((1, 10)),
-        body_pose=standard5_pose()
-    ).vertices[0].cpu().detach().numpy()
 
     smpl_faces = smpl_model.faces
-    orig_mesh = trimesh.Trimesh(vertices=orig_verts, faces=smpl_faces)
+
+    zero_mesh = trimesh.Trimesh(vertices=zero_verts, faces=smpl_faces)
+    template_mesh = trimesh.Trimesh(vertices=template_verts, faces=smpl_faces)
+    ref_mesh = trimesh.Trimesh(vertices=ref_verts, faces=smpl_faces)
     shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-    posed_meshes = [trimesh.Trimesh(vertices=posed_verts, faces=smpl_faces)]
+    target_meshes = [trimesh.Trimesh(vertices=target_verts, faces=smpl_faces) for target_verts in target_verts_list]
 
     return smpl_model, {
-        'orig': orig_mesh,
-        'shapes': [shaped_mesh],
-        'poses': posed_meshes
+        'zero': zero_mesh,
+        'template': template_mesh,
+        'ref': ref_mesh,
+        #'shapes': [shaped_mesh],
+        'targets': target_meshes
     }
 
 
@@ -646,17 +755,22 @@ import json
 import polyscope as ps
 
 
-def prepare_ref(design_params, orig_mesh, garment_part):
+def prepare_ref(design_params, zero_mesh, template_mesh, ref_mesh, garment_part):
     params_dict = {k: v for key in ['pos', 'length'] for k, v in design_params[garment_part][key].items()}
-    full_keypoints_batch, new_mesh = param_to_full_keypoints(orig_mesh, REF_KPTS[garment_part], params_dict)
+    #full_keypoints_batch, smpl_traversal_pairs, new_mesh = param_to_full_keypoints(t_pose_mesh, REF_KPTS[garment_part], params_dict)
+    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, REF_KPTS[garment_part], params_dict)
 
     mesh_dir = 'data/meshes/'
     os.makedirs(mesh_dir, exist_ok=True)
-    orig_mesh.export(os.path.join(mesh_dir, f'{garment_part}_orig.ply'))
-    new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
+    zero_mesh.export(os.path.join(mesh_dir, f'{garment_part}_zero.ply'))
+    template_mesh.export(os.path.join(mesh_dir, f'{garment_part}_template.ply'))
+    ref_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
+    #new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
 
-    cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs = cut_paths(new_mesh.vertices, new_mesh.faces, full_keypoints_batch)
-    patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, orig_mesh.vertices[SHOULDER_KPT_IDX])
+    cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs = cut_paths(template_mesh, ref_mesh, full_keypoints_batch, smpl_traversal_pairs)
+    patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, template_mesh.vertices[SHOULDER_KPT_IDX])
+
+    cut_mesh.export(os.path.join(mesh_dir, f'{garment_part}_cut.ply'))
 
     return cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict
 
@@ -681,7 +795,7 @@ def get_shape_transferred():
     #transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
 
 
-def export_patches(patches, valid_patch_idxs, garment_part):
+def export_patches(patches, target_patches_list, valid_patch_idxs, garment_part):
     part_patches_dir = f'data/patches/{garment_part}/'
     if os.path.isdir(part_patches_dir):
         shutil.rmtree(part_patches_dir)
@@ -692,9 +806,8 @@ def export_patches(patches, valid_patch_idxs, garment_part):
             for ext in ['ply', 'obj']:  # need OBJ for the flattening optimization
                 patch.export(f'{patch_dir}/ref.{ext}')
 
-                # TODO: implement later
-                #for target_idx in range(len(target_patches_list)):
-                #    target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
+                for target_idx in range(len(target_patches_list)):
+                    target_patches_list[target_idx][patch_idx].export(f'{patch_dir}/target-{target_idx}.{ext}')
 
 
 def export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part):
@@ -712,7 +825,7 @@ def export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part
                     seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
 
 
-def export_scales(patches, valid_patch_idxs, garment_part):
+def export_scales(patches, scale, valid_patch_idxs, garment_part):
     part_scales_dir = f'data/scales/{garment_part}/'
     if os.path.isdir(part_scales_dir):
         shutil.rmtree(part_scales_dir)
@@ -726,7 +839,7 @@ def export_scales(patches, valid_patch_idxs, garment_part):
 
             with open(fpath_u, 'w') as f_u:
                 for _ in patch.faces:
-                    f_u.write(f"{UNIFORM_SCALE}\n")
+                    f_u.write(f"{scale}\n")
             with open(fpath_v, 'w') as f_v:
                 for _ in patch.faces:
                     f_v.write("1.0\n")
@@ -787,7 +900,7 @@ def run_gif_series():
             design_params['upper']['pos']['side'] = param_value
 
             for garment_part in ['upper', 'lower']:
-                cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+                cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['template'], garment_part)
 
                 export_patches(patches, valid_patch_idxs, garment_part)
                 export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
@@ -835,6 +948,14 @@ def run_design(config):
         create_latest_dir(valid_patch_idxs, garment_part)
 
 
+def prepare_targets(target_meshes, ref_mesh, prepared_ref_mesh, ref_patches, patch_faces):
+    target_patches_list = []
+    for target_mesh in target_meshes:
+        prepared_target_mesh = transfer_topology(ref_mesh, prepared_ref_mesh, target_mesh)
+        target_patches_list.append(extract_target_patches(prepared_target_mesh, ref_patches, patch_faces))
+    return target_patches_list
+
+
 if __name__ == '__main__':
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
@@ -843,20 +964,23 @@ if __name__ == '__main__':
         PROJECT_DIR = '/home/kristijan/LOOM/'
         SMPL_DIR = '/home/kristijan/data/smpl/models/'
 
-    GENDER = 'female'
+    #GENDER = 'female'
 
     with open('config/setup/loom.json') as config_f:
         config = json.load(config_f)
 
-    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
-    experiment_name, design_params, hyperparams, _ = process_config(config)
+    experiment_name, design_params, hyperparams, body_set, scales_dict = process_config(config)
+    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, body_set=body_set)
 
     for garment_part in ['upper', 'lower']:
-        cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+        prepared_ref_mesh, ref_patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(
+            design_params, meshes_dict['zero'], meshes_dict['template'], meshes_dict['ref'], garment_part)
+        
+        target_patches_list = prepare_targets(meshes_dict['targets'], meshes_dict['ref'], prepared_ref_mesh, ref_patches, patch_faces)
 
-        export_patches(patches, valid_patch_idxs, garment_part)
+        export_patches(ref_patches, target_patches_list, valid_patch_idxs, garment_part)
         export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
-        export_scales(patches, valid_patch_idxs, garment_part)
+        export_scales(ref_patches, scales_dict[garment_part], valid_patch_idxs, garment_part)
         export_patch_labels(patch_labels_dict, garment_part)
         create_latest_dir(valid_patch_idxs, garment_part)
 

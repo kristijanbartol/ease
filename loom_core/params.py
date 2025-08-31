@@ -3,16 +3,43 @@ import numpy as np
 import torch
 
 
-SUBJECT_BETAS = np.array([[1.09, 1.16, 1.51, 1.58, 2.1, -0.2, 0.2636, -2.3, -2.55, 0.8]])
+SUBJECT_BETAS = np.array([[1.09, 1.16, 1.51, 1.58, 2.1, -0.2, 0.2636, -2.3, -2.55, 0.8]], dtype=np.float32)
+
+
+def zero_shape():
+    return torch.zeros((1, 10))
 
 def subject_shape():
     return torch.tensor(SUBJECT_BETAS)
 
 
+def t_pose():
+    pose = torch.zeros((1, 23 * 3))
+    #pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    #pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
+    return pose
+
+def t_pose_for_cutting():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
+    return pose
+
 def a_pose():
     pose = torch.zeros((1, 23 * 3))
     pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 16, -np.pi / (4 / 1.1)])
     pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 16, np.pi / (4 / 1.1)])
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
+    return pose
+
+def sit_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 0*3:1*3] = torch.tensor([-np.pi / 2, 0, 0]) # left hip
+    pose[0, 1*3:2*3] = torch.tensor([-np.pi / 2, 0, 0]) # right hip
+    pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])  # left knee
+    pose[0, 4*3:5*3] = torch.tensor([np.pi / 2, 0, 0])  # right knee
+    
     return pose
 
 
@@ -31,7 +58,10 @@ REF_KPTS = {
         'between': [1208, 1364],
 
         'bottom_side_ref': 6604,    # references for the direction of the cut
-        'bottom_inner_ref': 6833
+        #'bottom_side_ref': 6728,
+        #'bottom_side_ref': 6608,
+        #'bottom_inner_ref': 6833
+        'bottom_inner_ref': 6610
     }
 }
 
@@ -125,7 +155,12 @@ def process_config(config):
         if hyperparams[pname] != HYPERPARAMS_TEMPLATE[pname]:
             experiment_name += _process_v(hyperparams[pname])
 
-    return experiment_name, design_params, hyperparams, body_set
+    scales_dict = {
+        'upper': config['upper_scales'],
+        'lower': config['lower_scales']
+    }
+
+    return experiment_name, design_params, hyperparams, body_set, scales_dict
 
 
 # Q: Why wouldn't I be able to simply define the keypoints in a row and cut the proper patches based on these
