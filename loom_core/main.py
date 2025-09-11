@@ -19,8 +19,11 @@ if __name__ == '__main__':
 
     with open('config/setup/loom.json') as config_f:
         config = json.load(config_f)
-    experiment_name, design_params, hyperparams, body_set = process_config(config)
+    #experiment_name, design_params, hyperparams, body_set = process_config(config)
 
-    run_design(config)
-    run_loom_optimization()
-    evaluate_experiment(experiment_name, config, design_params, body_set)
+    NAME = "sit_average_10.0_50"
+
+    #run_design(config)
+    #run_loom_optimization()
+    #evaluate_experiment(experiment_name, config, design_params, body_set)
+    evaluate_experiment(NAME)

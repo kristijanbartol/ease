@@ -48,7 +48,7 @@ traversal_types1 = {
 exclude_patch_vidxs = [
     1999,                    # left hand
     5460,                   # right hand
-    408,                    # face
+    348,                    # face
     3255,                   # left foot
     6736                    # right foot
 ]
@@ -200,7 +200,7 @@ def _extract_parametric_keypoint(mesh, starting_idx, direction_label, length: fl
 def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
     core_idx_dict = {}
     for k in ref_keypoints_dict:
-        if ref_keypoints_dict[k]:
+        if ref_keypoints_dict[k] and k in params_dict:
             core_idx_dict[k], _ = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # bottom - mandatory
@@ -230,7 +230,7 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     # precisely: I should have a fixed, reference keypoint that I use to get the correct direction
     core_idx_dict = {}
     for k in ref_keypoints_dict:
-        if ref_keypoints_dict[k] and type(ref_keypoints_dict[k]) == list:
+        if ref_keypoints_dict[k] and type(ref_keypoints_dict[k]) == list and k in params_dict:
             core_idx_dict[k], _ = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # side-bottom, but also used for inner-bottom
@@ -268,20 +268,23 @@ def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
 
     # mid-neck
     side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['mid']])
-
-    # back neck
+    
     V, F = mesh.vertices, mesh.faces
     #V, F, mid_back_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
     mid_back_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
     side_keypoints_batch.append([core_idxs_dict['neck'], mid_back_idx])
+
+    if 'head' in core_idxs_dict:
+        side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['head']])
+        #side_keypoints_batch.append([mid_back_idx, core_idxs_dict['head']])    # normally hood is made of two pieces, but we skip it for now
 
     # neck-shoulder
     side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['shoulder']])
 
     # shoulder loop
     kpt_idx1, kpt_idx2 = core_idxs_dict['shoulder'], core_idxs_dict['side']
-    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.05)
-    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.1)
+    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
+    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.08)
     side_keypoints_batch.append([kpt_idx2, front_idx, kpt_idx1])
     side_keypoints_batch.append([kpt_idx2, back_idx, kpt_idx1])
 
@@ -307,7 +310,25 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     smpl_traversal_pairs = []
 
     # armpit-bottom
-    side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
+    # TODO: implement this properly
+    #       # option 1: when pants are longer than knee area, then use additional keypoint
+    #       # option 2 (in addition to option 1): use Bezier curves as seam definition
+    #side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
+
+
+
+    side_keypoints_batch.append([core_idxs_dict['side'], 4495])
+    side_keypoints_batch.append([4495, 4581])
+    side_keypoints_batch.append([4581, core_idxs_dict['bottom_side']])
+
+
+    #side_keypoints_batch.append([core_idxs_dict['side'], 4495])
+    #side_keypoints_batch.append([4495, 4583])
+    #side_keypoints_batch.append([4583, core_idxs_dict['bottom_side']])
+
+
+
+
 
     # top (waistline)
     V, F = mesh.vertices, mesh.faces
@@ -322,19 +343,31 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     #smpl_traversal_pairs.append([mid_front_idx, core_idxs_dict['between']])   # traverse mid-between (front) directly on SMPL (very relevant for the male model)
     #smpl_traversal_pairs.append([mid_back_idx, core_idxs_dict['between']])   # traverse mid-between (back) directly on SMPL (very relevant for the male model)
     #side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+
+
+
     side_keypoints_batch.append([mid_front_idx, 3145])
     side_keypoints_batch.append([3145, 3149])
     side_keypoints_batch.append([3149, 1208])
     side_keypoints_batch.append([1208, core_idxs_dict['between']])
     side_keypoints_batch.append([mid_back_idx, core_idxs_dict['between']])
 
+
+
+
     # between-bottom
-    side_keypoints_batch.append([core_idxs_dict['between'], core_idxs_dict['bottom_inner']])
+    # TODO: implement this properly
+    #       # option 1: when pants are longer than knee area, then use additional keypoint
+    #       # option 2 (in addition to option 1): use Bezier curves as seam definition
+    #side_keypoints_batch.append([core_idxs_dict['between'], core_idxs_dict['bottom_inner']])
+    side_keypoints_batch.append([core_idxs_dict['between'], 4634])
+    side_keypoints_batch.append([4634, 4572])
+    side_keypoints_batch.append([4572, core_idxs_dict['bottom_inner']])
 
     # connect bottoms
     kpt_idx1, kpt_idx2 = core_idxs_dict['bottom_side'], core_idxs_dict['bottom_inner']
-    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
-    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.08)
+    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.04)
+    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.1)
     side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
     side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
 
@@ -507,7 +540,7 @@ def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, val
     Extract seamline indices as pairs of corresponding vertices in the neighboring patches.
 
     Each seamline is a separate entry and always belongs to a single pair of patches (although not vice versa).
-    The boundaries (other) are on the border of the garment and connect with the excluded patches (e.g., head etc.).
+    The boundaries (other) are on the border of the garment and connect with the excluded patches (e.g., face etc.).
     
     vertex_patch_index_map: {vidx: {label: patch_vidx}}, e.g., {115: {3: 312, 4: 1117, 6: 2}}
     seamlines_dict_list: [{(patch_idx1, patch_idx2): [(vidx_patch1, vidx_patch2)]}]
@@ -519,7 +552,8 @@ def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, val
 
         for vidx in boundary_indices:
             v_patch_idxs = v_to_patch_idxs_dict[vidx]
-            filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs)
+            #filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs)
+            filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs & set(vertex_patch_index_map[vidx].keys()))
             if len(filtered_patch_idxs) == 1:    # then it's a boundary, not a seamline
                 is_seamline = False
                 break

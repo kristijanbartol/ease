@@ -45,6 +45,7 @@ def sit_pose():
 
 REF_KPTS = {
     'upper': {
+        "head": [444, 414],
         'mid': [3168, 3500],
         'neck': [4294, 5310],
         'shoulder': [5282, 5335],
@@ -55,13 +56,14 @@ REF_KPTS = {
     },
     'lower': {
         'side': [4164, 4303],
+        #'side': [6374, 6374],
         'between': [1208, 1364],
 
         'bottom_side_ref': 6604,    # references for the direction of the cut
         #'bottom_side_ref': 6728,
-        #'bottom_side_ref': 6608,
-        #'bottom_inner_ref': 6833
-        'bottom_inner_ref': 6610
+        #'bottom_side_ref': 6729,
+        'bottom_inner_ref': 6833
+        #'bottom_inner_ref': 6610
     }
 }
 
@@ -75,6 +77,7 @@ REF_KPTS = {
 DESIGN_TEMPLATE = {
     'upper': {
         'pos': {
+            'head': 0.5,
             'mid': 0.1,
             'neck': 0.1,      # assym.
             'shoulder': 0.7,  # assym.
@@ -85,6 +88,7 @@ DESIGN_TEMPLATE = {
             'bottom': 0.25,   # assym.
         },
         'flag': {
+            'use_head': False,
             'use_shoulder': True,
             'use_mid': False,
             'use_sleeve': True,
@@ -115,6 +119,7 @@ HYPERPARAMS_TEMPLATE = {
     "seamline_strategy": "average",
     "matching_mode": "strict",
     "num_seam_iters": 1,
+    "num_inner_iters": 1,
     "max_stretch": 0.05,
     "dart_coef": 50.0,
     "equalize_seamline_lengths": False

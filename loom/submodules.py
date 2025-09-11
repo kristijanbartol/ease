@@ -95,6 +95,7 @@ def run_loom_optimization(hyperparams_config):
         "matching_mode": "--matching-mode",
         "seamline_strategy": "--seamline-strategy",
         "num_seam_iters": "--num-seam-iters",
+        "num_inner_iters": "--num-inner-iters",
         "max_stretch": "--max-stretch",
         "material_stretch_coef": "--material-stretch-coef",
         "stretch_coef": "--stretch-coef",
