@@ -207,7 +207,7 @@ def _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict):
     core_idx_dict['bottom'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), params_dict['bottom'])
 
     # sleeves - optional
-    if params_dict['sleeve'] and core_idx_dict['shoulder']:
+    if 'sleeve' in params_dict and 'shoulder' in core_idx_dict:
         dir_vector = np.array([-1, 0, 0])
         sleeve_length = params_dict['sleeve']
         core_idx_dict['sleeve_up'] = _extract_parametric_keypoint(mesh, core_idx_dict['shoulder'], dir_vector, sleeve_length)
@@ -266,38 +266,45 @@ def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
         side_keypoints_batch.append([core_idxs_dict['sleeve_up'], core_idxs_dict['shoulder']])
         side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['sleeve_down']])
 
-    # mid-neck
-    side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['mid']])
-    
     V, F = mesh.vertices, mesh.faces
-    #V, F, mid_back_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
-    mid_back_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
-    side_keypoints_batch.append([core_idxs_dict['neck'], mid_back_idx])
 
-    if 'head' in core_idxs_dict:
-        side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['head']])
-        #side_keypoints_batch.append([mid_back_idx, core_idxs_dict['head']])    # normally hood is made of two pieces, but we skip it for now
+    if 'shoulder' in core_idxs_dict:
+        if 'head' in core_idxs_dict:
+            side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['head']])
+            #side_keypoints_batch.append([mid_back_idx, core_idxs_dict['head']])    # normally hood is made of two pieces, but we skip it for now
 
-    # neck-shoulder
-    side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['shoulder']])
+        # mid-neck
+        side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['mid']])
+        
+        #V, F, mid_back_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
+        bottom_mid_back_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['neck'], front=False)
+        side_keypoints_batch.append([core_idxs_dict['neck'], bottom_mid_back_idx])
 
-    # shoulder loop
-    kpt_idx1, kpt_idx2 = core_idxs_dict['shoulder'], core_idxs_dict['side']
-    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
-    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.08)
-    side_keypoints_batch.append([kpt_idx2, front_idx, kpt_idx1])
-    side_keypoints_batch.append([kpt_idx2, back_idx, kpt_idx1])
+        # neck-shoulder
+        side_keypoints_batch.append([core_idxs_dict['neck'], core_idxs_dict['shoulder']])
+
+        # shoulder loop
+        kpt_idx1, kpt_idx2 = core_idxs_dict['shoulder'], core_idxs_dict['side']
+        front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.02)
+        back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.08)
+        side_keypoints_batch.append([kpt_idx2, front_idx, kpt_idx1])
+        side_keypoints_batch.append([kpt_idx2, back_idx, kpt_idx1])
+    else:
+        side_mid_front_idx = find_midline_point(V, F, core_idxs_dict['side'], front=True)
+        side_mid_back_idx = find_midline_point(V, F, core_idxs_dict['side'], front=False)
+        side_keypoints_batch.append([core_idxs_dict['side'], side_mid_front_idx])
+        side_keypoints_batch.append([core_idxs_dict['side'], side_mid_back_idx])
 
     # armpit-bottom
     side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom']])
 
     # bottom
     #V, F, mid_front_idx = insert_midline_point(V, F, core_idxs_dict['bottom'], front=True)
-    mid_front_idx = find_midline_point(V, F, core_idxs_dict['bottom'], front=True)
+    bottom_mid_front_idx = find_midline_point(V, F, core_idxs_dict['bottom'], front=True)
     #V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['bottom'], front=False)
-    mid_back_idx  = find_midline_point(V, F, core_idxs_dict['bottom'], front=False)
-    side_keypoints_batch.append([core_idxs_dict['bottom'], mid_front_idx])
-    side_keypoints_batch.append([core_idxs_dict['bottom'], mid_back_idx])
+    bottom_mid_back_idx  = find_midline_point(V, F, core_idxs_dict['bottom'], front=False)
+    side_keypoints_batch.append([core_idxs_dict['bottom'], bottom_mid_front_idx])
+    side_keypoints_batch.append([core_idxs_dict['bottom'], bottom_mid_back_idx])
 
     #V, F, _ = horizontal_plane_cut(V, F, V[core_idxs_dict['bottom']][1])
 
@@ -729,7 +736,7 @@ def prepare_body_meshes(smpl_dir, body_set):
         PROJECT_DIR = '/home/kristijan/LOOM/'
         SMPL_DIR = '/home/kristijan/data/smpl/models/'
     gender = body_set['genders'][0]
-    gender = 'male'
+    #gender = 'male'
 
     smpl_model = SMPL(
         model_path=os.path.join(SMPL_DIR, f'SMPL_{gender.upper()}.pkl'), 

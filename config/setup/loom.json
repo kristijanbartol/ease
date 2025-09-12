@@ -1,8 +1,8 @@
 {
-    "upper_design_label": "base_hoodie",
+    "upper_design_label": "base_shoulderless",
     "lower_design_label": "base",
     "hyperparams_label": "default",
-    "body_set": "subject-target-pose",
+    "body_set": "solo-female",
     "upper_scales": 1.0,
     "lower_scales": 0.95
 }
