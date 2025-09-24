@@ -89,7 +89,7 @@ DESIGN_TEMPLATE = {
         },
         'flag': {
             'use_head': False,
-            'use_shoulder': True,
+            'is_shoulderless': False,
             'use_mid': False,
             'use_sleeve': True,
             'is_dress': False,
@@ -155,17 +155,13 @@ def process_config(config):
                 if design_params[garment_part][vtype][vname] != DESIGN_TEMPLATE[garment_part][vtype][vname]:
                     experiment_name += _process_v(design_params[garment_part][vtype][vname])
         experiment_name += '_'
+        design_params[garment_part]['scales'] = config[f'{garment_part}_scales']
     
     for pname in hyperparams:
         if hyperparams[pname] != HYPERPARAMS_TEMPLATE[pname]:
             experiment_name += _process_v(hyperparams[pname])
 
-    scales_dict = {
-        'upper': config['upper_scales'],
-        'lower': config['lower_scales']
-    }
-
-    return experiment_name, design_params, hyperparams, body_set, scales_dict
+    return experiment_name, design_params, hyperparams, body_set
 
 
 # Q: Why wouldn't I be able to simply define the keypoints in a row and cut the proper patches based on these

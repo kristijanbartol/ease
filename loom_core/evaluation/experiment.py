@@ -4,17 +4,18 @@ import trimesh
 import numpy as np
 import ezdxf
 import svgwrite
+from plyfile import PlyData
+from collections import defaultdict
 
-#from utils import (
-    #add_uv_coordinates,
-    #ParamMeshUV
-#)
+from loom_core.evaluation.param_mesh_uv import (
+    add_uv_coordinates,
+    ParamMeshUV
+)
 
 #from loom.eval.qualitative import qualitative_evaluation
 from loom.eval.quantitative import quantitative_evaluation
-from loom.render.simple_renderer import render_simple
 
-from loom.sim.default_simulator import simulate_garment_set
+from loom_core.evaluation.sim import simulate_garment_set
 
 
 def load_uv_mesh_dict(experiment_name, optim_dress=False):
@@ -27,50 +28,30 @@ def load_uv_mesh_dict(experiment_name, optim_dress=False):
     for patch_label in os.listdir(latest_dir):
         shutil.copytree(os.path.join(latest_dir, patch_label), os.path.join(experiment_dir, patch_label), dirs_exist_ok=True)
     
-    embedded_mesh_list_dict = {
-        'upper': [],
-        'lower': []    
-    } 
-    param_2d_mesh_list_dict = {
-        'upper': [],
-        'lower': []    
-    } 
-    garment_type = 'dress' if optim_dress else 'regular'
-    for patch_label in PATCH_LIST[garment_type]:
-        embedded_mesh_path = f'data/embedded/{patch_label}/ref.ply'
-        embedded_mesh = trimesh.load(embedded_mesh_path)
-        embedded_mesh_plydata = PlyData.read(embedded_mesh_path)
-        param_2d_mesh = trimesh.load(f'results/pattern/{experiment_name}/{patch_label}/optim_final-seams.ply')
-        uv_coords = param_2d_mesh.vertices[:, :2]  
+    embedded_mesh_list_dict, param_2d_mesh_list_dict = defaultdict(list), defaultdict(list)
+    param_mesh_dict = dict()
+    garment_parts = ['upper'] if optim_dress else ['upper', 'lower']
 
-        add_uv_coordinates(embedded_mesh_plydata, uv_coords, embedded_mesh_path)
-        
-        # Add to the UV coords list
-        if 'lower' in patch_label:
-            param_2d_mesh_list_dict['lower'].append(param_2d_mesh)
-        else:
-            param_2d_mesh_list_dict['upper'].append(param_2d_mesh)
-        
-        # Add to the embedded mesh list
-        if 'lower' in patch_label:
-            embedded_mesh_list_dict['lower'].append(embedded_mesh)
-        else:
-            embedded_mesh_list_dict['upper'].append(embedded_mesh)
-            
-    param_mesh_dict = {
-        'upper': ParamMeshUV(
-            mesh_3d_list=embedded_mesh_list_dict['upper'],
-            mesh_2d_list=param_2d_mesh_list_dict['upper'],
-            garment_part='upper'
+    for garment_part in garment_parts:
+        patches_rootdir = f'data/patches/{garment_part}'
+        patch_names = os.listdir(patches_rootdir)
+        for patch_name in patch_names:
+            patch_path = f'{patches_rootdir}/{patch_name}/ref.ply'
+            embedded_mesh = trimesh.load(patch_path)
+            embedded_mesh_plydata = PlyData.read(patch_path)
+            param_2d_mesh = trimesh.load(f'results/pattern/latest/{garment_part}/{patch_name}/optim_final-seams.ply')
+            uv_coords = param_2d_mesh.vertices[:, :2]  
+
+            add_uv_coordinates(embedded_mesh_plydata, uv_coords, patch_path)
+
+            param_2d_mesh_list_dict[garment_part].append(param_2d_mesh)
+            embedded_mesh_list_dict[garment_part].append(embedded_mesh)
+
+        param_mesh_dict[garment_part] = ParamMeshUV(
+            mesh_3d_list=embedded_mesh_list_dict[garment_part],
+            mesh_2d_list=param_2d_mesh_list_dict[garment_part],
+            garment_part=garment_part
         )
-    }
-    if not optim_dress:
-        param_mesh_dict['lower'] = ParamMeshUV(
-            mesh_3d_list=embedded_mesh_list_dict['lower'],
-            mesh_2d_list=param_2d_mesh_list_dict['lower'],
-            garment_part='lower'
-        )
-        
     return param_mesh_dict
 
 
@@ -461,8 +442,8 @@ def qualitative_evaluation(name):
 
 
 #def evaluate_experiment(experiment_name, config, design_params, body_set):
-def evaluate_experiment(name):
-    #param_mesh_dict = load_uv_mesh_dict(experiment_name, config.optim_dress)
-    qualitative_evaluation(name)
+def evaluate_experiment(project_dir, smpl_dir, experiment_name, design_params, body_set, optim_dress):
+    param_mesh_dict = load_uv_mesh_dict(experiment_name, optim_dress)
+    qualitative_evaluation(experiment_name)
     #quantitative_evaluation(experiment_name)
-    #simulate_garment_set(config, experiment_name, design_params, body_set, param_mesh_dict, config.optim_dress)
+    simulate_garment_set(project_dir, smpl_dir, experiment_name, design_params, body_set, param_mesh_dict, optim_dress)

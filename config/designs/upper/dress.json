@@ -9,7 +9,7 @@
         "bottom": 0.8
     },
     "flag": {
-        "use_shoulder": true,
+        "is_shoulderless": false,
         "use_mid": false,
         "use_sleeve": true,
         "is_dress": true,

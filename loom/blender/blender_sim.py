@@ -14,6 +14,7 @@ if 'bpy' in sys.modules and not '--' in sys.argv:
     body_output_path = os.path.join(project_dir, 'results/sim/body.ply')
     shirt_output_path = os.path.join(project_dir, 'results/sim/shirt.ply')
     pant_output_path = os.path.join(project_dir, 'results/sim/pant.ply')
+    shoulderless = False
 else:
     # Get command line arguments after "--"
     argv = sys.argv
@@ -27,6 +28,7 @@ else:
     parser.add_argument('--body-output', required=True, help='Output path for body mesh')
     parser.add_argument('--shirt-output', required=True, help='Output path for shirt mesh')
     parser.add_argument('--pant-output', required=True, help='Output path for pant mesh')
+    parser.add_argument('--shoulderless', action='store_true', help='Flag for shoulderless upper design (needs pinning)')
 
     args = parser.parse_args(argv)
     
@@ -36,6 +38,7 @@ else:
     body_output_path = args.body_output
     shirt_output_path = args.shirt_output
     pant_output_path = args.pant_output
+    shoulderless = args.shoulderless
 
 
 # Clear existing objects
@@ -104,6 +107,9 @@ pant_cloth_modifier.settings.compression_damping = 25
 pant_cloth_modifier.settings.shear_damping = 25
 pant_cloth_modifier.settings.bending_damping = 0.5
 
+pant_cloth_modifier.collision_settings.use_collision = True
+pant_cloth_modifier.collision_settings.distance_min = 0.003
+
 
 ### Process shirt object ###
 
@@ -116,6 +122,37 @@ shirt_object = bpy.data.objects.get("Shirt")
 
 # Add the cloth modifier
 shirt_cloth_modifier = shirt_object.modifiers.new(name="Cloth", type='CLOTH')
+
+# Ako je shoulderless, pinaj gornjih 10% graničnih vrhova (svijetni Z, objekt nije rotiran)
+if shoulderless:
+    shirt_pin_group = shirt_object.vertex_groups.get("Pin") or shirt_object.vertex_groups.new(name="Pin")
+
+    bm = bmesh.new()
+    bm.from_mesh(shirt_object.data)
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+
+    # skupi boundary vrhove
+    boundary_verts = set()
+    for e in bm.edges:
+        if e.is_boundary:
+            boundary_verts.add(e.verts[0].index)
+            boundary_verts.add(e.verts[1].index)
+
+    if boundary_verts:
+        M = shirt_object.matrix_world  # world Z
+        b_sorted = sorted(boundary_verts, key=lambda i: (M @ bm.verts[i].co).z, reverse=True)
+
+        frac = 0.25  # gornjih 25%
+        k = max(12, int(len(b_sorted) * frac))  # minimalan broj da se uhvati "prsten"
+        top_boundary_strip = b_sorted[:k]
+
+        shirt_pin_group.add(top_boundary_strip, 1.0, 'REPLACE')
+
+        # poveži pin grupu s clothom
+        shirt_cloth_modifier.settings.vertex_group_mass = "Pin"
+
+    bm.free()
 
 # Configure cloth physics settings
 shirt_cloth_modifier.settings.quality = 5
@@ -130,6 +167,9 @@ shirt_cloth_modifier.settings.tension_damping = 5
 shirt_cloth_modifier.settings.compression_damping = 5
 shirt_cloth_modifier.settings.shear_damping = 5
 shirt_cloth_modifier.settings.bending_damping = 0.5
+
+shirt_cloth_modifier.collision_settings.use_collision = True
+shirt_cloth_modifier.collision_settings.distance_min = 0.025
 
 
 ### Process body mesh ###

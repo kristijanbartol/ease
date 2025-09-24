@@ -17,8 +17,8 @@ from itertools import combinations
 import shutil
 
 from loom.const import standard5_pose
-import params
-from utils import insert_midline_point, find_midline_point
+import loom_core.params as params
+from loom_core.geometry import insert_midline_point, find_midline_point
 from loom.submodules import run_loom_optimization
 
 
@@ -244,7 +244,7 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
     return core_idx_dict
 
 
-def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict):
+def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part):
     if garment_part == 'upper':
         return _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict)
     else:
@@ -382,17 +382,17 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
     return side_keypoints_batch, smpl_traversal_pairs
 
  
-def _core_to_side_keypoints(mesh, core_idxs_dict):
+def _core_to_side_keypoints(mesh, core_idxs_dict, garment_part):
     if garment_part == 'upper':
         return _core_to_side_keypoints_upper(mesh, core_idxs_dict)
     else:
         return _core_to_side_keypoints_lower(mesh, core_idxs_dict)
 
 
-def param_to_full_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict):
-    core_idxs_dict = _param_to_core_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict)
+def param_to_full_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part):
+    core_idxs_dict = _param_to_core_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part)
     #side_keypoints_batch, smpl_traversal_pairs, newV, newF = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict)
-    side_keypoints_batch, smpl_traversal_pairs = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict)
+    side_keypoints_batch, smpl_traversal_pairs = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict, garment_part)
 
     #new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
     #full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
@@ -790,8 +790,7 @@ def prepare_body_meshes(smpl_dir, body_set):
     }
 
 
-from params import REF_KPTS
-from params import process_config
+from loom_core.params import REF_KPTS, process_config
 import json
 import polyscope as ps
 
@@ -799,7 +798,7 @@ import polyscope as ps
 def prepare_ref(design_params, zero_mesh, template_mesh, ref_mesh, garment_part):
     params_dict = {k: v for key in ['pos', 'length'] for k, v in design_params[garment_part][key].items()}
     #full_keypoints_batch, smpl_traversal_pairs, new_mesh = param_to_full_keypoints(t_pose_mesh, REF_KPTS[garment_part], params_dict)
-    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, REF_KPTS[garment_part], params_dict)
+    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, REF_KPTS[garment_part], params_dict, garment_part)
 
     mesh_dir = 'data/meshes/'
     os.makedirs(mesh_dir, exist_ok=True)
@@ -903,7 +902,10 @@ def create_latest_dir(valid_patch_idxs, garment_part):
     if os.path.isdir(latest_pattern_result_dir):
         shutil.rmtree(latest_pattern_result_dir)
     for patch_idx in valid_patch_idxs:
-        os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx}'))
+        os.makedirs(os.path.join(latest_pattern_result_dir, f'patch_{patch_idx:02d}'))
+    scales_dir = f'results/scales/{garment_part}/'
+    shutil.rmtree(scales_dir)
+    os.makedirs(scales_dir)
 
 
 def run_gif_series():
@@ -976,15 +978,18 @@ def run_gif_series():
     #run_loom_optimization()
 
 
-def run_design(config):
-    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=SMPL_DIR, gender=GENDER)
+def run_design(smpl_dir, design_params, body_set):
+    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=smpl_dir, body_set=body_set)
 
     for garment_part in ['upper', 'lower']:
-        cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(design_params, meshes_dict['orig'], garment_part)
+        prepared_ref_mesh, ref_patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(
+            design_params, meshes_dict['zero'], meshes_dict['template'], meshes_dict['ref'], garment_part)
 
-        export_patches(patches, valid_patch_idxs, garment_part)
+        target_patches_list = prepare_targets(meshes_dict['targets'], meshes_dict['ref'], prepared_ref_mesh, ref_patches, patch_faces)
+
+        export_patches(ref_patches, target_patches_list, valid_patch_idxs, garment_part)
         export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
-        export_scales(patches, valid_patch_idxs, garment_part)
+        export_scales(ref_patches, design_params[garment_part]['scales'], valid_patch_idxs, garment_part)
         export_patch_labels(patch_labels_dict, garment_part)
         create_latest_dir(valid_patch_idxs, garment_part)
 

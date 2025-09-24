@@ -1,8 +1,8 @@
 {
     "pos": {
-        "head": 0.65,
+        "head": 0.0,
         "mid": 0.0,
-        "neck": 0.1,
+        "neck": 0.0,
         "shoulder": 0.7,
         "side": 0.3
     },
@@ -12,7 +12,7 @@
     },
     "flag": {
         "use_head": true,
-        "use_shoulder": true,
+        "is_shoulderless": false,
         "use_mid": false,
         "use_sleeve": true,
         "is_dress": false,

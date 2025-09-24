@@ -938,6 +938,7 @@ LOWER_ANGLE_OFFSETS_DICT = {
         0.7: -np.pi / 36,
         0.8: -np.pi / 48,
         0.9: -np.pi / 96,
+        0.95: 0,
         #1.00: np.pi / 96,
         1.00: np.pi / 80,
         1.05: 0,

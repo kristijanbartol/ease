@@ -4,7 +4,7 @@ from sys import platform
 
 def simulate_pose(body_path, shirt_path, pant_path, 
                   body_output, shirt_output, pant_output,
-                  scripts_dir):
+                  is_shoulderless, scripts_dir):
     """
     Run the cloth simulation in Blender
     
@@ -35,6 +35,9 @@ def simulate_pose(body_path, shirt_path, pant_path,
         "--shirt-output", shirt_output,
         "--pant-output", pant_output
     ]
+
+    if is_shoulderless:
+        cmd.append('--shoulderless')
     
     # Run the command
     try:

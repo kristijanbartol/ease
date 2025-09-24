@@ -3,7 +3,7 @@ import os
 import subprocess
 
 
-def run_loom_optimization():
+def run_loom_optimization(hyperparams=None):
     # Get absolute paths
     current_dir = os.getcwd()
     if platform == 'darwin':
@@ -34,6 +34,13 @@ def run_loom_optimization():
         "seams_coef": "--seams-coef",
         "dart_coef": "--dart-coef"
     }
+
+    if hyperparams:
+        for python_param, cpp_param in param_mapping.items():
+            if python_param in hyperparams:
+                value = hyperparams[python_param]
+                if value is not None:  # Only add if value is specified
+                    command.extend([cpp_param, str(value)])
     
     print(f"Running command: {' '.join(command)}")
     
