@@ -14,6 +14,7 @@ if 'bpy' in sys.modules and not '--' in sys.argv:
     body_output_path = os.path.join(project_dir, 'results/sim/body.ply')
     shirt_output_path = os.path.join(project_dir, 'results/sim/shirt.ply')
     pant_output_path = os.path.join(project_dir, 'results/sim/pant.ply')
+    is_dress = False
     shoulderless = False
 else:
     # Get command line arguments after "--"
@@ -28,6 +29,7 @@ else:
     parser.add_argument('--body-output', required=True, help='Output path for body mesh')
     parser.add_argument('--shirt-output', required=True, help='Output path for shirt mesh')
     parser.add_argument('--pant-output', required=True, help='Output path for pant mesh')
+    parser.add_argument('--is-dress', action='store_true', help='Flag for dress (do not simulate pants)')
     parser.add_argument('--shoulderless', action='store_true', help='Flag for shoulderless upper design (needs pinning)')
 
     args = parser.parse_args(argv)
@@ -38,6 +40,7 @@ else:
     body_output_path = args.body_output
     shirt_output_path = args.shirt_output
     pant_output_path = args.pant_output
+    is_dress = args.is_dress
     shoulderless = args.shoulderless
 
 
@@ -47,68 +50,69 @@ bpy.ops.object.delete(use_global=False)
 
 
 ### Process pant object ###
+if not is_dress:
 
-# Import the lower mesh
-bpy.ops.wm.ply_import(filepath=pant_path)
-pant = bpy.context.selected_objects[0]
-pant.name = "Pant"
+    # Import the lower mesh
+    bpy.ops.wm.ply_import(filepath=pant_path)
+    pant = bpy.context.selected_objects[0]
+    pant.name = "Pant"
 
-pant_object = bpy.data.objects.get("Pant")
+    pant_object = bpy.data.objects.get("Pant")
 
-# Create a new vertex group for pinning
-pin_group = pant_object.vertex_groups.new(name="Pin")
+    # Create a new vertex group for pinning
+    pin_group = pant_object.vertex_groups.new(name="Pin")
 
-# Create BMesh for better topology analysis
-bm = bmesh.new()
-bm.from_mesh(pant_object.data)
-bm.edges.ensure_lookup_table()
-bm.verts.ensure_lookup_table()
+    # Create BMesh for better topology analysis
+    bm = bmesh.new()
+    bm.from_mesh(pant_object.data)
+    bm.edges.ensure_lookup_table()
+    bm.verts.ensure_lookup_table()
 
-# Find boundary edges
-boundary_edges = [e for e in bm.edges if e.is_boundary]
+    # Find boundary edges
+    boundary_edges = [e for e in bm.edges if e.is_boundary]
 
-# Find the vertices that form the upper boundary
-# First, get all boundary vertices
-boundary_verts = set()
-for edge in boundary_edges:
-    boundary_verts.update(v.index for v in edge.verts)
+    # Find the vertices that form the upper boundary
+    # First, get all boundary vertices
+    boundary_verts = set()
+    for edge in boundary_edges:
+        boundary_verts.update(v.index for v in edge.verts)
 
-# Then filter for upper portion (e.g., top 10% of the mesh height)
-z_coords = [v.co.z for v in bm.verts]
-max_z = max(z_coords)
-min_z = min(z_coords)
-height_threshold = max_z - (max_z - min_z) * 0.1  # Adjust 0.1 to change how much of the top to consider
+    # Then filter for upper portion (e.g., top 10% of the mesh height)
+    z_coords = [v.co.z for v in bm.verts]
+    max_z = max(z_coords)
+    min_z = min(z_coords)
+    height_threshold = max_z - (max_z - min_z) * 0.1  # Adjust 0.1 to change how much of the top to consider
 
-waistline_verts = [v.index for v in bm.verts if v.index in boundary_verts and v.co.z > height_threshold]
+    waistline_verts = [v.index for v in bm.verts if v.index in boundary_verts and v.co.z > height_threshold]
 
-# Add vertices to the pin group with weight 1.0
-pin_group.add(waistline_verts, 1.0, 'REPLACE')
+    # Add vertices to the pin group with weight 1.0
+    pin_group.add(waistline_verts, 1.0, 'REPLACE')
 
-# Free the BMesh
-bm.free()
+    # Free the BMesh
+    bm.free()
 
-# Add the cloth modifier
-pant_cloth_modifier = pant_object.modifiers.new(name="Cloth", type='CLOTH')
+    # Add the cloth modifier
+    pant_cloth_modifier = pant_object.modifiers.new(name="Cloth", type='CLOTH')
 
-# Set the pin group in cloth physics
-pant_cloth_modifier.settings.vertex_group_mass = "Pin"
+    # Set the pin group in cloth physics
+    pant_cloth_modifier.settings.vertex_group_mass = "Pin"
 
-# Configure cloth physics settings
-pant_cloth_modifier.settings.quality = 12
-pant_cloth_modifier.settings.mass = 1
-pant_cloth_modifier.settings.air_damping = 1
-pant_cloth_modifier.settings.tension_stiffness = 40
-pant_cloth_modifier.settings.compression_stiffness = 40
-pant_cloth_modifier.settings.shear_stiffness = 40
-pant_cloth_modifier.settings.bending_stiffness = 10
+    # Configure cloth physics settings
+    pant_cloth_modifier.settings.quality = 12
+    pant_cloth_modifier.settings.mass = 1
+    pant_cloth_modifier.settings.air_damping = 1
+    pant_cloth_modifier.settings.tension_stiffness = 40
+    pant_cloth_modifier.settings.compression_stiffness = 40
+    pant_cloth_modifier.settings.shear_stiffness = 40
+    pant_cloth_modifier.settings.bending_stiffness = 10
 
-pant_cloth_modifier.settings.tension_damping = 25
-pant_cloth_modifier.settings.compression_damping = 25
-pant_cloth_modifier.settings.shear_damping = 25
-pant_cloth_modifier.settings.bending_damping = 0.5
+    pant_cloth_modifier.settings.tension_damping = 25
+    pant_cloth_modifier.settings.compression_damping = 25
+    pant_cloth_modifier.settings.shear_damping = 25
+    pant_cloth_modifier.settings.bending_damping = 0.5
 
-pant_cloth_modifier.collision_settings.use_collision = True
-pant_cloth_modifier.collision_settings.distance_min = 0.003
+    pant_cloth_modifier.collision_settings.use_collision = True
+    pant_cloth_modifier.collision_settings.distance_min = 0.003
 
 
 ### Process shirt object ###
@@ -214,8 +218,9 @@ bpy.ops.wm.ply_export(filepath=shirt_output_path, export_selected_objects=True)
 print(f"Exported simulated shirt to: {shirt_output_path}")
 
 # Export pant
-bpy.ops.object.select_all(action='DESELECT')
-pant.select_set(True)
-bpy.context.view_layer.objects.active = pant
-bpy.ops.wm.ply_export(filepath=pant_output_path, export_selected_objects=True)
-print(f"Exported simulated shirt to: {pant_output_path}")
+if not is_dress:
+    bpy.ops.object.select_all(action='DESELECT')
+    pant.select_set(True)
+    bpy.context.view_layer.objects.active = pant
+    bpy.ops.wm.ply_export(filepath=pant_output_path, export_selected_objects=True)
+    print(f"Exported simulated shirt to: {pant_output_path}")

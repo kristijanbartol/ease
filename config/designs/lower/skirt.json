@@ -4,9 +4,9 @@
         "between": 0.25
     },
     "length": {
-        "bottom": 0.98
+        "bottom": 0.4
     },
     "flag": {
-        "is_skirt": false
+        "is_skirt": true
     }
 }

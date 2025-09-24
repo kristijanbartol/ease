@@ -4,7 +4,7 @@ from sys import platform
 
 def simulate_pose(body_path, shirt_path, pant_path, 
                   body_output, shirt_output, pant_output,
-                  is_shoulderless, scripts_dir):
+                  is_dress, is_shoulderless, scripts_dir):
     """
     Run the cloth simulation in Blender
     
@@ -36,6 +36,9 @@ def simulate_pose(body_path, shirt_path, pant_path,
         "--pant-output", pant_output
     ]
 
+    if is_dress:
+        cmd.append('--is-dress')
+
     if is_shoulderless:
         cmd.append('--shoulderless')
     
@@ -54,17 +57,3 @@ def simulate_pose(body_path, shirt_path, pant_path,
         print("Error running simulation:")
         print(e.stderr)
         raise
-
-
-if __name__ == "__main__":
-    project_dir = '/Users/kristijanbartol/LOOM/' if platform == 'darwin' else '/home/kristijan/LOOM/'
-
-    simulate_pose(
-        body_path=os.path.join(project_dir, 'data/body/target-00_x10.ply'),
-        shirt_path=os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_upper.ply'),
-        pant_path=os.path.join(project_dir, 'results/non-skintight/sit-pose_long_bezier_1_2.0_1.0_2.0FFF/base_lower.ply'),
-        body_output=os.path.join(project_dir, 'results/sim/body.ply'),
-        shirt_output=os.path.join(project_dir, 'results/sim/shirt.ply'),
-        pant_output=os.path.join(project_dir, 'results/sim/pant.ply'),
-        scripts_dir=os.path.join(project_dir, 'loom/blender/')
-    )

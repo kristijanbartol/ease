@@ -15,14 +15,14 @@ if __name__ == '__main__':
         PROJECT_DIR = '/home/kristijan/LOOM/'
         SMPL_DIR = '/home/kristijan/data/smpl/models/'
 
-    GENDER = 'female'
-
     with open('config/setup/loom.json') as config_f:
         config = json.load(config_f)
     experiment_name, design_params, hyperparams, body_set = process_config(config)
 
-    NAME = "sit_average_10.0_50"
+    is_dress = design_params['upper']['flag']['is_dress']
+    is_skirt = design_params['lower']['flag']['is_skirt']
+    is_skirtified = is_dress or is_skirt
 
-    run_design(SMPL_DIR, design_params, body_set)
+    run_design(SMPL_DIR, design_params, body_set, is_skirtified)
     run_loom_optimization(hyperparams)
-    evaluate_experiment(PROJECT_DIR, SMPL_DIR, experiment_name, design_params, body_set, optim_dress=False)
+    evaluate_experiment(PROJECT_DIR, SMPL_DIR, experiment_name, design_params, body_set, optim_dress=is_skirtified)

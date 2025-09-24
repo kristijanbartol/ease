@@ -25,7 +25,7 @@ def simulate_garment_set(
         design_params, 
         body_set, 
         param_mesh_dict: Dict[str, ParamMeshUV],
-        optim_dress=False
+        is_dress=False
     ):
     non_skintight_dict_dict = {}
     
@@ -33,10 +33,10 @@ def simulate_garment_set(
         project_dir=project_dir,
         experiment_name=base_experiment,
         is_shoulderless=design_params['upper']['flag']['is_shoulderless'],
-        optim_dress=optim_dress
+        optim_dress=is_dress
     )
     
-    garment_parts = ['upper'] if optim_dress else ['upper', 'lower']
+    garment_parts = ['upper'] if is_dress else ['upper', 'lower']
     
     # Process garments
     base_param_mesh_dict = {}
@@ -73,7 +73,7 @@ def simulate_garment_set(
         body_shape=target_body_shape,
         upper_coef=design_params['upper']['scales'],
         lower_coef=design_params['lower']['scales'],
-        optim_dress=optim_dress
+        optim_dress=is_dress
     )
     body_path = f'data/body/{target_fname}'
             
@@ -83,7 +83,7 @@ def simulate_garment_set(
         is_refit=False,
         body_mesh=body_mesh,
         upper_param_mesh=base_param_mesh_dict['upper'],
-        lower_param_mesh=None if optim_dress else base_param_mesh_dict['lower']
+        lower_param_mesh=None if is_dress else base_param_mesh_dict['lower']
     )
             
     sim_dir = f'results/sim/{base_experiment}/'
@@ -96,7 +96,8 @@ def simulate_garment_set(
         pant_path=base_lower_path,
         body_output=os.path.join(sim_dir, 'base_body.ply'),
         shirt_output=os.path.join(sim_dir, 'base_upper.ply'),
-        pant_output='' if optim_dress else os.path.join(sim_dir, 'base_lower.ply'),
+        pant_output='' if is_dress else os.path.join(sim_dir, 'base_lower.ply'),
+        is_dress=is_dress,
         is_shoulderless=design_params['upper']['flag']['is_shoulderless'],
         scripts_dir=f'{project_dir}/loom/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply
@@ -107,5 +108,5 @@ def simulate_garment_set(
     update_meshes_after_simulation(
         sim_dir=sim_dir,
         base_param_mesh_dict=base_param_mesh_dict,
-        optim_dress=optim_dress
+        optim_dress=is_dress
     )

@@ -234,12 +234,8 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
             core_idx_dict[k], _ = _extract_keypoint_along_path(mesh, ref_keypoints_dict[k][0], ref_keypoints_dict[k][1], params_dict[k])
 
     # side-bottom, but also used for inner-bottom
-    inner_length = params_dict['bottom'] - (mesh.vertices[core_idx_dict['side']][1] - mesh.vertices[core_idx_dict['between']][1]) * 0.6     # TODO: DO THIS PROPERLY !!!!
     core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], ref_keypoints_dict['bottom_side_ref'], length=params_dict['bottom'])
-    #core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], np.array([0, -1, 0]), length=params_dict['bottom'])
-    #core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], length=inner_length)
     core_idx_dict['bottom_inner'] = _get_same_height_idx(mesh.vertices, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], core_idx_dict['bottom_side'])
-    #core_idx_dict['bottom_inner'] = _extract_parametric_keypoint(mesh, core_idx_dict['between'], np.array([0, -1, 0]), length=inner_length, offset=np.array([-0.025, 0., 0.]))
 
     return core_idx_dict
 
@@ -728,89 +724,86 @@ def transfer_topology(orig_mesh, cut_mesh, target_mesh):
     return trimesh.Trimesh(vertices=V_Bp, faces=F_Bp, process=False)
 
 
-def prepare_body_meshes(smpl_dir, body_set):
-    if platform == 'darwin':
-        PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
-        SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
-    else:
-        PROJECT_DIR = '/home/kristijan/LOOM/'
-        SMPL_DIR = '/home/kristijan/data/smpl/models/'
+def prepare_body_meshes(smpl_dir, body_set, is_skirtified=False):
     gender = body_set['genders'][0]
-    #gender = 'male'
-
-    smpl_model = SMPL(
-        model_path=os.path.join(SMPL_DIR, f'SMPL_{gender.upper()}.pkl'), 
-        gender=gender
-    )
-    pose = getattr(params, body_set['poses'][0])()
-    betas = getattr(params, body_set['shapes'][0])()
-
-    zero_verts = smpl_model(
-        body_pose=params.t_pose(),
-        betas=betas
-    ).vertices[0].cpu().detach().numpy()
-    template_verts = smpl_model(
-        body_pose=params.t_pose_for_cutting(),
-        betas=betas
-    ).vertices[0].cpu().detach().numpy()
-    ref_verts = smpl_model(
-        body_pose=pose,
-        betas=betas
-    ).vertices[0].cpu().detach().numpy()
-
-    # TODO: enable more than one target pose
     target_poses = [getattr(params, body_set['poses'][idx]) for idx in range(1, len(body_set['poses']))]
-    target_verts_list = []
-    for target_pose in target_poses:
-        posed_verts = smpl_model(
-            betas=torch.zeros((1, 10)),
-            body_pose=target_poses[0]()
+
+    if is_skirtified:
+        skirtified_dirpath = f'data/skirtified/{body_set["name"]}/'
+
+        zero_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'zero.ply'))
+        template_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'zero.ply'))    # note that template mesh (cutting) can be equal to zero (kpt selection) for skirtified
+        ref_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'ref.ply'))
+        target_meshes = []
+        if len(target_poses) > 0:
+            target_meshes.append(trimesh.load(os.path.join(skirtified_dirpath, 'target.ply')))
+
+    else:
+        smpl_model = SMPL(
+            model_path=os.path.join(smpl_dir, f'SMPL_{gender.upper()}.pkl'), 
+            gender=gender
+        )
+        pose = getattr(params, body_set['poses'][0])()
+        betas = getattr(params, body_set['shapes'][0])()
+
+        zero_verts = smpl_model(
+            body_pose=params.t_pose(),
+            betas=betas
         ).vertices[0].cpu().detach().numpy()
-        target_verts_list.append(posed_verts)
+        template_verts = smpl_model(
+            body_pose=params.t_pose_for_cutting(),
+            betas=betas
+        ).vertices[0].cpu().detach().numpy()
+        ref_verts = smpl_model(
+            body_pose=pose,
+            betas=betas
+        ).vertices[0].cpu().detach().numpy()
 
-    # TODO: update target shapes
-    shaped_verts = smpl_model(
-        betas=torch.ones((1, 10))
-    ).vertices[0].cpu().detach().numpy()
+        target_verts_list = []
+        for target_pose in target_poses:
+            posed_verts = smpl_model(
+                betas=torch.zeros((1, 10)),
+                body_pose=target_poses[0]()
+            ).vertices[0].cpu().detach().numpy()
+            target_verts_list.append(posed_verts)
 
-    smpl_faces = smpl_model.faces
+        smpl_faces = smpl_model.faces
 
-    zero_mesh = trimesh.Trimesh(vertices=zero_verts, faces=smpl_faces)
-    template_mesh = trimesh.Trimesh(vertices=template_verts, faces=smpl_faces)
-    ref_mesh = trimesh.Trimesh(vertices=ref_verts, faces=smpl_faces)
-    shaped_mesh = trimesh.Trimesh(vertices=shaped_verts, faces=smpl_faces)
-    target_meshes = [trimesh.Trimesh(vertices=target_verts, faces=smpl_faces) for target_verts in target_verts_list]
+        zero_mesh = trimesh.Trimesh(vertices=zero_verts, faces=smpl_faces)
+        template_mesh = trimesh.Trimesh(vertices=template_verts, faces=smpl_faces)
+        ref_mesh = trimesh.Trimesh(vertices=ref_verts, faces=smpl_faces)
+        target_meshes = [trimesh.Trimesh(vertices=target_verts, faces=smpl_faces) for target_verts in target_verts_list]
 
-    return smpl_model, {
-        'zero': zero_mesh,
-        'template': template_mesh,
-        'ref': ref_mesh,
-        #'shapes': [shaped_mesh],
+        os.makedirs('data/meshes', exist_ok=True)
+        zero_mesh.export('data/meshes/zero.ply')
+        template_mesh.export('data/meshes/template.ply')
+        ref_mesh.export('data/meshes/ref.ply')
+        if len(target_meshes) > 0:
+            target_meshes[0].export('data/target.ply')
+
+    return {
+        'zero': zero_mesh,              # for selecting the keypoints (T-pose)
+        'template': template_mesh,      # for cutting based on keypoints (modified T-pose (leg spread))
+        'ref': ref_mesh,                # the actual reference pose (e.g. A-pose)
         'targets': target_meshes
     }
 
 
-from loom_core.params import REF_KPTS, process_config
+from loom_core.params import REF_KPTS, REF_KPTS_SKIRTIFIED, process_config
 import json
 import polyscope as ps
 
 
-def prepare_ref(design_params, zero_mesh, template_mesh, ref_mesh, garment_part):
+def prepare_ref(design_params, zero_mesh, template_mesh, ref_mesh, garment_part, is_skirtified):
     params_dict = {k: v for key in ['pos', 'length'] for k, v in design_params[garment_part][key].items()}
+    ref_kpts = REF_KPTS_SKIRTIFIED if is_skirtified else REF_KPTS
     #full_keypoints_batch, smpl_traversal_pairs, new_mesh = param_to_full_keypoints(t_pose_mesh, REF_KPTS[garment_part], params_dict)
-    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, REF_KPTS[garment_part], params_dict, garment_part)
-
-    mesh_dir = 'data/meshes/'
-    os.makedirs(mesh_dir, exist_ok=True)
-    zero_mesh.export(os.path.join(mesh_dir, f'{garment_part}_zero.ply'))
-    template_mesh.export(os.path.join(mesh_dir, f'{garment_part}_template.ply'))
-    ref_mesh.export(os.path.join(mesh_dir, f'{garment_part}_ref.ply'))
-    #new_mesh.export(os.path.join(mesh_dir, f'{garment_part}_new.ply'))
+    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, ref_kpts[garment_part], params_dict, garment_part)
 
     cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs = cut_paths(template_mesh, ref_mesh, full_keypoints_batch, smpl_traversal_pairs)
     patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, template_mesh.vertices[SHOULDER_KPT_IDX])
 
-    cut_mesh.export(os.path.join(mesh_dir, f'{garment_part}_cut.ply'))
+    cut_mesh.export(os.path.join(f'data/meshes/{garment_part}_cut.ply'))
 
     return cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict
 
@@ -823,16 +816,6 @@ def get_pose_adapted(orig_mesh, cut_mesh, patches, patch_faces):
         target_patches = extract_target_patches(target_pose_mesh, patches, patch_faces)
         target_patches_list.append(target_patches)
     return target_patches_list
-
-
-def get_shape_transferred():
-    # TODO: integrate target shapes into the pipeline
-    # simply run the optimization etc. again for the same local scales but target shape(s)
-    # TODO: add for loop
-    transfer_shape = transfer_topology(meshes_dict['orig'], cut_mesh, meshes_dict['shapes'][0])
-
-    # TODO: export logic in another function
-    #transfer_shape.export(os.path.join(mesh_dir, f'{garment_part}_target-shape.ply'))
 
 
 def export_patches(patches, target_patches_list, valid_patch_idxs, garment_part):
@@ -978,12 +961,14 @@ def run_gif_series():
     #run_loom_optimization()
 
 
-def run_design(smpl_dir, design_params, body_set):
-    smpl_model, meshes_dict = prepare_body_meshes(smpl_dir=smpl_dir, body_set=body_set)
+def run_design(smpl_dir, design_params, body_set, is_dress=False, is_skirt=False):
+    is_skirtified = is_dress or is_skirt
+    meshes_dict = prepare_body_meshes(smpl_dir=smpl_dir, body_set=body_set, is_skirtified=is_skirtified)
+    garment_parts = ['upper'] if is_dress else ['upper', 'lower']
 
-    for garment_part in ['upper', 'lower']:
+    for garment_part in garment_parts:
         prepared_ref_mesh, ref_patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs, patch_labels_dict = prepare_ref(
-            design_params, meshes_dict['zero'], meshes_dict['template'], meshes_dict['ref'], garment_part)
+            design_params, meshes_dict['zero'], meshes_dict['template'], meshes_dict['ref'], garment_part, is_skirtified)
 
         target_patches_list = prepare_targets(meshes_dict['targets'], meshes_dict['ref'], prepared_ref_mesh, ref_patches, patch_faces)
 

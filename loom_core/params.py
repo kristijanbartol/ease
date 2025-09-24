@@ -1,6 +1,8 @@
 import json
 import numpy as np
 import torch
+import trimesh
+from scipy.spatial import cKDTree
 
 
 SUBJECT_BETAS = np.array([[1.09, 1.16, 1.51, 1.58, 2.1, -0.2, 0.2636, -2.3, -2.55, 0.8]], dtype=np.float32)
@@ -67,6 +69,36 @@ REF_KPTS = {
     }
 }
 
+def map_dict(src_V, dst_V, ref_dict, tol=1e-8):
+    tree = cKDTree(dst_V)
+    def map_val(v):
+        if v is None: return None
+        if isinstance(v, list):
+            d, j = tree.query(src_V[v], k=1)
+            return j.tolist()
+        else:
+            d, j = tree.query(src_V[v], k=1)
+            return int(j)
+    return {k:{kk:map_val(vv) for kk,vv in d.items()} for k,d in ref_dict.items()}
+
+REF_KPTS_SKIRTIFIED = {
+    'upper': {
+        "head": [444, 414],
+        'mid': [3149, 3479],
+        'neck': [4273, 5232],
+        'shoulder': [5204, 5257],
+        'side': [5248, 4830],
+
+        'sleeve': None,
+        'bottom': None
+    },
+    'lower': {
+        'side': [4143, 4282],
+
+        'bottom_side_ref': 6520    # references for the direction of the cut
+    }
+}
+
 ### DSL LOGIC ###
 # 1. Flags fully determine the type and structure of the design
 # 2. Reference keypoints define the high-level template
@@ -105,7 +137,7 @@ DESIGN_TEMPLATE = {
             'bottom': 0.7
         },
         'flag': {
-            'is_dress': False
+            'is_skirt': False
         }
     }
 }
@@ -127,9 +159,7 @@ HYPERPARAMS_TEMPLATE = {
 
 
 def process_config(config):
-    # <upper_design>-<lower_design>_upper-<valX.Y>-..._lower-<valX.Y>-..._scaleX.Y_<scaleH>X.Y_<rigidH>X.Y_<seamsH>X.Y_<materialH>X.Y_FFF
-    # for each value that differs from default, point it out explicitly
-    experiment_name = f'{config["body_set"]}_{config["upper_design_label"]}-{config["lower_design_label"]}_upper-'
+    experiment_name = f'{config["body_set"]}_{config["upper_design_label"]}-{config["lower_design_label"]}'
     
     design_params = {}
     with open(f'config/designs/upper/{config["upper_design_label"]}.json') as upper_f:
@@ -140,26 +170,10 @@ def process_config(config):
         hyperparams = json.load(hyper_f)
     with open(f'config/body_sets/{config["body_set"]}.json') as body_set_f:
         body_set = json.load(body_set_f)
-
-    def _process_v(_v):
-        value = _v
-        if type(value) == bool:
-            str_v = 'T' if value else 'F'
-        else:
-            str_v = value
-        return f'{vname}{str_v}-'
+        body_set['name'] = config['body_set']
 
     for garment_part in ['upper', 'lower']:
-        for vtype in ['pos', 'length', 'flag']:
-            for vname in design_params[garment_part][vtype]:
-                if design_params[garment_part][vtype][vname] != DESIGN_TEMPLATE[garment_part][vtype][vname]:
-                    experiment_name += _process_v(design_params[garment_part][vtype][vname])
-        experiment_name += '_'
         design_params[garment_part]['scales'] = config[f'{garment_part}_scales']
-    
-    for pname in hyperparams:
-        if hyperparams[pname] != HYPERPARAMS_TEMPLATE[pname]:
-            experiment_name += _process_v(hyperparams[pname])
 
     return experiment_name, design_params, hyperparams, body_set
 
@@ -276,3 +290,17 @@ params1 = {
         'bottom': 0.7       # [m]
     }
 }
+
+
+if __name__ == '__main__':
+    # This block is used only "once" - for generating skirtified keypoints.
+    orig_mesh = trimesh.load('data/meshes/ref.ply')
+    skirtified_mesh = trimesh.load('data/skirtified/solo-female/ref.ply')
+
+    skirtified_kpts = map_dict(
+        src_V=orig_mesh.vertices,
+        dst_V=skirtified_mesh.vertices,
+        ref_dict=REF_KPTS
+    )
+
+    print(skirtified_kpts)
