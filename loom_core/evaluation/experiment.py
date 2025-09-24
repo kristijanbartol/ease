@@ -442,8 +442,8 @@ def qualitative_evaluation(name):
 
 
 #def evaluate_experiment(experiment_name, config, design_params, body_set):
-def evaluate_experiment(project_dir, smpl_dir, experiment_name, design_params, body_set, optim_dress):
-    param_mesh_dict = load_uv_mesh_dict(experiment_name, optim_dress)
+def evaluate_experiment(project_dir, smpl_dir, experiment_name, design_params, body_set, is_dress, is_skirt):
+    param_mesh_dict = load_uv_mesh_dict(experiment_name, is_dress)
     qualitative_evaluation(experiment_name)
     #quantitative_evaluation(experiment_name)
-    simulate_garment_set(project_dir, smpl_dir, experiment_name, design_params, body_set, param_mesh_dict, optim_dress)
+    simulate_garment_set(project_dir, smpl_dir, experiment_name, design_params, body_set, param_mesh_dict, is_dress, is_skirt)

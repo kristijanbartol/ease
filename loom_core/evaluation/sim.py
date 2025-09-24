@@ -25,7 +25,8 @@ def simulate_garment_set(
         design_params, 
         body_set, 
         param_mesh_dict: Dict[str, ParamMeshUV],
-        is_dress=False
+        is_dress=False,
+        is_skirt=False
     ):
     non_skintight_dict_dict = {}
     
@@ -98,6 +99,7 @@ def simulate_garment_set(
         shirt_output=os.path.join(sim_dir, 'base_upper.ply'),
         pant_output='' if is_dress else os.path.join(sim_dir, 'base_lower.ply'),
         is_dress=is_dress,
+        is_skirt=is_skirt,
         is_shoulderless=design_params['upper']['flag']['is_shoulderless'],
         scripts_dir=f'{project_dir}/loom/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply

@@ -225,9 +225,7 @@ def _get_same_height_idx(verts, start_idx, end_idx, height_ref_idx):
     return _get_closest_idx(verts, point_at_y)
 
 
-def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
-    # TODO: implement extraction of parametric keypoint on the line between two keypoints (i.e., the second keypoint should be found more robustly)
-    # precisely: I should have a fixed, reference keypoint that I use to get the correct direction
+def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict, is_skirtified):
     core_idx_dict = {}
     for k in ref_keypoints_dict:
         if ref_keypoints_dict[k] and type(ref_keypoints_dict[k]) == list and k in params_dict:
@@ -235,16 +233,17 @@ def _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict):
 
     # side-bottom, but also used for inner-bottom
     core_idx_dict['bottom_side'] = _extract_parametric_keypoint(mesh, core_idx_dict['side'], ref_keypoints_dict['bottom_side_ref'], length=params_dict['bottom'])
-    core_idx_dict['bottom_inner'] = _get_same_height_idx(mesh.vertices, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], core_idx_dict['bottom_side'])
+    if not is_skirtified:
+        core_idx_dict['bottom_inner'] = _get_same_height_idx(mesh.vertices, core_idx_dict['between'], ref_keypoints_dict['bottom_inner_ref'], core_idx_dict['bottom_side'])
 
     return core_idx_dict
 
 
-def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part):
+def _param_to_core_keypoints(mesh, ref_keypoints_dict, params_dict, garment_part, is_skirtified):
     if garment_part == 'upper':
         return _param_to_core_keypoints_upper(mesh, ref_keypoints_dict, params_dict)
     else:
-        return _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict)
+        return _param_to_core_keypoints_lower(mesh, ref_keypoints_dict, params_dict, is_skirtified)
 
 
 def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
@@ -308,87 +307,104 @@ def _core_to_side_keypoints_upper(mesh, core_idxs_dict):
     return side_keypoints_batch, smpl_traversal_pairs
 
 
-def _core_to_side_keypoints_lower(mesh, core_idxs_dict):
+def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
     side_keypoints_batch = []
     smpl_traversal_pairs = []
-
-    # armpit-bottom
-    # TODO: implement this properly
-    #       # option 1: when pants are longer than knee area, then use additional keypoint
-    #       # option 2 (in addition to option 1): use Bezier curves as seam definition
-    #side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
-
-
-
-    side_keypoints_batch.append([core_idxs_dict['side'], 4495])
-    side_keypoints_batch.append([4495, 4581])
-    side_keypoints_batch.append([4581, core_idxs_dict['bottom_side']])
-
-
-    #side_keypoints_batch.append([core_idxs_dict['side'], 4495])
-    #side_keypoints_batch.append([4495, 4583])
-    #side_keypoints_batch.append([4583, core_idxs_dict['bottom_side']])
-
-
-
-
-
-    # top (waistline)
     V, F = mesh.vertices, mesh.faces
-    #V, F, mid_front_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
-    mid_front_idx = find_midline_point(V, F, core_idxs_dict['side'], front=True)
-    #V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['side'], front=False)
-    mid_back_idx  = find_midline_point(V, F, core_idxs_dict['side'], front=False)
-    side_keypoints_batch.append([core_idxs_dict['side'], mid_front_idx])
-    side_keypoints_batch.append([mid_back_idx, core_idxs_dict['side']])
 
-    # mid (front/back) - between
-    #smpl_traversal_pairs.append([mid_front_idx, core_idxs_dict['between']])   # traverse mid-between (front) directly on SMPL (very relevant for the male model)
-    #smpl_traversal_pairs.append([mid_back_idx, core_idxs_dict['between']])   # traverse mid-between (back) directly on SMPL (very relevant for the male model)
-    #side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+    if is_skirtified:
+        mid_front_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
+        mid_back_idx  = find_midline_point(V, F, core_idxs_dict['side'], front=False)
+
+        side_keypoints_batch.append([core_idxs_dict['side'], mid_front_idx])
+        side_keypoints_batch.append([mid_back_idx, core_idxs_dict['side']])
+        side_keypoints_batch.append([core_idxs_dict['bottom_side'], core_idxs_dict['side']])
+
+        bottom_mid_front_idx = find_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['bottom_side'], front=True)
+        bottom_mid_back_idx  = find_midline_point(V, F, core_idxs_dict['bottom_side'], front=False)
+
+        side_keypoints_batch.append([core_idxs_dict['bottom_side'], bottom_mid_front_idx])
+        side_keypoints_batch.append([bottom_mid_back_idx, core_idxs_dict['bottom_side']])
+
+    else:
+
+        # armpit-bottom
+        # TODO: implement this properly
+        #       # option 1: when pants are longer than knee area, then use additional keypoint
+        #       # option 2 (in addition to option 1): use Bezier curves as seam definition
+        #side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
 
 
 
-    side_keypoints_batch.append([mid_front_idx, 3145])
-    side_keypoints_batch.append([3145, 3149])
-    side_keypoints_batch.append([3149, 1208])
-    side_keypoints_batch.append([1208, core_idxs_dict['between']])
-    side_keypoints_batch.append([mid_back_idx, core_idxs_dict['between']])
+        side_keypoints_batch.append([core_idxs_dict['side'], 4495])
+        side_keypoints_batch.append([4495, 4581])
+        side_keypoints_batch.append([4581, core_idxs_dict['bottom_side']])
+
+
+        #side_keypoints_batch.append([core_idxs_dict['side'], 4495])
+        #side_keypoints_batch.append([4495, 4583])
+        #side_keypoints_batch.append([4583, core_idxs_dict['bottom_side']])
 
 
 
 
-    # between-bottom
-    # TODO: implement this properly
-    #       # option 1: when pants are longer than knee area, then use additional keypoint
-    #       # option 2 (in addition to option 1): use Bezier curves as seam definition
-    #side_keypoints_batch.append([core_idxs_dict['between'], core_idxs_dict['bottom_inner']])
-    side_keypoints_batch.append([core_idxs_dict['between'], 4634])
-    side_keypoints_batch.append([4634, 4572])
-    side_keypoints_batch.append([4572, core_idxs_dict['bottom_inner']])
 
-    # connect bottoms
-    kpt_idx1, kpt_idx2 = core_idxs_dict['bottom_side'], core_idxs_dict['bottom_inner']
-    front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.04)
-    back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.1)
-    side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
-    side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
+        # top (waistline)
+        
+        #V, F, mid_front_idx = insert_midline_point(mesh.vertices, mesh.faces, core_idxs_dict['side'], front=True)
+        mid_front_idx = find_midline_point(V, F, core_idxs_dict['side'], front=True)
+        #V, F, mid_back_idx  = insert_midline_point(V, F, core_idxs_dict['side'], front=False)
+        mid_back_idx  = find_midline_point(V, F, core_idxs_dict['side'], front=False)
+        side_keypoints_batch.append([core_idxs_dict['side'], mid_front_idx])
+        side_keypoints_batch.append([mid_back_idx, core_idxs_dict['side']])
 
-    #return side_keypoints_batch, smpl_traversal_pairs, V, F
+        # mid (front/back) - between
+        #smpl_traversal_pairs.append([mid_front_idx, core_idxs_dict['between']])   # traverse mid-between (front) directly on SMPL (very relevant for the male model)
+        #smpl_traversal_pairs.append([mid_back_idx, core_idxs_dict['between']])   # traverse mid-between (back) directly on SMPL (very relevant for the male model)
+        #side_keypoints_batch.append([mid_front_idx, core_idxs_dict['between']])
+
+
+
+        side_keypoints_batch.append([mid_front_idx, 3145])
+        side_keypoints_batch.append([3145, 3149])
+        side_keypoints_batch.append([3149, 1208])
+        side_keypoints_batch.append([1208, core_idxs_dict['between']])
+        side_keypoints_batch.append([mid_back_idx, core_idxs_dict['between']])
+
+
+
+
+        # between-bottom
+        # TODO: implement this properly
+        #       # option 1: when pants are longer than knee area, then use additional keypoint
+        #       # option 2 (in addition to option 1): use Bezier curves as seam definition
+        #side_keypoints_batch.append([core_idxs_dict['between'], core_idxs_dict['bottom_inner']])
+        side_keypoints_batch.append([core_idxs_dict['between'], 4634])
+        side_keypoints_batch.append([4634, 4572])
+        side_keypoints_batch.append([4572, core_idxs_dict['bottom_inner']])
+
+        # connect bottoms
+        kpt_idx1, kpt_idx2 = core_idxs_dict['bottom_side'], core_idxs_dict['bottom_inner']
+        front_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, 0.04)
+        back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.1)
+        side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
+        side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
+
+        #return side_keypoints_batch, smpl_traversal_pairs, V, F
     return side_keypoints_batch, smpl_traversal_pairs
 
  
-def _core_to_side_keypoints(mesh, core_idxs_dict, garment_part):
+def _core_to_side_keypoints(mesh, core_idxs_dict, garment_part, is_skirtified):
     if garment_part == 'upper':
         return _core_to_side_keypoints_upper(mesh, core_idxs_dict)
     else:
-        return _core_to_side_keypoints_lower(mesh, core_idxs_dict)
+        return _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified)
 
 
-def param_to_full_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part):
-    core_idxs_dict = _param_to_core_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part)
+def param_to_full_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part, is_skirtified):
+    core_idxs_dict = _param_to_core_keypoints(t_pose_mesh, ref_keypoints_dict, params_dict, garment_part, is_skirtified)
     #side_keypoints_batch, smpl_traversal_pairs, newV, newF = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict)
-    side_keypoints_batch, smpl_traversal_pairs = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict, garment_part)
+    side_keypoints_batch, smpl_traversal_pairs = _core_to_side_keypoints(t_pose_mesh, core_idxs_dict, garment_part, is_skirtified)
 
     #new_mesh = trimesh.Trimesh(vertices=newV, faces=newF)
     #full_keypoints_batch = _side_to_full_keypoints(new_mesh, side_keypoints_batch)
@@ -557,7 +573,8 @@ def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, val
             v_patch_idxs = v_to_patch_idxs_dict[vidx]
             #filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs)
             filtered_patch_idxs = sorted(set(v_patch_idxs) & valid_patch_idxs & set(vertex_patch_index_map[vidx].keys()))
-            if len(filtered_patch_idxs) == 1:    # then it's a boundary, not a seamline
+            #if len(filtered_patch_idxs) == 1:    # then it's a boundary, not a seamline
+            if len(filtered_patch_idxs) <= 1:    # then it's a boundary, not a seamline
                 is_seamline = False
                 break
             patch_pairs = list(combinations(filtered_patch_idxs, 2))
@@ -732,7 +749,7 @@ def prepare_body_meshes(smpl_dir, body_set, is_skirtified=False):
         skirtified_dirpath = f'data/skirtified/{body_set["name"]}/'
 
         zero_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'zero.ply'))
-        template_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'zero.ply'))    # note that template mesh (cutting) can be equal to zero (kpt selection) for skirtified
+        template_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'transfer.ply'))
         ref_mesh = trimesh.load(os.path.join(skirtified_dirpath, 'ref.ply'))
         target_meshes = []
         if len(target_poses) > 0:
@@ -798,7 +815,7 @@ def prepare_ref(design_params, zero_mesh, template_mesh, ref_mesh, garment_part,
     params_dict = {k: v for key in ['pos', 'length'] for k, v in design_params[garment_part][key].items()}
     ref_kpts = REF_KPTS_SKIRTIFIED if is_skirtified else REF_KPTS
     #full_keypoints_batch, smpl_traversal_pairs, new_mesh = param_to_full_keypoints(t_pose_mesh, REF_KPTS[garment_part], params_dict)
-    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, ref_kpts[garment_part], params_dict, garment_part)
+    full_keypoints_batch, smpl_traversal_pairs = param_to_full_keypoints(zero_mesh, ref_kpts[garment_part], params_dict, garment_part, is_skirtified)
 
     cut_mesh, patches, patch_faces, seamlines_dict_list, symmetric_seamline_flags, valid_patch_idxs = cut_paths(template_mesh, ref_mesh, full_keypoints_batch, smpl_traversal_pairs)
     patch_labels_dict = assign_patch_labels(patches, garment_part, valid_patch_idxs, template_mesh.vertices[SHOULDER_KPT_IDX])
@@ -848,7 +865,25 @@ def export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part
                     seam_f.write(f'{vidx_pair[0]} {vidx_pair[1]}\n')
 
 
-def export_scales(patches, scale, valid_patch_idxs, garment_part):
+def prepare_scales(body_mesh, patch, scale, max_scale, is_skirtified):
+    scales_u = np.ones(patch.faces.shape[0]) * scale
+    scales_v = np.ones(patch.faces.shape[0])
+    
+    if max_scale:
+        ref_kpts = REF_KPTS_SKIRTIFIED if is_skirtified else REF_KPTS
+        top_y = body_mesh.vertices[ref_kpts['lower']['side'][0]][1]
+        bottom_y = np.min(patch.vertices[:, 1])
+        base_stretch = scale
+        max_stretch = max_scale
+        
+        mean_face_coords = np.mean(patch.vertices[patch.faces], axis=1)
+        ref_mask = mean_face_coords[:, 1] < top_y
+        scales_u[np.where(ref_mask)] = base_stretch + ((mean_face_coords[ref_mask][:, 1] - top_y) / (bottom_y - top_y)) * (max_stretch - base_stretch)
+
+    return scales_u, scales_v
+
+
+def export_scales(body_mesh, patches, scale, valid_patch_idxs, garment_part, is_skirtified, max_scale=None):
     part_scales_dir = f'data/scales/{garment_part}/'
     if os.path.isdir(part_scales_dir):
         shutil.rmtree(part_scales_dir)
@@ -860,12 +895,14 @@ def export_scales(patches, scale, valid_patch_idxs, garment_part):
             fpath_u = f'{patch_scales_dir}/scales_u.txt'
             fpath_v = f'{patch_scales_dir}/scales_v.txt'
 
+            scales_u, scales_v = prepare_scales(body_mesh, patch, scale, max_scale, is_skirtified)
+
             with open(fpath_u, 'w') as f_u:
-                for _ in patch.faces:
-                    f_u.write(f"{scale}\n")
+                for s_u in scales_u:
+                    f_u.write(f"{s_u}\n")
             with open(fpath_v, 'w') as f_v:
-                for _ in patch.faces:
-                    f_v.write("1.0\n")
+                for s_v in scales_v:
+                    f_v.write(f"{s_v}\n")
 
 
 def export_patch_labels(patch_labels_dict, garment_part):
@@ -974,7 +1011,7 @@ def run_design(smpl_dir, design_params, body_set, is_dress=False, is_skirt=False
 
         export_patches(ref_patches, target_patches_list, valid_patch_idxs, garment_part)
         export_seamlines(seamlines_dict_list, symmetric_seamline_flags, garment_part)
-        export_scales(ref_patches, design_params[garment_part]['scales'], valid_patch_idxs, garment_part)
+        export_scales(meshes_dict['ref'], ref_patches, design_params[garment_part]['scales'], valid_patch_idxs, garment_part, is_skirtified, design_params[garment_part]['max_scale'])
         export_patch_labels(patch_labels_dict, garment_part)
         create_latest_dir(valid_patch_idxs, garment_part)
 

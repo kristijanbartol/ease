@@ -174,6 +174,11 @@ def process_config(config):
 
     for garment_part in ['upper', 'lower']:
         design_params[garment_part]['scales'] = config[f'{garment_part}_scales']
+        max_scale = config[f'{garment_part}_max_scale']
+        if max_scale > 0:
+            design_params[garment_part]['max_scale'] = max_scale
+        else:
+            design_params[garment_part]['max_scale'] = None
 
     return experiment_name, design_params, hyperparams, body_set
 

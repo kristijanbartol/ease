@@ -15,6 +15,7 @@ if 'bpy' in sys.modules and not '--' in sys.argv:
     shirt_output_path = os.path.join(project_dir, 'results/sim/shirt.ply')
     pant_output_path = os.path.join(project_dir, 'results/sim/pant.ply')
     is_dress = False
+    is_skirt = False
     shoulderless = False
 else:
     # Get command line arguments after "--"
@@ -30,6 +31,7 @@ else:
     parser.add_argument('--shirt-output', required=True, help='Output path for shirt mesh')
     parser.add_argument('--pant-output', required=True, help='Output path for pant mesh')
     parser.add_argument('--is-dress', action='store_true', help='Flag for dress (do not simulate pants)')
+    parser.add_argument('--is-skirt', action='store_true', help='Flag for skirt (use a softer lower garment material)')
     parser.add_argument('--shoulderless', action='store_true', help='Flag for shoulderless upper design (needs pinning)')
 
     args = parser.parse_args(argv)
@@ -41,6 +43,7 @@ else:
     shirt_output_path = args.shirt_output
     pant_output_path = args.pant_output
     is_dress = args.is_dress
+    is_skirt = args.is_skirt
     shoulderless = args.shoulderless
 
 
@@ -98,22 +101,36 @@ if not is_dress:
     pant_cloth_modifier.settings.vertex_group_mass = "Pin"
 
     # Configure cloth physics settings
-    pant_cloth_modifier.settings.quality = 12
-    pant_cloth_modifier.settings.mass = 1
-    pant_cloth_modifier.settings.air_damping = 1
-    pant_cloth_modifier.settings.tension_stiffness = 40
-    pant_cloth_modifier.settings.compression_stiffness = 40
-    pant_cloth_modifier.settings.shear_stiffness = 40
-    pant_cloth_modifier.settings.bending_stiffness = 10
+    if is_skirt:
+        pant_cloth_modifier.settings.quality = 18
+        pant_cloth_modifier.settings.mass = 0.45
+        pant_cloth_modifier.settings.air_damping = 1.0
 
-    pant_cloth_modifier.settings.tension_damping = 25
-    pant_cloth_modifier.settings.compression_damping = 25
-    pant_cloth_modifier.settings.shear_damping = 25
-    pant_cloth_modifier.settings.bending_damping = 0.5
+        pant_cloth_modifier.settings.tension_stiffness = 5
+        pant_cloth_modifier.settings.compression_stiffness = 5
+        pant_cloth_modifier.settings.shear_stiffness = 5
+        pant_cloth_modifier.settings.bending_stiffness = 0.03
+
+        pant_cloth_modifier.settings.tension_damping = 3
+        pant_cloth_modifier.settings.compression_damping = 3
+        pant_cloth_modifier.settings.shear_damping = 3
+        pant_cloth_modifier.settings.bending_damping = 0.08
+    else:
+        pant_cloth_modifier.settings.quality = 12
+        pant_cloth_modifier.settings.mass = 1
+        pant_cloth_modifier.settings.air_damping = 1
+        pant_cloth_modifier.settings.tension_stiffness = 40
+        pant_cloth_modifier.settings.compression_stiffness = 40
+        pant_cloth_modifier.settings.shear_stiffness = 40
+        pant_cloth_modifier.settings.bending_stiffness = 10
+
+        pant_cloth_modifier.settings.tension_damping = 25
+        pant_cloth_modifier.settings.compression_damping = 25
+        pant_cloth_modifier.settings.shear_damping = 25
+        pant_cloth_modifier.settings.bending_damping = 0.5
 
     pant_cloth_modifier.collision_settings.use_collision = True
     pant_cloth_modifier.collision_settings.distance_min = 0.003
-
 
 ### Process shirt object ###
 
