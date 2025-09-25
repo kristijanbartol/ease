@@ -1,13 +1,13 @@
 {
     "pos": {
-        "mid": 0.0,
+        "mid": 0.1,
         "neck": 0.1,
-        "shoulder": 0.7,
+        "shoulder": 0.5,
         "side": 0.3
     },
     "length": {
-        "sleeve": 0.15,
-        "bottom": 0.25
+        "sleeve": 0.35,
+        "bottom": 0.4
     },
     "flag": {
         "is_shoulderless": false,

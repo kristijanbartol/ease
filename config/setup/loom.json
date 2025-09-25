@@ -1,10 +1,10 @@
 {
     "upper_design_label": "base",
-    "lower_design_label": "skirt",
+    "lower_design_label": "base",
     "hyperparams_label": "default",
-    "body_set": "solo-female",
-    "upper_scales": 1.4,
-    "lower_scales": 0.95,
+    "body_set": "subject-a-pose",
+    "upper_scales": 1.1,
+    "lower_scales": 1.1,
     "upper_max_scale": 0.0,
-    "lower_max_scale": 2.5
+    "lower_max_scale": 0.0
 }

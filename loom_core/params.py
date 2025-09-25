@@ -14,6 +14,17 @@ def zero_shape():
 def subject_shape():
     return torch.tensor(SUBJECT_BETAS)
 
+def s_s_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = 1.25
+    shape[0, 0] = -1.25
+    return shape
+
+def l_l_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = -2.5
+    shape[0, 0] = 1.75
+    return shape
 
 def t_pose():
     pose = torch.zeros((1, 23 * 3))
@@ -160,6 +171,7 @@ HYPERPARAMS_TEMPLATE = {
 
 def process_config(config):
     experiment_name = f'{config["body_set"]}_{config["upper_design_label"]}-{config["lower_design_label"]}'
+    experiment_name += f'-{config["upper_scales"]}-{config["lower_scales"]}-{config["upper_max_scale"]}-{config["lower_max_scale"]}'
     
     design_params = {}
     with open(f'config/designs/upper/{config["upper_design_label"]}.json') as upper_f:

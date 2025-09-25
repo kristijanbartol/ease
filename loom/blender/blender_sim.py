@@ -176,21 +176,57 @@ if shoulderless:
     bm.free()
 
 # Configure cloth physics settings
-shirt_cloth_modifier.settings.quality = 5
-shirt_cloth_modifier.settings.mass = 0.6
-shirt_cloth_modifier.settings.air_damping = 1
-shirt_cloth_modifier.settings.tension_stiffness = 15
-shirt_cloth_modifier.settings.compression_stiffness = 15
-shirt_cloth_modifier.settings.shear_stiffness = 15
-shirt_cloth_modifier.settings.bending_stiffness = 0.5
 
-shirt_cloth_modifier.settings.tension_damping = 5
-shirt_cloth_modifier.settings.compression_damping = 5
-shirt_cloth_modifier.settings.shear_damping = 5
-shirt_cloth_modifier.settings.bending_damping = 0.5
+if False:
+    shirt_cloth_modifier.settings.quality = 18
+    shirt_cloth_modifier.settings.mass = 0.45
+    shirt_cloth_modifier.settings.air_damping = 1.0
+
+    shirt_cloth_modifier.settings.tension_stiffness = 5
+    shirt_cloth_modifier.settings.compression_stiffness = 5
+    shirt_cloth_modifier.settings.shear_stiffness = 5
+    shirt_cloth_modifier.settings.bending_stiffness = 0.03
+
+    shirt_cloth_modifier.settings.tension_damping = 3
+    shirt_cloth_modifier.settings.compression_damping = 3
+    shirt_cloth_modifier.settings.shear_damping = 3
+    shirt_cloth_modifier.settings.bending_damping = 0.08
+
+    '''
+    if is_dress:
+        shirt_cloth_modifier.settings.quality = 16
+        shirt_cloth_modifier.settings.mass = 0.75
+        shirt_cloth_modifier.settings.air_damping = 0.4
+
+        shirt_cloth_modifier.settings.tension_stiffness = 8
+        shirt_cloth_modifier.settings.compression_stiffness = 8
+        shirt_cloth_modifier.settings.shear_stiffness = 8
+        shirt_cloth_modifier.settings.bending_stiffness = 0.08
+
+        shirt_cloth_modifier.settings.tension_damping = 6
+        shirt_cloth_modifier.settings.compression_damping = 6
+        shirt_cloth_modifier.settings.shear_damping = 6
+        shirt_cloth_modifier.settings.bending_damping = 0.15
+    '''
+
+else:
+    shirt_cloth_modifier.settings.quality = 5
+    shirt_cloth_modifier.settings.mass = 0.6
+    shirt_cloth_modifier.settings.air_damping = 1
+    shirt_cloth_modifier.settings.tension_stiffness = 15
+    shirt_cloth_modifier.settings.compression_stiffness = 15
+    shirt_cloth_modifier.settings.shear_stiffness = 15
+    shirt_cloth_modifier.settings.bending_stiffness = 0.5
+
+    shirt_cloth_modifier.settings.tension_damping = 5
+    shirt_cloth_modifier.settings.compression_damping = 5
+    shirt_cloth_modifier.settings.shear_damping = 5
+    shirt_cloth_modifier.settings.bending_damping = 0.5
 
 shirt_cloth_modifier.collision_settings.use_collision = True
-shirt_cloth_modifier.collision_settings.distance_min = 0.025
+#shirt_cloth_modifier.collision_settings.distance_min = 0.08        # only for long shirt + loose pants
+shirt_cloth_modifier.collision_settings.distance_min = 0.06        # only for long shirt + loose pants
+#shirt_cloth_modifier.collision_settings.distance_min = 0.025
 
 
 ### Process body mesh ###

@@ -430,15 +430,18 @@ class PatchProcessor:
 
 
 def qualitative_evaluation(name):
-    pattern_rootdir = 'results/pattern/latest/lower/'
-    patches = []
-    for patch_name in os.listdir(pattern_rootdir):
-        patch_dir = os.path.join(pattern_rootdir, patch_name)
-        patch = trimesh.load(os.path.join(patch_dir, 'optim_final-seams.ply'))
-        patches.append(patch)
-    processor = PatchProcessor(patches)
-    processor.export_svg_variants(f'results/qualitative/pattern/svg/latest/{name}')
-    processor.export_dxf_variants(f'results/qualitative/pattern/dxf/latest/{name}')
+    for garment_part in ['upper', 'lower']:
+        pattern_rootdir = f'results/pattern/latest/{garment_part}/'
+        if os.path.exists(pattern_rootdir):
+            patches = []
+            for patch_name in os.listdir(pattern_rootdir):
+                patch_dir = os.path.join(pattern_rootdir, patch_name)
+                patch = trimesh.load(os.path.join(patch_dir, 'optim_final-seams.ply'))
+                patches.append(patch)
+        processor = PatchProcessor(patches)
+        export_dir = f'results/qualitative/pattern/svg/{garment_part}/latest/'
+        os.makedirs(export_dir, exist_ok=True)
+        processor.export_svg_variants(f'{export_dir}/{name}')
 
 
 #def evaluate_experiment(experiment_name, config, design_params, body_set):
