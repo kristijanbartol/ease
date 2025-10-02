@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Garment Demo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Garment Demo</h1>
+    <div class="controls">
+      <textarea id="config" placeholder="Paste loom.json here"></textarea>
+      <button id="runBtn">Run</button>
+      <label><input type="checkbox" id="cleanChk" /> clean outputs</label>
+      <span id="status"></span>
+    </div>
+  </header>
+
+  <main>
+    <div id="viewer" style="width:100%; height:60vh; border:1px solid #ddd; border-radius:8px;"></div>
+  </main>
+
+  <script type="module">
+    import * as THREE from '/static/three.module.js';
+    import { PLYLoader } from '/static/PLYLoader.js';
+    window.THREE = THREE; // expose for main.js
+  </script>
+  <script type="module" src="/static/main.js"></script>
+</body>
+</html>

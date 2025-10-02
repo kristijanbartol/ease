@@ -1,0 +1,13 @@
+{
+  "mid": 0.93,
+  "neck": 0.68,
+  "shoulder": 0.63,
+  "upper_side": 0.3,
+  "sleeve": 0.1,
+  "upper_bottom": 0.24,
+  "lower_side": 0.3,
+  "between": 0.7,
+  "lower_bottom": 0.55,
+  "upper_scale": 1.0,
+  "lower_scale": 1.0
+}

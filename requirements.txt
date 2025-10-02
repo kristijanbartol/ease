@@ -12,6 +12,7 @@ trimesh
 rtree
 torch
 torchvision
+#testing
 pytest
 # ui
 PyQt6
@@ -29,3 +30,6 @@ scikit-sparse
 pyrender
 # postprocess
 plyfile
+# anthropometry
+shapely
+pyvista

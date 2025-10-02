@@ -11,10 +11,10 @@ import pyqtgraph as pg
 from smplx import SMPL
 import json
 
-from tailorlang.mesh_processing import (
+from loom.mesh_processing import (
     MeshState
 )
-from tailorlang.garment import DesignParameters
+from loom.garment import DesignParameters
 
 
 class Mesh3DView(gl.GLViewWidget):

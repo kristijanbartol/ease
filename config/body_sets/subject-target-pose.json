@@ -1,0 +1,14 @@
+{
+    "poses": [
+        "t_pose_for_cutting",
+        "sit_pose"
+    ],
+    "shapes": [
+        "subject_shape",
+        "subject_shape"
+    ],
+    "genders": [
+        "male",
+        "male"
+    ]
+}

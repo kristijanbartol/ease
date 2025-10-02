@@ -1,4 +1,5 @@
 .DS_Store
+dist/
 build/
 view*/
 data/
@@ -9,7 +10,11 @@ assets/*
 __pycache__/
 *.ply
 *.obj
+*.ini
+*.png
+*.pdf
 anisotropic-parameterization/build/
 tailorlang/lib/*.so
 tailorlang/lib/*.pyd
 tailorlang/tailorlang.egg-info
+**egg-info

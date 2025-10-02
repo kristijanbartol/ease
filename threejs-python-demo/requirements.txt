@@ -1,0 +1,37 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+tripy
+chumpy
+numpy==1.23.1
+matplotlib
+seaborn
+opencv-python
+smplx
+scipy
+einops
+open3d
+trimesh
+rtree
+torch
+torchvision
+#testing
+pytest
+# ui
+PyQt6
+pyqtgraph
+PyOpenGL
+PyOpenGL_accelerate
+# patch export
+ezdxf
+reportlab
+svgwrite
+# sim
+libigl==2.4.1
+scikit-sparse
+# render
+pyrender
+# postprocess
+plyfile
+# anthropometry
+shapely
+pyvista

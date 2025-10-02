@@ -3,9 +3,9 @@
         "skirtified": false
     },
     "dims": {
-        "sleeve": 0.44,
-        "upper": 0.8,
-        "lower": 0.88,
+        "sleeve": 0.2,
+        "upper": 0.3,
+        "lower": 0.8,
         "lower_offset": -100000
     },
     "stretches": {
