@@ -1,0 +1,11 @@
+{
+    "poses": [
+        "standard2_pose"
+    ],
+    "shapes": [
+        "subject_shape"
+    ],
+    "genders": [
+        "male"
+    ]
+}

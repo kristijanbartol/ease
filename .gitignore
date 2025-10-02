@@ -11,6 +11,8 @@ __pycache__/
 *.ply
 *.obj
 *.ini
+*.png
+*.pdf
 anisotropic-parameterization/build/
 tailorlang/lib/*.so
 tailorlang/lib/*.pyd

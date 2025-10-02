@@ -15,16 +15,40 @@ def subject_shape():
     return torch.tensor(SUBJECT_BETAS)
 
 def s_s_shape():
+    # NOTE: I updated this to use for the male (!!!)
     shape = torch.zeros((1, 10))
-    shape[:, 1:10] = 1.25
-    shape[0, 0] = -1.25
+    shape[:, 1:10] = 2.5
+    shape[0, 0] = -1.75
+    return shape
+
+def male_s_s_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = 2.0
+    shape[0, 0] = -1.75
     return shape
 
 def l_l_shape():
     shape = torch.zeros((1, 10))
     shape[:, 1:10] = -2.5
+    #shape[:, 1:10] = -1.75
     shape[0, 0] = 1.75
+    #shape[0, 0] = 1.25
     return shape
+
+# special shape parameters for male due to issues
+'''
+def male_l_l_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = -1.5
+    shape[0, 0] = 1.5
+    return shape
+
+def ml_ml_shape():
+    shape = torch.zeros((1, 10))
+    shape[:, 1:10] = -1.25
+    shape[0, 0] = 1.25
+    return shape
+'''
 
 def t_pose():
     pose = torch.zeros((1, 23 * 3))
@@ -53,6 +77,48 @@ def sit_pose():
     pose[0, 3*3:4*3] = torch.tensor([np.pi / 2, 0, 0])  # left knee
     pose[0, 4*3:5*3] = torch.tensor([np.pi / 2, 0, 0])  # right knee
     
+    return pose
+
+def arms_up_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 12*3:13*3] = torch.tensor([0, 0, np.pi / 4])  # left arm
+    pose[0, 13*3:14*3] = torch.tensor([0, 0, -np.pi / 4]) # right arm
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 16])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 16])
+    return pose
+
+def standard5_pose():       # arms up + legs scissors pose
+    pose = arms_up_pose()
+    pose[0, 0*3:1*3] = torch.tensor([np.pi / 6, 0, 0])
+    pose[0, 1*3:2*3] = torch.tensor([-np.pi / 6, 0, 0])
+    return pose
+
+def arms_front_bent():
+    pose = torch.zeros((1, 23 * 3))
+    # Arms front
+    pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
+    pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    # Arms bent
+    pose[0, 17*3:18*3] = torch.tensor([0, 0, np.pi / 2])  # left arm
+    pose[0, 18*3:19*3] = torch.tensor([0, 0, -np.pi / 2]) # right arm
+    return pose
+
+def standard4_pose():       # arms front bent + legs apart
+    pose = arms_front_bent()
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
+    return pose
+
+def arms_front_pose():
+    pose = torch.zeros((1, 23 * 3))
+    pose[0, 15*3:16*3] = torch.tensor([0, -np.pi / 2, 0])  # left arm
+    pose[0, 16*3:17*3] = torch.tensor([0, np.pi / 2, 0]) # right arm
+    return pose
+
+def standard2_pose():       # arms front + legs apart
+    pose = arms_front_pose()
+    pose[0, 0*3:1*3] = torch.tensor([0, 0, np.pi / 8])
+    pose[0, 1*3:2*3] = torch.tensor([0, 0, -np.pi / 8])
     return pose
 
 

@@ -840,7 +840,7 @@ UPPER_ANGLE_OFFSETS_DICT = {
         1.05: 0,
         1.10: np.pi / 70,
         1.15: np.pi / 65,
-        1.20: np.pi / 90,
+        1.20: np.pi / 30,
         1.25: np.pi / 30,
         #1.30: np.pi / 26,
         1.30: np.pi / 45,
@@ -942,7 +942,7 @@ LOWER_ANGLE_OFFSETS_DICT = {
         #1.00: np.pi / 96,
         1.00: np.pi / 80,
         1.05: 0,
-        1.10: 0,
+        1.10: np.pi / 64,
         #1.10: 0,
         1.15: np.pi / 64,
         1.20: np.pi / 48,
@@ -1050,6 +1050,9 @@ def apply_angle_offset(pose_params, pose_label, upper_coef, lower_coef, optim_dr
         # Lower offset
         pose_params[0, 0*3+2] += LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
         pose_params[0, 1*3+2] -= LOWER_ANGLE_OFFSETS_DICT[pose_label][lower_coef]
+
+        pose_params[0, 0*3+1] += np.pi / 40
+        pose_params[0, 1*3+1] -= np.pi / 40
     
     return pose_params
     

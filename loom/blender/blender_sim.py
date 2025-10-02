@@ -225,8 +225,8 @@ else:
 
 shirt_cloth_modifier.collision_settings.use_collision = True
 #shirt_cloth_modifier.collision_settings.distance_min = 0.08        # only for long shirt + loose pants
-shirt_cloth_modifier.collision_settings.distance_min = 0.06        # only for long shirt + loose pants
-#shirt_cloth_modifier.collision_settings.distance_min = 0.025
+#shirt_cloth_modifier.collision_settings.distance_min = 0.04        # only for long shirt + loose pants
+shirt_cloth_modifier.collision_settings.distance_min = 0.025
 
 
 ### Process body mesh ###

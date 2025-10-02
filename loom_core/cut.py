@@ -351,7 +351,7 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
         side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
         side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
         '''
-
+        
         # FOR SUBJECT PROCESSING
         # armpit-bottom
         # TODO: implement this properly
@@ -416,6 +416,7 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
         side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
 
         #return side_keypoints_batch, smpl_traversal_pairs, V, F
+        
     return side_keypoints_batch, smpl_traversal_pairs
 
  
