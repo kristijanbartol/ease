@@ -150,53 +150,6 @@ def tree():
     return defaultdict(tree)
 
 
-def process_config(config):
-    design_params = tree()
-    design_params['upper']['pos']['mid'] = config['mid']
-    design_params['upper']['pos']['neck'] = config['neck']
-    design_params['upper']['pos']['shoulder']= config['shoulder']
-    design_params['upper']['pos']['side'] = config['upper_side']
-
-    design_params['upper']['length']['sleeve'] = config['sleeve']
-    design_params['upper']['length']['bottom'] = config['upper_bottom']
-
-    design_params['lower']['pos']['side'] = config['lower_side']
-    design_params['lower']['pos']['between'] = config['between']
-
-    design_params['lower']['length']['bottom'] = config['lower_bottom']
-
-    design_params['upper_scale'] = config['upper_scale']
-    design_params['lower_scale'] = config['lower_scale']
-
-    '''
-    "stretch_coef": 2.0,
-    "edges_coef": 1.0,
-    "seams_coef": 100.0,
-    "material_stretch_coef": 1.0,
-    "seamline_strategy": "average",
-    "matching_mode": "strict",
-    "num_seam_iters": 1,
-    "max_stretch": 0.05,
-    "dart_coef": 50.0,
-    "equalize_seamline_lengths": false
-    '''
-    hyperparams = defaultdict()
-    hyperparams['stretch_coef'] = 2.0
-    hyperparams['edges_coef'] = 1.0
-    hyperparams['seams_coef'] = 100.0
-    hyperparams['material_stretch_coef'] = 1.0
-    hyperparams['seamline_strategy'] = 'average'
-    hyperparams['matching_mode'] = 'strict'
-    hyperparams['num_seam_iters'] = 1
-    hyperparams['max_stretch'] = 0.05
-    hyperparams['dart_coef'] = 50.0
-    hyperparams['equalize_seamline_lengths'] = False
-
-    # add pose & shape (pre-)selection (not individual parameters)
-
-    return design_params, hyperparams
-
-
 
 def _extract_symm_idx(tree, kpt_pos, kpt_idx):
     if np.abs(kpt_pos[0]) < 0.01:
@@ -804,7 +757,75 @@ def run_optimization():
         raise
 
 
+def process_config(config):
+    design_params = tree()
+    design_params['upper']['pos']['mid'] = config['mid']
+    design_params['upper']['pos']['neck'] = config['neck']
+    design_params['upper']['pos']['shoulder']= config['shoulder']
+    design_params['upper']['pos']['side'] = config['upper_side']
+
+    design_params['upper']['length']['sleeve'] = config['sleeve']
+    design_params['upper']['length']['bottom'] = config['upper_bottom']
+
+    design_params['lower']['pos']['side'] = config['lower_side']
+    design_params['lower']['pos']['between'] = config['between']
+
+    design_params['lower']['length']['bottom'] = config['lower_bottom']
+
+    design_params['upper_scale'] = config['upper_scale']
+    design_params['lower_scale'] = config['lower_scale']
+
+    '''
+    "stretch_coef": 2.0,
+    "edges_coef": 1.0,
+    "seams_coef": 100.0,
+    "material_stretch_coef": 1.0,
+    "seamline_strategy": "average",
+    "matching_mode": "strict",
+    "num_seam_iters": 1,
+    "max_stretch": 0.05,
+    "dart_coef": 50.0,
+    "equalize_seamline_lengths": false
+    '''
+    hyperparams = defaultdict()
+    hyperparams['stretch_coef'] = 2.0
+    hyperparams['edges_coef'] = 1.0
+    hyperparams['seams_coef'] = 100.0
+    hyperparams['material_stretch_coef'] = 1.0
+    hyperparams['seamline_strategy'] = 'average'
+    hyperparams['matching_mode'] = 'strict'
+    hyperparams['num_seam_iters'] = 1
+    hyperparams['max_stretch'] = 0.05
+    hyperparams['dart_coef'] = 50.0
+    hyperparams['equalize_seamline_lengths'] = False
+
+    # add pose & shape (pre-)selection (not individual parameters)
+
+    return design_params, hyperparams
+
+
 if __name__ == '__main__':
+    '''
+    if platform == 'darwin':
+        PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
+        SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
+    else:
+        PROJECT_DIR = '/home/kristijan/LOOM/'
+        SMPL_DIR = '/home/kristijan/data/smpl/models/'
+
+    with open('config/setup/loom.json') as config_f:
+        config = json.load(config_f)
+    experiment_name, design_params, hyperparams, body_set = process_config(config)
+
+    is_dress = design_params['upper']['flag']['is_dress']
+    is_skirt = design_params['lower']['flag']['is_skirt']
+
+    run_design(SMPL_DIR, design_params, body_set, is_dress, is_skirt)
+    run_loom_optimization(hyperparams)
+    evaluate_experiment(PROJECT_DIR, SMPL_DIR, experiment_name, design_params, body_set, is_dress, is_skirt)
+    '''
+
+
     if platform == 'darwin':
         PROJECT_DIR = '/Users/kristijanbartol/LOOM/'
         SMPL_DIR = '/Users/kristijanbartol/data/smpl/models/'
@@ -816,6 +837,8 @@ if __name__ == '__main__':
 
     with open('config/setup/loom_collapsed.json') as config_f:
         config = json.load(config_f)
+
+    #experiment_name, design_params, hyperparams, body_set = process_config(config)
 
     smpl_model, meshes_dict = prepare_body_meshes(gender=GENDER)
     design_params, hyperparams = process_config(config)

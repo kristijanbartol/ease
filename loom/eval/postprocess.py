@@ -40,8 +40,12 @@ def postprocess(experiment_name, optim_dress=False):
         
         # Add to the UV coords list
         if 'lower' in patch_label:
+            if 'back' in patch_label:
+                param_2d_mesh.vertices[:, 1] *= -1            # NOTE: DO NOT KEEP THESE !!!!
             param_2d_mesh_list_dict['lower'].append(param_2d_mesh)
         else:
+            if 'back' in patch_label:
+                param_2d_mesh.vertices[:, 1] *= -1            # NOTE: DO NOT KEEP THESE !!!!
             param_2d_mesh_list_dict['upper'].append(param_2d_mesh)
         
         # Add to the embedded mesh list
@@ -57,11 +61,22 @@ def postprocess(experiment_name, optim_dress=False):
             garment_part='upper'
         )
     }
+    param_mesh_dict['upper'].subdivide()
+    param_mesh_dict['upper'].export('data/embedded/upper.ply')
+
+    trimesh.util.concatenate(embedded_mesh_list_dict['upper']).export('data/embedded/upper_3d.ply')
+    trimesh.util.concatenate(param_2d_mesh_list_dict['upper']).export('data/embedded/upper_2d.ply')
+
     if not optim_dress:
         param_mesh_dict['lower'] = ParamMeshUV(
             mesh_3d_list=embedded_mesh_list_dict['lower'],
             mesh_2d_list=param_2d_mesh_list_dict['lower'],
             garment_part='lower'
         )
+        param_mesh_dict['lower'].subdivide()
+        param_mesh_dict['lower'].export('data/embedded/lower.ply')
+
+        trimesh.util.concatenate(embedded_mesh_list_dict['lower']).export('data/embedded/lower_3d.ply')
+        trimesh.util.concatenate(param_2d_mesh_list_dict['lower']).export('data/embedded/lower_2d.ply')
         
     return param_mesh_dict

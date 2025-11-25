@@ -7,16 +7,35 @@ from pathlib import Path
 import json
 from pipeline import run_pipeline_once
 
-ROOT = Path(__file__).parent.resolve()
-STATIC_DIR = ROOT / "static"
+from paths import resource_base, user_data_root, ensure_seed_files
+ensure_seed_files()
+
+ROOT = resource_base()                 # read-only bundled assets
+STATIC_DIR = ROOT / "static"           # served from bundle
+RUNTIME = user_data_root()             # writable
+
+# The config the pipeline should read/write at runtime:
+CONFIG_PATH = RUNTIME / "config" / "setup" / "loom.json"
+
+# Where you look for patches at runtime:
+GARMENTS_DIR_UPPER = RUNTIME / "data" / "patches" / "upper"
+GARMENTS_DIR_LOWER = RUNTIME / "data" / "patches" / "lower"
+
+# Body mesh location (runtime or bundled—your call):
+BODY_MESH_PATH = RUNTIME / "outputs" / "latest" / "body.ply"
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+'''
+ROOT = Path(__file__).parent.resolve()
+STATIC_DIR = ROOT / "static"
 
 BODY_MESH_PATH = Path("data/meshes/body.ply")
 GARMENTS_DIR_UPPER = Path("data/patches/upper")
 GARMENTS_DIR_LOWER = Path("data/patches/lower")
 CONFIG_PATH = Path("config/setup/loom_collapsed.json")
+'''
 
 RANGES = {
     "mid": (0.0, 1.0),

@@ -327,7 +327,7 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
         side_keypoints_batch.append([bottom_mid_back_idx, core_idxs_dict['bottom_side']])
 
     else:
-        '''
+        
         # side-bottom
         side_keypoints_batch.append([core_idxs_dict['side'], core_idxs_dict['bottom_side']])
 
@@ -350,8 +350,9 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
         back_idx = _extract_side_idx(mesh, kpt_idx1, kpt_idx2, -0.14)
         side_keypoints_batch.append([kpt_idx1, front_idx, kpt_idx2])
         side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
-        '''
         
+        
+        '''
         # FOR SUBJECT PROCESSING
         # armpit-bottom
         # TODO: implement this properly
@@ -416,6 +417,7 @@ def _core_to_side_keypoints_lower(mesh, core_idxs_dict, is_skirtified):
         side_keypoints_batch.append([kpt_idx1, back_idx,  kpt_idx2])
 
         #return side_keypoints_batch, smpl_traversal_pairs, V, F
+        '''
         
     return side_keypoints_batch, smpl_traversal_pairs
 
@@ -613,7 +615,7 @@ def extract_seamlines(patches, boundary_indices_array, v_to_patch_idxs_dict, val
         # After collecting all the seamlines, there are tips of seamlines, connected via either one or two vertices.
         # Although these are logically valid connections, they are not useful for the energy minimization.
         for patch_pair in list(seamlines_dict.keys()):
-            if len(seamlines_dict[patch_pair]) <= 1:
+            if len(seamlines_dict[patch_pair]) <= 3:
                 del(seamlines_dict[patch_pair])
 
         # Finally, add only the seamlines (not other boundaries).

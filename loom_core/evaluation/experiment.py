@@ -44,14 +44,34 @@ def load_uv_mesh_dict(experiment_name, optim_dress=False):
 
             add_uv_coordinates(embedded_mesh_plydata, uv_coords, patch_path)
 
+            # temporary
+            #if patch_name == 'patch_02' or patch_name == 'patch_05':
+
+            if garment_part == 'lower':
+                if patch_name == 'patch_01' or patch_name == 'patch_03':
+                    param_2d_mesh.vertices[:, 1] *= -1
+            else:
+                if patch_name == 'patch_03' or patch_name == 'patch_08':
+                    param_2d_mesh.vertices[:, 1] *= -1
+
+
+
             param_2d_mesh_list_dict[garment_part].append(param_2d_mesh)
             embedded_mesh_list_dict[garment_part].append(embedded_mesh)
+
+
+            embedded_mesh.export(f'data/embedded/{garment_part}-{patch_name}_3d.ply')
+            param_2d_mesh.export(f'data/embedded/{garment_part}-{patch_name}_2d.ply')
 
         param_mesh_dict[garment_part] = ParamMeshUV(
             mesh_3d_list=embedded_mesh_list_dict[garment_part],
             mesh_2d_list=param_2d_mesh_list_dict[garment_part],
             garment_part=garment_part
         )
+
+        param_mesh_dict[garment_part].mesh_3d_with_duplicates.export(f'data/embedded/{garment_part}_3d.ply')
+        param_mesh_dict[garment_part].mesh_2d_with_duplicates.export(f'data/embedded/{garment_part}_2d.ply')
+
     return param_mesh_dict
 
 

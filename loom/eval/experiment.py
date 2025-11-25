@@ -6,7 +6,7 @@ from loom.eval.postprocess import postprocess
 from loom.sim.default_simulator import simulate_garment_set
 
 
-def evaluate_experiment(config, design_params, body_set):
+def loom_evaluate_experiment(config, design_params, body_set):
     experiment_name = construct_experiment_name(config)
     param_mesh_dict = postprocess(experiment_name, config.optim_dress)
     qualitative_evaluation(experiment_name)

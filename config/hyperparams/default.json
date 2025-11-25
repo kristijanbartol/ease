@@ -5,7 +5,7 @@
     "material_stretch_coef": 1.0,
     "seamline_strategy": "average",
     "matching_mode": "strict",
-    "num_seam_iters": 50,
+    "num_seam_iters": 1,
     "num_inner_iters": 1,
     "max_stretch": 0.05,
     "dart_coef": 50.0,

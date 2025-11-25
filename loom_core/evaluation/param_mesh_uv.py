@@ -76,15 +76,15 @@ class ParamMeshUV():
         self.mesh_3d_subdivided = None
         self.mesh_3d_with_duplicates_subdivided = None
         
-    @staticmethod
-    def _process_pattern(mesh_2d_list, garment_part):
+    def _process_pattern(self, mesh_2d_list, garment_part):
         for mesh_idx in range(len(mesh_2d_list)):
             if garment_part == 'lower':
                 mesh_2d_list[mesh_idx].vertices[:, 0] += mesh_idx * 1.0
             else:
                 mesh_2d_list[mesh_idx].vertices[:, 1] += 1.0
                 mesh_2d_list[mesh_idx].vertices[:, 0] += mesh_idx * 1.0
-        return trimesh.util.concatenate(mesh_2d_list).subdivide()
+        self.mesh_2d_with_duplicates = trimesh.util.concatenate(mesh_2d_list)
+        return self.mesh_2d_with_duplicates.subdivide()
     
     def update_duplicate_mesh(self):
         for duplicate_idx, non_duplicate_idx in self.duplicate_pairs_dict.items():

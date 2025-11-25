@@ -127,6 +127,9 @@ def simulate_garment_set(
         body_output=os.path.join(sim_dir, 'base_body.ply'),
         shirt_output=os.path.join(sim_dir, 'base_upper.ply'),
         pant_output='' if optim_dress else os.path.join(sim_dir, 'base_lower.ply'),
+        is_dress=optim_dress,
+        is_skirt=False,     # NOTE: these two flags not used in original LOOM
+        is_shoulderless=False,
         scripts_dir=f'{config.project_dir}/loom/blender/'
     )   # output_path: results/sim/<base_experiment>/base.ply
     
@@ -147,6 +150,9 @@ def simulate_garment_set(
             body_output=os.path.join(sim_dir, 'refit_body.ply'),
             shirt_output=os.path.join(sim_dir, 'refit_upper.ply'),
             pant_output=None if optim_dress else os.path.join(sim_dir, 'refit_lower.ply'),
-            blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
+            #blender_path='/Applications/Blender.app/Contents/MacOS/Blender',
+            is_dress=optim_dress,
+            is_skirt=False,     # NOTE: these two flags not used in original LOOM
+            is_shoulderless=False,
             scripts_dir=f'{config.project_dir}/tailorlang/blender/'
         )   # output_path: results/sim/<base_experiment>/refit.ply

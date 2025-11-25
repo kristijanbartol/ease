@@ -1067,9 +1067,14 @@ class MeshState:
                 print(f'Exporting {embedded_subdir}/target-{body_idx:02d}.(ply/obj)...')
         
     def optimize(self):
-        pattern_dir = 'results/pattern/'
+        pattern_dir_latest = 'results/pattern/latest/'
+
+        # To ensure it works for both LOOM / LOOM-core, need to regenerate the latest experiment folder
+        shutil.rmtree(pattern_dir_latest)
+        os.makedirs(pattern_dir_latest)
+
         for patch_label in PATCH_LIST[self.garment_type]:
-            os.makedirs(os.path.join(pattern_dir, 'latest', patch_label), exist_ok=True)
+            os.makedirs(os.path.join(pattern_dir_latest, patch_label), exist_ok=True)
             
         run_parameterization(
             config=self.config
